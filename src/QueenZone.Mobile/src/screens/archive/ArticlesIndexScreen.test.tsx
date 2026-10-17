@@ -16,16 +16,16 @@ jest.mock('../../api', () => {
 const fetchPage = fetchArticlesPage as jest.MockedFunction<typeof fetchArticlesPage>;
 const fetchNews = fetchNewsPage as jest.MockedFunction<typeof fetchNewsPage>;
 
-function renderArticles(navigation = fakeNavigation()) {
+async function renderArticles(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <ArticlesIndexScreen
         navigation={navigation as never}
         route={{ key: 'articles', name: 'Articles' } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -41,7 +41,7 @@ describe('ArticlesIndexScreen', () => {
   });
 
   it('requests the archive page size and lists articles', async () => {
-    renderArticles();
+    await renderArticles();
 
     await waitFor(() =>
       expect(screen.getByText('Inside the Making of Bohemian Rhapsody')).toBeOnTheScreen(),
@@ -56,7 +56,7 @@ describe('ArticlesIndexScreen', () => {
   });
 
   it('opens Story with the real article id', async () => {
-    const { navigation } = renderArticles();
+    const { navigation } = await renderArticles();
     await waitFor(() =>
       expect(
         screen.getByRole('button', { name: 'Open article Inside the Making of Bohemian Rhapsody' }),
@@ -74,7 +74,7 @@ describe('ArticlesIndexScreen', () => {
 
   it('titles the archive articles index Articles and shows the empty list', async () => {
     fetchPage.mockResolvedValue(pagedResponse([], 1, 0));
-    renderArticles();
+    await renderArticles();
 
     await waitFor(() => expect(screen.getByText('No articles yet.')).toBeOnTheScreen());
     expect(screen.getByText('Articles')).toBeOnTheScreen();

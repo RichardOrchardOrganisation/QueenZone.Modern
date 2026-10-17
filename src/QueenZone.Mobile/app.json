@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "org.queenzone.mobile"
+      "bundleIdentifier": "org.queenzone.mobile",
+      "deploymentTarget": "16.4"
     },
     "android": {
       "package": "org.queenzone.mobile",

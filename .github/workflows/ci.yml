@@ -85,7 +85,7 @@ jobs:
         run: node src/QueenZone.Mobile/scripts/check-npm-advisories.mjs --self-test
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -129,7 +129,7 @@ jobs:
 
       - name: Upload mobile coverage (machine-readable)
         if: always() && steps.mobile-coverage-collect.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-coverage-${{ github.run_id }}
           path: |
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload mobile coverage HTML
         if: always() && steps.mobile-coverage-collect.outcome == 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-coverage-html-${{ github.run_id }}
           path: src/QueenZone.Mobile/coverage/merged/html
@@ -175,7 +175,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -199,7 +199,7 @@ jobs:
       - name: Setup Gradle caching and diagnostics
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Publish workflows set SENTRY_ORG/PROJECT/AUTH_TOKEN and upload for real.
       - name: Assemble debug APK
         working-directory: src/QueenZone.Mobile/android
@@ -208,7 +208,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload APK
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-android-${{ github.run_id }}
           path: src/QueenZone.Mobile/android/app/build/outputs/apk/debug/app-debug.apk
@@ -321,9 +321,22 @@ jobs:
             sudo xcode-select -s "$EXPECTED"
           fi
           xcodebuild -version
+          xcode_ver="$(xcodebuild -version | awk '/^Xcode / { print $2 }')"
+          if [ -z "$xcode_ver" ]; then
+            echo "::error::Could not read Xcode version (Sentry 8 requires 16.4+)."
+            exit 1
+          fi
+          xcode_major="${xcode_ver%%.*}"
+          xcode_rest="${xcode_ver#*.}"
+          xcode_minor="${xcode_rest%%.*}"
+          if [ "$xcode_major" -lt 16 ] || { [ "$xcode_major" -eq 16 ] && [ "${xcode_minor:-0}" -lt 4 ]; }; then
+            echo "::error::Xcode ${xcode_ver} is below 16.4 required by Sentry 8 (#1782)."
+            exit 1
+          fi
+          echo "Xcode ${xcode_ver} meets the Sentry 8 floor 16.4."
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -347,15 +360,83 @@ jobs:
       - name: Cache CocoaPods
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/Library/Caches/CocoaPods
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
           key: cocoapods-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
             cocoapods-${{ runner.os }}-
 
       - name: Prebuild iOS project
+        env:
+          # Sentry 8 default: download sentry-cocoa as a prebuilt xcframework
+          # from GitHub during pod install. Do not set this to 0 (#1782).
+          SENTRY_USE_XCFRAMEWORK: "1"
         run: npx expo prebuild --platform ios --clean
 
-      # Unsigned CI builds must not call sentry-cli upload (no org/token here).
+      - name: Confirm iOS deployment target is 15.1 or higher
+        run: |
+          set -euo pipefail
+          # Expo 57 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
+          # rather than a literal version. Sentry 8 allows 15.0+; the lock is 15.1+.
+          # Expo 57's Expo.podspec (`:ios => '16.4'`) is a hard floor: pod install
+          # rejects a 15.1 app platform. The app pin is therefore 16.4.
+          echo "Podfile platform line:"
+          grep -n "platform :ios" ios/Podfile || true
+          node <<'NODE'
+          const fs = require('fs');
+          const { execSync } = require('child_process');
+
+          function parse(version) {
+            const parts = String(version).split('.').map((part) => Number(part));
+            return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+          }
+          function belowFloor(version) {
+            const [major, minor, patch] = parse(version);
+            return [major, minor, patch] < [15, 1, 0];
+          }
+
+          let propsTarget = '';
+          if (fs.existsSync('ios/Podfile.properties.json')) {
+            const props = JSON.parse(fs.readFileSync('ios/Podfile.properties.json', 'utf8'));
+            propsTarget = props['ios.deploymentTarget'] || '';
+            console.log(`Podfile.properties.json ios.deploymentTarget=${propsTarget || 'unset'}`);
+          }
+
+          const pbxFiles = execSync(
+            "find ios -name project.pbxproj -not -path '*/Pods/*' -print",
+            { encoding: 'utf8' },
+          )
+            .trim()
+            .split('\n')
+            .filter(Boolean);
+          const pbxTargets = new Set();
+          for (const file of pbxFiles) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const match of text.matchAll(/IPHONEOS_DEPLOYMENT_TARGET = ([0-9.]+)/g)) {
+              pbxTargets.add(match[1]);
+            }
+          }
+          console.log(
+            `pbxproj IPHONEOS_DEPLOYMENT_TARGET=${[...pbxTargets].join(',') || 'unset'}`,
+          );
+
+          const found = [...(propsTarget ? [propsTarget] : []), ...pbxTargets];
+          if (found.length === 0) {
+            console.error('::error::Could not resolve an iOS deployment target after prebuild.');
+            process.exit(1);
+          }
+          const tooLow = found.filter(belowFloor);
+          if (tooLow.length > 0) {
+            console.error(
+              `::error::iOS deployment target ${tooLow.join(', ')} is below 15.1 (Sentry 8 / #1782).`,
+            );
+            process.exit(1);
+          }
+          console.log('iOS deployment target meets the Sentry 8 floor 15.1.');
+          NODE
+
+      # Unsigned CI builds must not call sentry-cli 3 upload (no org/token here).
       # Without this, Bundle RN / Upload Debug Symbols fails with
       # "An organization ID or slug is required" once the Sentry Expo plugin
       # is registered (#855 / #857). Publish workflows set credentials and upload.
@@ -390,7 +471,7 @@ jobs:
           zip -r -y "$GITHUB_WORKSPACE/mobile-ios-simulator.zip" "$APP"
 
       - name: Upload iOS Simulator build
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-ios-${{ github.run_id }}
           path: mobile-ios-simulator.zip
@@ -459,7 +540,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -558,7 +639,7 @@ jobs:
       # shard without symbols reports a few percent global coverage.
       # Keep *.xml: NewsAgent tests copy fixture XML into bin/Release.
       - name: Upload build binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-binaries-${{ github.run_id }}
           path: |
@@ -573,7 +654,7 @@ jobs:
         run: dotnet publish src/QueenZone.Web/QueenZone.Web.csproj --configuration Release --no-build --output publish
 
       - name: Upload publish artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-publish-${{ github.run_id }}
           path: publish
@@ -666,7 +747,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Download build binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-binaries-${{ github.run_id }}
           path: .
@@ -690,7 +771,7 @@ jobs:
             -NoRestore
 
       - name: Upload coverage results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-raw-${{ github.run_id }}-shard-${{ matrix.shard }}
           path: TestResults
@@ -722,7 +803,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Download build binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: build-binaries-${{ github.run_id }}
           path: .
@@ -741,7 +822,7 @@ jobs:
             -NoRestore
 
       - name: Upload coverage results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-raw-${{ github.run_id }}-shard-small
           path: TestResults
@@ -817,7 +898,7 @@ jobs:
             --results-directory ./TestResults
 
       - name: Upload coverage results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-raw-${{ github.run_id }}-shard-sqlserver
           path: TestResults
@@ -835,7 +916,7 @@ jobs:
           fetch-depth: 0
 
       - name: Download coverage results
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: coverage-raw-${{ github.run_id }}-shard-*
           path: TestResults
@@ -889,7 +970,7 @@ jobs:
             -Output ./web-test-class-durations.json
 
       - name: Upload observed Web.Tests duration map
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-test-class-durations-${{ github.run_id }}
           path: web-test-class-durations.json
@@ -897,7 +978,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report-${{ github.run_id }}
           path: coverage-report
@@ -1009,7 +1090,7 @@ jobs:
 
     steps:
       - name: Download publish artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: web-publish-${{ github.run_id }}
           path: smoke-app
@@ -1049,7 +1130,7 @@ jobs:
 
       - name: Upload app log on failure
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: smoke-app-log-${{ github.run_id }}
           path: smoke-app.log
@@ -1140,7 +1221,7 @@ jobs:
         run: python3 scripts/ui_proof_bundle.py web
 
       - name: Upload passing web proof
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-proof-web-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/ui-proof/web/
@@ -1149,7 +1230,7 @@ jobs:
 
       - name: Upload Playwright failure artifacts
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-playwright-${{ github.run_id }}
           path: |

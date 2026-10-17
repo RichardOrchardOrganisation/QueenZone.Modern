@@ -1,3 +1,4 @@
+import { getHostByType } from '../../test/renderer';
 import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { Keyboard, ScrollView } from 'react-native';
 import { fallbackAuthProviders } from '../../api/auth';
@@ -28,9 +29,9 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function renderSignIn(returnTo?: { tab: 'ForumTab'; screen: 'Composer'; params: { threadId: number } }) {
+async function renderSignIn(returnTo?: { tab: 'ForumTab'; screen: 'Composer'; params: { threadId: number } }) {
   const navigation = fakeNavigation();
-  renderWithProviders(
+  await renderWithProviders(
     <SignInScreen
       navigation={navigation as never}
       route={{ key: 'signin', name: 'SignIn', params: returnTo ? { returnTo } : undefined } as never}
@@ -44,14 +45,14 @@ describe('SignInScreen', () => {
   it('lists providers and surfaces a sign-in failure', async () => {
     const user = userEvent.setup();
     mockSession.signIn.mockRejectedValue(new Error('Sign-in was cancelled.'));
-    renderSignIn();
+    await renderSignIn();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeOnTheScreen());
     await user.press(screen.getByRole('button', { name: 'Continue with Google' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Sign-in was cancelled.'));
   });
 
   it('uses the Apple-approved visual treatment for the Apple provider', async () => {
-    renderSignIn();
+    await renderSignIn();
     await waitFor(() => expect(screen.getByTestId('apple-sign-in-button')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Continue with Apple' })).toBeOnTheScreen();
   });
@@ -59,7 +60,7 @@ describe('SignInScreen', () => {
   it('leaves for the prompting screen after a successful provider hop', async () => {
     const user = userEvent.setup();
     mockSession.signIn.mockResolvedValue(undefined);
-    const navigation = renderSignIn({ tab: 'ForumTab', screen: 'Composer', params: { threadId: 9 } });
+    const navigation = await renderSignIn({ tab: 'ForumTab', screen: 'Composer', params: { threadId: 9 } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeOnTheScreen());
     await user.press(screen.getByRole('button', { name: 'Continue with Google' }));
     await waitFor(() =>
@@ -73,7 +74,7 @@ describe('SignInScreen', () => {
   it('expands other ways and completes password sign-in on the same session path', async () => {
     const user = userEvent.setup();
     mockSession.signInWithPassword.mockResolvedValue(undefined);
-    const navigation = renderSignIn({ tab: 'ForumTab', screen: 'Composer', params: { threadId: 9 } });
+    const navigation = await renderSignIn({ tab: 'ForumTab', screen: 'Composer', params: { threadId: 9 } });
     await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.signInEmail)).toBeNull();
 
@@ -100,7 +101,7 @@ describe('SignInScreen', () => {
   it('surfaces a password sign-in failure without leaving', async () => {
     const user = userEvent.setup();
     mockSession.signInWithPassword.mockRejectedValue(new Error('Incorrect email or password.'));
-    const navigation = renderSignIn();
+    const navigation = await renderSignIn();
     await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
     await user.press(screen.getByTestId(testIds.signInOtherWays));
     await user.type(screen.getByLabelText('Email'), 'reviewer@example.com');
@@ -113,19 +114,19 @@ describe('SignInScreen', () => {
   it('submits the reviewer credentials from the password keyboard', async () => {
     const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
     mockSession.signInWithPassword.mockResolvedValue(undefined);
-    renderSignIn();
+    await renderSignIn();
     await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
-    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+    await fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
 
     const email = screen.getByTestId(testIds.signInEmail);
     const password = screen.getByTestId(testIds.signInPassword);
     expect(email.props.returnKeyType).toBe('next');
     expect(password.props.returnKeyType).toBe('go');
 
-    fireEvent.changeText(email, 'reviewer@example.com');
-    fireEvent(email, 'submitEditing');
-    fireEvent.changeText(password, 'correct horse battery staple');
-    fireEvent(password, 'submitEditing');
+    await fireEvent.changeText(email, 'reviewer@example.com');
+    await fireEvent(email, 'submitEditing');
+    await fireEvent.changeText(password, 'correct horse battery staple');
+    await fireEvent(password, 'submitEditing');
 
     await waitFor(() =>
       expect(mockSession.signInWithPassword).toHaveBeenCalledWith(
@@ -139,15 +140,15 @@ describe('SignInScreen', () => {
   it('scrolls the password fields into view when the form and keyboard open', async () => {
     const scrollToEnd = jest.spyOn(ScrollView.prototype, 'scrollToEnd').mockImplementation(() => {});
     const addKeyboardListener = jest.spyOn(Keyboard, 'addListener');
-    renderSignIn();
+    await renderSignIn();
     await waitFor(() => expect(screen.getByTestId(testIds.signInOtherWays)).toBeOnTheScreen());
-    fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
+    await fireEvent.press(screen.getByTestId(testIds.signInOtherWays));
 
-    fireEvent(screen.UNSAFE_getByType(ScrollView), 'contentSizeChange', 400, 900);
+    await fireEvent(getHostByType('RCTScrollView'), 'contentSizeChange', 400, 900);
     expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
 
     scrollToEnd.mockClear();
-    fireEvent(screen.getByTestId(testIds.signInEmail), 'focus');
+    await fireEvent(screen.getByTestId(testIds.signInEmail), 'focus');
     expect(scrollToEnd).toHaveBeenCalledWith({ animated: true });
 
     scrollToEnd.mockClear();
@@ -157,7 +158,7 @@ describe('SignInScreen', () => {
   });
 
   it('describes OAuth secrets separately from the password fallback', async () => {
-    renderSignIn();
+    await renderSignIn();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeOnTheScreen());
     expect(screen.getByText(/OAuth never sends a provider secret/)).toBeOnTheScreen();
     expect(screen.getByText(/operator-created accounts/)).toBeOnTheScreen();

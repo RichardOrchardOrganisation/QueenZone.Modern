@@ -90,7 +90,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -279,7 +279,7 @@ jobs:
           always()
           && steps.android-smoke.outcome == 'failure'
           && steps.android-smoke-retry.outcome != 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-android-smoke-${{ github.run_id }}
           path: |
@@ -295,7 +295,7 @@ jobs:
 
       - name: Upload validated Android evidence
         if: success() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-proof-android-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/ui-proof/android/
@@ -304,7 +304,7 @@ jobs:
 
       - name: Upload Android proof
         if: always() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: proof-${{ github.event.inputs.feature }}-android-${{ github.run_id }}
           path: |
@@ -382,7 +382,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -413,6 +413,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:5098
           EXPO_PUBLIC_SMOKE_EMBED: "1"
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          SENTRY_USE_XCFRAMEWORK: "1"
           QUEENZONE_MOBILE_SMOKE_EMBED: "1"
           FORCE_BUNDLING: "1"
         run: |
@@ -490,7 +491,7 @@ jobs:
 
       - name: Upload validated iOS evidence
         if: success() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-proof-ios-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/ui-proof/ios/
@@ -499,7 +500,7 @@ jobs:
 
       - name: Upload iOS proof
         if: always() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: proof-${{ github.event.inputs.feature }}-ios-${{ github.run_id }}
           path: |
@@ -510,7 +511,7 @@ jobs:
 
       - name: Upload iOS smoke diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-ios-smoke-${{ github.run_id }}
           path: |
@@ -544,7 +545,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -730,7 +731,7 @@ jobs:
           always()
           && steps.android-journeys.outcome == 'failure'
           && steps.android-journeys-retry.outcome != 'success'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-android-journeys-${{ github.run_id }}
           path: |
@@ -746,7 +747,7 @@ jobs:
 
       - name: Upload validated hosted Android evidence
         if: success() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ui-proof-android-hosted-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/ui-proof/android/
@@ -755,7 +756,7 @@ jobs:
 
       - name: Upload hosted Android proof
         if: always() && github.event.inputs.suite == 'proof'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: proof-${{ github.event.inputs.feature }}-android-hosted-${{ github.run_id }}
           path: |
@@ -819,7 +820,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -899,7 +900,7 @@ jobs:
 
       - name: Upload Android release diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-android-release-${{ github.run_id }}
           path: |
@@ -948,7 +949,7 @@ jobs:
             .config/dotnet-tools.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
           cache: npm
@@ -979,6 +980,7 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: http://127.0.0.1:5098
           EXPO_PUBLIC_SMOKE_EMBED: "1"
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
+          SENTRY_USE_XCFRAMEWORK: "1"
           QUEENZONE_MOBILE_SMOKE_EMBED: "1"
           FORCE_BUNDLING: "1"
         run: |
@@ -1044,7 +1046,7 @@ jobs:
 
       - name: Upload iOS journeys diagnostics
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-ios-journeys-${{ github.run_id }}
           path: |

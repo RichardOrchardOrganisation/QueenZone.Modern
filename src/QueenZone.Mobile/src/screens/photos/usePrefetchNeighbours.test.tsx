@@ -14,42 +14,42 @@ describe('usePrefetchNeighbours', () => {
     prefetch.mockResolvedValue(true);
   });
 
-  it('does not prefetch before load or on a stale uri', () => {
-    const { result } = renderHook(() => usePrefetchNeighbours(currentUri, [previousUri, nextUri]));
+  it('does not prefetch before load or on a stale uri', async () => {
+    const { result } = await renderHook(() => usePrefetchNeighbours(currentUri, [previousUri, nextUri]));
     expect(prefetch).not.toHaveBeenCalled();
-    act(() => {
+    await act(() => {
       result.current('https://cdn.queenzone.org/brian-may/img-099.jpg');
     });
     expect(prefetch).not.toHaveBeenCalled();
   });
 
   it('prefetches both neighbour URIs with memory-disk after the current load', async () => {
-    const { result } = renderHook(() => usePrefetchNeighbours(currentUri, [previousUri, nextUri]));
-    act(() => {
+    const { result } = await renderHook(() => usePrefetchNeighbours(currentUri, [previousUri, nextUri]));
+    await act(() => {
       result.current(currentUri);
     });
     expect(prefetch).toHaveBeenCalledTimes(1);
     expect(prefetch).toHaveBeenCalledWith([previousUri, nextUri], 'memory-disk');
-    act(() => {
+    await act(() => {
       result.current(currentUri);
     });
     expect(prefetch).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(prefetch).toHaveBeenCalledTimes(1));
   });
 
-  it('skips a null neighbour and a missing image URL', () => {
-    const { result } = renderHook(() =>
+  it('skips a null neighbour and a missing image URL', async () => {
+    const { result } = await renderHook(() =>
       usePrefetchNeighbours(currentUri, [previousUri, null, undefined, '']),
     );
-    act(() => {
+    await act(() => {
       result.current(currentUri);
     });
     expect(prefetch).toHaveBeenCalledWith([previousUri], 'memory-disk');
   });
 
-  it('does not prefetch when no neighbour URIs exist', () => {
-    const { result } = renderHook(() => usePrefetchNeighbours(currentUri, [null, undefined]));
-    act(() => {
+  it('does not prefetch when no neighbour URIs exist', async () => {
+    const { result } = await renderHook(() => usePrefetchNeighbours(currentUri, [null, undefined]));
+    await act(() => {
       result.current(currentUri);
     });
     expect(prefetch).not.toHaveBeenCalled();
@@ -57,8 +57,8 @@ describe('usePrefetchNeighbours', () => {
 
   it('swallows a rejected prefetch', async () => {
     prefetch.mockRejectedValueOnce(new Error('offline'));
-    const { result } = renderHook(() => usePrefetchNeighbours(currentUri, [nextUri]));
-    act(() => {
+    const { result } = await renderHook(() => usePrefetchNeighbours(currentUri, [nextUri]));
+    await act(() => {
       result.current(currentUri);
     });
     await waitFor(() => expect(prefetch).toHaveBeenCalledTimes(1));

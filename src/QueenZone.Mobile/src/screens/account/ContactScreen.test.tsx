@@ -1,5 +1,6 @@
+import { componentProps, getHostByType } from '../../test/renderer';
 import { screen, userEvent, waitFor, within } from '@testing-library/react-native';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 import { contactApiUrl } from '../../api/contact';
 import { jsonResponse } from '../../test/fixtures';
 import { renderWithProviders, testHeaderHeight } from '../../test/render';
@@ -34,8 +35,8 @@ const contactForm = {
   },
 };
 
-function renderContact() {
-  return renderWithProviders(<ContactScreen />);
+async function renderContact() {
+  return await renderWithProviders(<ContactScreen />);
 }
 
 describe('ContactScreen', () => {
@@ -46,7 +47,7 @@ describe('ContactScreen', () => {
   });
 
   it('loads the public contact form', async () => {
-    renderContact();
+    await renderContact();
     await waitFor(() => expect(screen.getByLabelText('Subject')).toBeOnTheScreen());
     expect(screen.getByText('Send a private message to the Queenzone admin.')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Technical problem' })).toBeOnTheScreen();
@@ -55,12 +56,12 @@ describe('ContactScreen', () => {
   });
 
   it('keeps the send action outside the scrolling fields and offsets the keyboard by the header', async () => {
-    renderContact();
+    await renderContact();
     await waitFor(() => expect(screen.getByLabelText('Your message')).toBeOnTheScreen());
 
-    const avoiding = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    const avoiding = componentProps(KeyboardAvoidingView);
     expect(avoiding.props.keyboardVerticalOffset).toBe(Platform.OS === 'ios' ? testHeaderHeight : 0);
-    expect(within(screen.UNSAFE_getByType(ScrollView)).queryByRole('button', { name: 'Send message' })).toBeNull();
+    expect(within(getHostByType('RCTScrollView')).queryByRole('button', { name: 'Send message' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Send message' })).toBeOnTheScreen();
   });
 
@@ -74,7 +75,7 @@ describe('ContactScreen', () => {
           confirmationMessage: 'We have your message.',
         }),
       );
-    renderContact();
+    await renderContact();
     await waitFor(() => expect(screen.getByLabelText('Subject')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -112,7 +113,7 @@ describe('ContactScreen', () => {
     fetchMock.mockRejectedValueOnce(new Error('Could not load the contact form.')).mockResolvedValueOnce(
       jsonResponse(contactForm),
     );
-    renderContact();
+    await renderContact();
     await waitFor(() => expect(screen.getByText('Could not load the contact form.')).toBeOnTheScreen());
 
     const user = userEvent.setup();

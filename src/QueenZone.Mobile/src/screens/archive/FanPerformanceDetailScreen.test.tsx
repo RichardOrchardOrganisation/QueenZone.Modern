@@ -51,8 +51,8 @@ const fetchDetail = fetchFanPerformanceDetail as jest.MockedFunction<typeof fetc
 const fetchPage = fetchFanPerformancesPage as jest.MockedFunction<typeof fetchFanPerformancesPage>;
 const track = fanPerformanceFixture();
 
-function renderDetail() {
-  return renderWithProviders(
+async function renderDetail() {
+  return await renderWithProviders(
     <FanPerformanceDetailScreen
       navigation={fakeNavigation() as never}
       route={{ key: 'detail', name: 'FanPerformanceDetail', params: { id: track.id } } as never}
@@ -73,14 +73,14 @@ describe('FanPerformanceDetailScreen', () => {
 
   it('does not ask for sign-in while a previous session is still restoring', async () => {
     mockSession.isRestoring = true;
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByText(track.title)).toBeOnTheScreen());
     expect(screen.getByTestId('fan-performance-session-restoring')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
   });
 
   it('shows the sign-in prompt when restore finished without a member', async () => {
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByText(track.title)).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
@@ -88,7 +88,7 @@ describe('FanPerformanceDetailScreen', () => {
   it('shows playback controls when a member token is present', async () => {
     mockSession.accessToken = 'member-token';
     mockSession.isSignedIn = true;
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByLabelText('Play')).toBeOnTheScreen());
     expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull();
     expect(screen.getByTestId(`${testIds.fanPerformanceDownloadPrefix}${track.id}`)).toBeOnTheScreen();
@@ -104,7 +104,7 @@ describe('FanPerformanceDetailScreen', () => {
       }),
     );
     (reportFanPerformance as jest.Mock).mockResolvedValue({ reportId: 'rep-1', alreadyReported: false });
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByText('Submitted by Stage Fan')).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.fanPerformanceReport)).toBeOnTheScreen();
 
@@ -121,7 +121,7 @@ describe('FanPerformanceDetailScreen', () => {
     mockSession.accessToken = 'member-token';
     mockSession.isSignedIn = true;
     (reportFanPerformance as jest.Mock).mockResolvedValue({ reportId: 'rep-2', alreadyReported: true });
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformanceReport)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -140,7 +140,7 @@ describe('FanPerformanceDetailScreen', () => {
     mockSession.accessToken = 'member-token';
     mockSession.isSignedIn = true;
     (reportFanPerformance as jest.Mock).mockRejectedValue(ApiError.http(429, 'Too many reports.'));
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformanceReport)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -153,7 +153,7 @@ describe('FanPerformanceDetailScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.isRestoring = false;
     mockSession.accessToken = 'expired-access';
-    renderDetail();
+    await renderDetail();
     await waitFor(() => expect(screen.getByLabelText('Play')).toBeOnTheScreen());
     expect(screen.queryByTestId('fan-performance-session-restoring')).toBeNull();
     expect(screen.queryByText('Restoring your session…')).toBeNull();

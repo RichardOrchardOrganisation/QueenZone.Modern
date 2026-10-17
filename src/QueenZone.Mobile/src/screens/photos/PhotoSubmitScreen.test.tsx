@@ -51,8 +51,8 @@ jest.mock('expo-image-picker', () => ({
 const fetchCategories = fetchPhotoCategories as jest.MockedFunction<typeof fetchPhotoCategories>;
 const submitPhoto = createPhotoSubmission as jest.MockedFunction<typeof createPhotoSubmission>;
 
-function renderSubmit() {
-  return renderWithProviders(
+async function renderSubmit() {
+  return await renderWithProviders(
     <PhotoSubmitScreen
       navigation={fakeNavigation() as never}
       route={{ key: 'submit', name: 'PhotoSubmit' } as never}
@@ -68,8 +68,8 @@ describe('PhotoSubmitScreen', () => {
     submitPhoto.mockReset();
   });
 
-  it('gates unsigned visitors', () => {
-    renderSubmit();
+  it('gates unsigned visitors', async () => {
+    await renderSubmit();
     expect(screen.getByText('Submit a photo')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
@@ -79,7 +79,7 @@ describe('PhotoSubmitScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     (ImagePicker.requestMediaLibraryPermissionsAsync as jest.Mock).mockResolvedValue({ granted: false });
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Submit for review' })).toBeOnTheScreen());
     await user.press(screen.getByRole('button', { name: 'Submit for review' }));
     expect(screen.getByText('Title is required.')).toBeOnTheScreen();
@@ -101,7 +101,7 @@ describe('PhotoSubmitScreen', () => {
     });
     submitPhoto.mockRejectedValueOnce(ApiError.localFile(new TypeError('Network request failed')));
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Brian May' })).toBeOnTheScreen());
     await user.type(screen.getByLabelText('Title'), 'Fan pic');
     await user.press(screen.getByRole('button', { name: 'Brian May' }));
@@ -131,7 +131,7 @@ describe('PhotoSubmitScreen', () => {
       submittedAt: '2026-08-23T00:15:00.000Z',
     });
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Brian May' })).toBeOnTheScreen());
     expect(screen.getByText('Category')).toBeOnTheScreen();
     expect(screen.queryByText('Suggested category (optional)')).toBeNull();
@@ -171,7 +171,7 @@ describe('PhotoSubmitScreen', () => {
       submittedAt: '2026-08-23T00:15:00.000Z',
     });
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Brian May' })).toBeOnTheScreen());
     await user.type(screen.getByLabelText('Title'), 'Fan pic');
     await user.press(screen.getByRole('button', { name: 'Choose from library' }));
@@ -206,7 +206,7 @@ describe('PhotoSubmitScreen', () => {
       assets: [{ uri: 'file:///tmp/crowd.jpg', fileName: 'crowd.jpg', mimeType: 'image/jpeg', fileSize: 12_000 }],
     });
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Brian May' })).toBeOnTheScreen());
     await user.type(screen.getByLabelText('Title'), 'Wembley');
     await user.press(screen.getByRole('button', { name: 'Choose from library' }));
@@ -228,7 +228,7 @@ describe('PhotoSubmitScreen', () => {
       assets: [{ uri: 'file:///tmp/stage.jpg', fileName: 'stage.jpg', mimeType: 'image/jpeg', fileSize: 12_000 }],
     });
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Brian May' })).toBeOnTheScreen());
     await user.type(screen.getByLabelText('Title'), 'Live');
     await user.press(screen.getByRole('button', { name: 'Take photo' }));
@@ -246,7 +246,7 @@ describe('PhotoSubmitScreen', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(pagedResponse([categoryFixture()], 1, 1));
 
-    renderSubmit();
+    await renderSubmit();
     await waitFor(() => expect(screen.getByText('Could not load photo categories.')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Submit for review' })).toBeDisabled();
 

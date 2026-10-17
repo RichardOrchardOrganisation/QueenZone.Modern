@@ -110,7 +110,7 @@ describe('NotificationBridge', () => {
       response({ category: 'forumReply', topicId: '1002', postId: '9' }, 'cold-forum'),
     );
 
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
@@ -121,7 +121,7 @@ describe('NotificationBridge', () => {
   });
 
   it('opens a conversation from a background tap', async () => {
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -139,7 +139,7 @@ describe('NotificationBridge', () => {
   it('opens a news article from an iOS APNs cold-start tap', async () => {
     getLastNotificationResponseAsync.mockResolvedValue(iosResponse({ category: 'news', articleId: '1003' }, 'ios-cold-news'));
 
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
@@ -149,7 +149,7 @@ describe('NotificationBridge', () => {
   });
 
   it('opens a news article from an iOS APNs background tap', async () => {
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -165,7 +165,7 @@ describe('NotificationBridge', () => {
   });
 
   it('opens the news listing from an iOS APNs tap when articleId is missing', async () => {
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -182,7 +182,7 @@ describe('NotificationBridge', () => {
 
   it('opens a news article from the in-app foreground banner', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -206,7 +206,7 @@ describe('NotificationBridge', () => {
 
   it('opens a news article from an iOS APNs in-app foreground banner', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<NotificationBridge />, { navigation: false });
+    await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -237,7 +237,7 @@ describe('NotificationBridge', () => {
     mockSession.isRestoring = true;
     getLastNotificationResponseAsync.mockResolvedValue(response({ category: 'news', articleId: '88' }, 'cold-wait'));
 
-    const view = renderWithProviders(<NotificationBridge />, { navigation: false });
+    const view = await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -245,7 +245,7 @@ describe('NotificationBridge', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
 
     mockSession.isRestoring = false;
-    view.rerender(<NotificationBridge />);
+    await view.rerender(<NotificationBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
@@ -257,7 +257,7 @@ describe('NotificationBridge', () => {
   it('holds a foreground-banner tap until session restore finishes', async () => {
     mockSession.isRestoring = true;
     const user = userEvent.setup();
-    const view = renderWithProviders(<NotificationBridge />, { navigation: false });
+    const view = await renderWithProviders(<NotificationBridge />, { navigation: false });
     await act(async () => {
       await Promise.resolve();
     });
@@ -270,7 +270,7 @@ describe('NotificationBridge', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
 
     mockSession.isRestoring = false;
-    view.rerender(<NotificationBridge />);
+    await view.rerender(<NotificationBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {

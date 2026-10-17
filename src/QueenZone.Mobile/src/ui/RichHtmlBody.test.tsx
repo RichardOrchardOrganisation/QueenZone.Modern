@@ -58,18 +58,20 @@ const queenZoneBody = [
 
 const ignoredDomTags = ['iframe', 'script', 'object', 'embed', 'form', 'video', 'audio', 'svg'];
 
-function renderBody(
+async function renderBody(
   html: string,
   options: { horizontalInset?: number; themePreference?: 'dark' | 'light' } = {},
 ) {
-  return renderWithProviders(
+  return await renderWithProviders(
     <RichHtmlBody html={html} horizontalInset={options.horizontalInset} />,
     { navigation: false, themePreference: options.themePreference ?? 'dark' },
   );
 }
 
 function htmlRenderer() {
-  return screen.UNSAFE_getByType(RenderHTML);
+  const props = jest.mocked(RenderHTML).mock.calls.at(-1)![0];
+  if (!('html' in props.source) || !props.tagsStyles) throw new Error('Expected HTML source and tag styles');
+  return { props: { ...props, source: props.source, tagsStyles: props.tagsStyles } };
 }
 
 describe('RichHtmlBody', () => {
@@ -94,7 +96,7 @@ describe('RichHtmlBody', () => {
 
   describe('rendering', () => {
     it('renders QueenZone long-form tags through the native HTML engine', async () => {
-      renderBody(queenZoneBody);
+      await renderBody(queenZoneBody);
 
       expect(screen.getByText('A Night at the Opera')).toBeOnTheScreen();
       expect(screen.getByText('Rockfield sessions')).toBeOnTheScreen();
@@ -112,7 +114,7 @@ describe('RichHtmlBody', () => {
     });
 
     it('resolves root-relative UGC images against the API origin', async () => {
-      renderBody('<p><img src="/ugc/news/sample-crest.jpg" alt="Queen crest"></p>');
+      await renderBody('<p><img src="/ugc/news/sample-crest.jpg" alt="Queen crest"></p>');
 
       const image = await screen.findByTestId('image-success');
       expect(image.props.source).toEqual(
@@ -121,8 +123,8 @@ describe('RichHtmlBody', () => {
       expect(htmlRenderer().props.source.baseUrl).toBe('http://qz.test');
     });
 
-    it('renders forum-style breaks and leaves double-encoded entities as text', () => {
-      renderBody('<p>Hello<br>World</p><p>5 &amp;lt; 10</p>');
+    it('renders forum-style breaks and leaves double-encoded entities as text', async () => {
+      await renderBody('<p>Hello<br>World</p><p>5 &amp;lt; 10</p>');
 
       expect(screen.getByText(/Hello/)).toBeOnTheScreen();
       expect(screen.getByText(/World/)).toBeOnTheScreen();
@@ -130,14 +132,14 @@ describe('RichHtmlBody', () => {
       expect(screen.queryByText('<10')).toBeNull();
     });
 
-    it('renders nothing when the prepared body is empty', () => {
-      renderBody('   ');
+    it('renders nothing when the prepared body is empty', async () => {
+      await renderBody('   ');
 
-      expect(screen.UNSAFE_queryByType(RenderHTML)).toBeNull();
+      expect(RenderHTML).not.toHaveBeenCalled();
     });
 
-    it('sizes the engine to the parent inset and keeps long-form text props', () => {
-      renderBody('<p>Inset probe</p>', { horizontalInset: 40 });
+    it('sizes the engine to the parent inset and keeps long-form text props', async () => {
+      await renderBody('<p>Inset probe</p>', { horizontalInset: 40 });
 
       const { width } = Dimensions.get('window');
       const renderer = htmlRenderer();
@@ -154,8 +156,8 @@ describe('RichHtmlBody', () => {
   });
 
   describe('security', () => {
-    it('strips unsupported embed tags before they reach the engine', () => {
-      renderBody(
+    it('strips unsupported embed tags before they reach the engine', async () => {
+      await renderBody(
         '<p>Before</p><iframe src="https://evil.example"></iframe><p>After</p><script>alert(1)</script>',
       );
 
@@ -164,15 +166,15 @@ describe('RichHtmlBody', () => {
       expect(htmlRenderer().props.source.html).not.toMatch(/<\/?(iframe|script)\b/i);
     });
 
-    it('passes ignoredDomTags as defence in depth for leftovers the stripper misses', () => {
-      renderBody('<p>Queen news</p>');
+    it('passes ignoredDomTags as defence in depth for leftovers the stripper misses', async () => {
+      await renderBody('<p>Queen news</p>');
 
       expect(htmlRenderer().props.ignoredDomTags).toEqual(ignoredDomTags);
     });
 
-    it('drops leftover ignored tags in the upgraded parser when the stripper is bypassed', () => {
+    it('drops leftover ignored tags in the upgraded parser when the stripper is bypassed', async () => {
       prepareNewsHtmlControl.passthrough = true;
-      renderBody(
+      await renderBody(
         '<p>Safe</p><iframe src="https://evil.example">tracker</iframe><script>document.cookie</script><svg><text>vector</text></svg>',
       );
 
@@ -185,7 +187,7 @@ describe('RichHtmlBody', () => {
     });
 
     it('does not execute event-handler attributes or javascript: image sources', async () => {
-      renderBody(
+      await renderBody(
         '<p onclick="alert(1)">Queen news</p>' +
           '<img src="javascript:alert(1)" alt="bad crest" onerror="alert(1)">' +
           '<a href="javascript:alert(1)">Click me</a>',
@@ -204,7 +206,7 @@ describe('RichHtmlBody', () => {
 
   describe('link handling', () => {
     it('opens https links in the system browser', async () => {
-      renderBody('<p><a href="https://www.youtube.com/watch?v=1GfZoSuG8WY">Watch</a></p>');
+      await renderBody('<p><a href="https://www.youtube.com/watch?v=1GfZoSuG8WY">Watch</a></p>');
 
       const user = userEvent.setup();
       await user.press(screen.getByText('Watch'));
@@ -214,7 +216,7 @@ describe('RichHtmlBody', () => {
     });
 
     it('opens http links and ignores javascript and data hrefs', async () => {
-      renderBody(
+      await renderBody(
         '<p><a href="http://qz.test/news/42">Http</a> ' +
           '<a href="javascript:alert(1)">Js</a> ' +
           '<a href="data:text/html,<script>alert(1)</script>">Data</a></p>',
@@ -231,7 +233,7 @@ describe('RichHtmlBody', () => {
     });
 
     it('resolves root-relative archive links against the API origin', async () => {
-      renderBody('<p><a href="/news/42">Relative</a></p>');
+      await renderBody('<p><a href="/news/42">Relative</a></p>');
 
       const user = userEvent.setup();
       await user.press(screen.getByText('Relative'));
@@ -245,8 +247,8 @@ describe('RichHtmlBody', () => {
     it.each([
       ['dark', dark] as const,
       ['light', light] as const,
-    ])('maps body and link styles from the %s theme', (preference, colors) => {
-      renderBody('<p>Body copy <a href="https://www.queenzone.org/news/42">Archive link</a></p>', {
+    ])('maps body and link styles from the %s theme', async (preference, colors) => {
+      await renderBody('<p>Body copy <a href="https://www.queenzone.org/news/42">Archive link</a></p>', {
         themePreference: preference,
       });
 
@@ -287,13 +289,13 @@ describe('RichHtmlBody', () => {
   });
 
   describe('error boundary', () => {
-    it('falls back to plain text when the renderer throws', () => {
+    it('falls back to plain text when the renderer throws', async () => {
       const MockRenderHTML = RenderHTML as jest.MockedFunction<typeof RenderHTML>;
       MockRenderHTML.mockImplementationOnce(() => {
         throw new Error('renderer failed');
       });
 
-      renderBody('<p>The restored article body.</p>');
+      await renderBody('<p>The restored article body.</p>');
 
       expect(screen.getByText('The restored article body.')).toBeOnTheScreen();
       expect(screen.queryByText('<p>')).toBeNull();

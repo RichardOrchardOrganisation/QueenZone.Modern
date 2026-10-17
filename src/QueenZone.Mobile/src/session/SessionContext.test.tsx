@@ -151,8 +151,8 @@ function Probe() {
   );
 }
 
-function renderSession() {
-  return renderWithProviders(
+async function renderSession() {
+  return await renderWithProviders(
     <SessionProvider>
       <Probe />
     </SessionProvider>,
@@ -215,7 +215,7 @@ beforeEach(() => {
 describe('SessionProvider', () => {
   it('finishes restore with no stored session as signed out', async () => {
     readStored.mockResolvedValue(null);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(screen.getByText('no-token')).toBeOnTheScreen();
   });
@@ -225,7 +225,7 @@ describe('SessionProvider', () => {
     const error = new Error('credential storage failed');
     readStored.mockRejectedValue(error);
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(screen.getByText('no-token')).toBeOnTheScreen();
     expect(capturedActions.isRestoring).toBe(false);
@@ -243,7 +243,7 @@ describe('SessionProvider', () => {
       const read = deferred<tokenStore.StoredSession | null>();
       readStored.mockReturnValue(read.promise);
       const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-      const view = renderSession();
+      const view = await renderSession();
       await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
       if (action === 'sign-in') {
         signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
@@ -261,7 +261,7 @@ describe('SessionProvider', () => {
         if (action === 'sign-out') {
           await act(async () => { await capturedActions.signOut(); });
         } else {
-          view.unmount();
+          await view.unmount();
         }
         await act(async () => { read.reject(new Error('stale read failure')); });
         expect(reconcile).not.toHaveBeenCalled();
@@ -290,7 +290,7 @@ describe('SessionProvider', () => {
     readStored.mockReturnValue(read.promise);
     refreshAccessToken.mockReturnValue(refresh.promise);
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
     expect(capturedActions.isRestoring).toBe(true);
     await act(async () => {
@@ -319,7 +319,7 @@ describe('SessionProvider', () => {
     readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() - 1_000 });
     refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'Expired'));
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(capturedActions.isRestoring).toBe(false);
     expect(capturedActions.accessToken).toBeNull();
@@ -335,7 +335,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() - 1_000,
     });
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(clearStored).toHaveBeenCalledTimes(1));
     expect(capturedActions.isRestoring).toBe(false);
     expect(capturedActions.accessToken).toBeNull();
@@ -350,7 +350,7 @@ describe('SessionProvider', () => {
     const profile = deferred<unknown>();
     readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
     fetchJsonMock.mockReturnValue(profile.promise);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
     clock.mockReturnValue(now + 120_000);
     await act(async () => { profile.reject(ApiError.http(401, 'Unauthorized')); });
@@ -366,7 +366,7 @@ describe('SessionProvider', () => {
     readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
     fetchJsonMock.mockReturnValue(profile.promise);
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
     await act(async () => { await capturedActions.signOut(); });
     await act(async () => {
@@ -385,7 +385,7 @@ describe('SessionProvider', () => {
     const read = deferred<tokenStore.StoredSession | null>();
     readStored.mockReturnValue(read.promise);
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
     await act(async () => { await capturedActions.signOut(); });
     await act(async () => {
@@ -405,7 +405,7 @@ describe('SessionProvider', () => {
     const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => {
       throw new Error('storage unavailable');
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(reconcile).toHaveBeenCalledWith('member-1'));
     expect(capturedActions.isRestoring).toBe(false);
     expect(capturedActions.accessToken).toBe('access-token');
@@ -418,7 +418,7 @@ describe('SessionProvider', () => {
     readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000,
       identity: { displayName: 'Freddie', memberId: 'member-1' } });
     jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => { throw new Error('storage unavailable'); });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(capturedActions.isRestoring).toBe(false);
     expect(capturedActions.accessToken).toBeNull();
@@ -435,7 +435,7 @@ describe('SessionProvider', () => {
     mockAppConfig.smokeEmbed = true;
     try {
       readStored.mockReturnValue(new Promise(() => {}));
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
       expect(readStored).not.toHaveBeenCalled();
 
@@ -458,7 +458,7 @@ describe('SessionProvider', () => {
     runtime.__DEV__ = false;
     try {
       readStored.mockResolvedValue(null);
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
       await user.press(screen.getByText('do-smoke-auth'));
@@ -475,7 +475,7 @@ describe('SessionProvider', () => {
       ...authTokensFixture(),
       expiresAt: Date.now() + 60_000,
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
     expect(refreshAccessToken).not.toHaveBeenCalled();
@@ -487,7 +487,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() - 1_000,
     });
     refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
   });
@@ -507,7 +507,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() - 1_000,
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
-    renderSession();
+    await renderSession();
 
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -544,7 +544,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() - 1_000,
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
-    renderSession();
+    await renderSession();
 
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -571,7 +571,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     refreshAccessToken.mockRejectedValue(new Error('expired'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(clearStored).toHaveBeenCalled();
     expect(screen.getByText('anonymous')).toBeOnTheScreen();
@@ -585,7 +585,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     refreshAccessToken.mockRejectedValue(new TypeError('Network request failed'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(clearStored).not.toHaveBeenCalled();
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -598,7 +598,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     refreshAccessToken.mockRejectedValue(new Error('invalid_grant'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(clearStored).toHaveBeenCalled();
   });
@@ -611,12 +611,12 @@ describe('SessionProvider', () => {
     };
     readStored.mockResolvedValue(stored);
     mockAppConfig.version = '0.1.0';
-    const first = renderSession();
+    const first = await renderSession();
     await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-    first.unmount();
+    await first.unmount();
 
     mockAppConfig.version = '0.1.214';
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
     expect(clearStored).not.toHaveBeenCalled();
@@ -626,7 +626,7 @@ describe('SessionProvider', () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
     signInWithProvider.mockResolvedValue(authTokensFixture());
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-in'));
@@ -654,7 +654,7 @@ describe('SessionProvider', () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
     signInWithPassword.mockResolvedValue(authTokensFixture({ accessToken: 'password-access' }));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-password-sign-in'));
@@ -678,7 +678,7 @@ describe('SessionProvider', () => {
     clearPushRegistration.mockImplementation(() => new Promise(() => {}));
     logoutRemote.mockImplementation(() => new Promise(() => {}));
     revokeRefreshToken.mockImplementation(() => new Promise(() => {}));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-out'));
@@ -690,7 +690,7 @@ describe('SessionProvider', () => {
   it('does not call remote logout when already signed out', async () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-out'));
@@ -708,7 +708,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() + 60_000,
     });
     clearStored.mockRejectedValue(new Error('secure-store-unavailable'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-out'));
@@ -718,7 +718,7 @@ describe('SessionProvider', () => {
 
   it('does not register for push before sign-in', async () => {
     readStored.mockResolvedValue(null);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(syncPushRegistration).not.toHaveBeenCalled();
   });
@@ -728,7 +728,7 @@ describe('SessionProvider', () => {
       ...authTokensFixture(),
       expiresAt: Date.now() + 60_000,
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     await waitFor(() =>
       expect(syncPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1'),
@@ -746,7 +746,7 @@ describe('SessionProvider', () => {
       return { remove: jest.fn() };
     });
 
-    renderSession();
+    await renderSession();
     await waitFor(() =>
       expect(syncPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1'),
     );
@@ -768,7 +768,7 @@ describe('SessionProvider', () => {
       .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-a', displayName: 'Alice' }))
       .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-b', displayName: 'Bob' }));
 
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-in'));
@@ -795,7 +795,7 @@ describe('SessionProvider', () => {
       .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-a', displayName: 'Alice' }))
       .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-b', displayName: 'Bob' }));
 
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-in'));
@@ -811,7 +811,7 @@ describe('SessionProvider', () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
     signInWithProvider.mockRejectedValue(new Error('Sign-in was cancelled.'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-in'));
@@ -823,7 +823,7 @@ describe('SessionProvider', () => {
   it('applies a Debug smoke access token without the OAuth hop when appEnv is development', async () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-smoke-auth'));
@@ -844,7 +844,7 @@ describe('SessionProvider', () => {
       mockAppConfig.appEnv = appEnv;
       mockAppConfig.smokeEmbed = true;
       readStored.mockResolvedValue(null);
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
       await user.press(screen.getByText('do-smoke-auth'));
@@ -858,7 +858,7 @@ describe('SessionProvider', () => {
   it('derives isSignedIn from setAccessToken and stays signed out without a token', async () => {
     const user = userEvent.setup();
     readStored.mockResolvedValue(null);
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
 
     await user.press(screen.getByText('clear-token'));
@@ -882,7 +882,7 @@ describe('SessionProvider', () => {
     jest.useFakeTimers();
     try {
       readStored.mockReturnValue(new Promise(() => {}));
-      renderSession();
+      await renderSession();
       expect(screen.getByText('restoring')).toBeOnTheScreen();
       await act(async () => {
         jest.advanceTimersByTime(5_000);
@@ -912,7 +912,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() + 60_000,
     });
 
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
     expect(screen.getByText('restoring')).toBeOnTheScreen();
     expect(screen.queryByText('signed-out')).toBeNull();
@@ -948,7 +948,7 @@ describe('SessionProvider', () => {
         ...authTokensFixture(),
         expiresAt: now + 60_000,
       });
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
       writeStored.mockRejectedValueOnce(locked);
@@ -988,7 +988,7 @@ describe('SessionProvider', () => {
       expiresAt: Date.now() + 60_000,
     });
     fetchJsonMock.mockRejectedValue(new Error('offline'));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('anonymous')).toBeOnTheScreen();
   });
@@ -1005,7 +1005,7 @@ describe('SessionProvider', () => {
       ...authTokensFixture(),
       expiresAt: Date.now() + 60_000,
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('access-token')).toBeOnTheScreen();
     expect(screen.getByText('anonymous')).toBeOnTheScreen();
@@ -1025,7 +1025,7 @@ describe('SessionProvider', () => {
     fetchJsonMock.mockRejectedValueOnce(ApiError.http(401, 'Unauthorized'));
     fetchJsonMock.mockResolvedValue(memberProfilePayload());
     refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
     expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -1044,7 +1044,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     fetchJsonMock.mockResolvedValue(memberProfilePayload());
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
     // Every /me from here on is a 401, so both presses take the recovery path.
@@ -1071,7 +1071,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     refreshAccessToken.mockRejectedValue(failure);
-    renderSession();
+    await renderSession();
 
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
@@ -1101,7 +1101,7 @@ describe('SessionProvider', () => {
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
     refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'invalid_grant'));
-    renderSession();
+    await renderSession();
 
     await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
     expect(clearStored).toHaveBeenCalled();
@@ -1124,7 +1124,7 @@ describe('SessionProvider', () => {
         expiresAt: now + 60_000,
       });
       refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
       expect(refreshAccessToken).not.toHaveBeenCalled();
 
@@ -1164,7 +1164,7 @@ describe('SessionProvider', () => {
     });
     refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
 
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
     expect(refreshAccessToken).not.toHaveBeenCalled();
@@ -1192,7 +1192,7 @@ describe('SessionProvider', () => {
     });
     fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
 
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'access-token' }));
     expect(refreshAccessToken).not.toHaveBeenCalled();
     expect(clearStored).not.toHaveBeenCalled();
@@ -1210,7 +1210,7 @@ describe('SessionProvider', () => {
     try {
       readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
       refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
       setAppState('background');
@@ -1240,7 +1240,7 @@ describe('SessionProvider', () => {
     });
     try {
       readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
       writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
@@ -1286,7 +1286,7 @@ describe('SessionProvider', () => {
     });
     try {
       readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
       writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
@@ -1325,7 +1325,7 @@ describe('SessionProvider', () => {
         ...authTokensFixture(),
         expiresAt: now + 60_000,
       });
-      renderSession();
+      await renderSession();
       await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
 
       refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
@@ -1353,7 +1353,7 @@ describe('SessionProvider', () => {
     });
     refreshAccessToken.mockReturnValue(refresh.promise);
     fetchJsonMock.mockRejectedValue(new Error('offline'));
-    renderSession();
+    await renderSession();
 
     await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
     await act(async () => {
@@ -1386,7 +1386,7 @@ describe('SessionProvider private cache isolation', () => {
       ...authTokensFixture(),
       expiresAt: Date.now() + 60_000,
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
 
     await user.press(screen.getByText('do-sign-out'));
@@ -1402,7 +1402,7 @@ describe('SessionProvider private cache isolation', () => {
       ...authTokensFixture(),
       expiresAt: Date.now() + 60_000,
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
 
     signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
@@ -1442,7 +1442,7 @@ describe('SessionProvider actions context stability', () => {
     });
 
     try {
-      renderWithProviders(
+      await renderWithProviders(
         <SessionProvider>
           <ActionsOnlyChild />
           <Probe />
@@ -1488,7 +1488,7 @@ describe('SessionProvider sign-out failure and race isolation', () => {
       expiresAt: Date.now() + 60_000,
       identity: { displayName: 'Freddie', memberId: 'member-1' },
     });
-    renderSession();
+    await renderSession();
     await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
   }
 
@@ -1749,7 +1749,7 @@ describe('SessionProvider sign-out failure and race isolation', () => {
   it('does not restore a delayed stored identity after sign-out', async () => {
     const read = deferred<tokenStore.StoredSession | null>();
     readStored.mockReturnValue(read.promise);
-    renderSession();
+    await renderSession();
     await act(async () => { await capturedActions.signOut(); });
     expect(screen.getByText('signed-out')).toBeOnTheScreen();
     await act(async () => {

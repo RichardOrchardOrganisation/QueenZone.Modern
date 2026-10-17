@@ -105,10 +105,9 @@ updates:
           - "version-update:semver-minor"
           - "version-update:semver-patch"
       # Tilde bundledNativeModules pins: ignore major and minor; patches still come.
-      - dependency-name: "@sentry/react-native" # SDK 57 pin: ~7.11.0
-        update-types:
-          - "version-update:semver-major"
-          - "version-update:semver-minor"
+      # @sentry/react-native is not ignored: PR 1 of #1782 ships ~8.28.0 on SDK 57
+      # via expo.install.exclude. Dependabot may propose 8.x patches. PR 2 (SDK 58)
+      # drops the exclude; do not re-add a 7.x ignore.
       - dependency-name: "react-native-gesture-handler" # SDK 57 pin: ~2.32.0
         update-types:
           - "version-update:semver-major"

@@ -1,4 +1,5 @@
-import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Platform, RefreshControl } from 'react-native';
+import { componentProps, getHostByType } from '../../test/renderer';
+import { Alert, FlatList, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { ApiError } from '../../api/client';
 import type { CachedResult } from '../../api';
@@ -82,8 +83,8 @@ const unblockConversationParticipantMock = unblockConversationParticipant as jes
   typeof unblockConversationParticipant
 >;
 
-function renderConversation(navigation = fakeNavigation()) {
-  return renderWithProviders(
+async function renderConversation(navigation = fakeNavigation()) {
+  return await renderWithProviders(
     <ConversationScreen
       navigation={navigation as never}
       route={{ key: 'conversation', name: 'Conversation', params: { id: conversationId } } as never}
@@ -147,7 +148,7 @@ describe('ConversationScreen', () => {
       ]),
     );
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText(body)).toBeOnTheScreen(), { timeout: 8000 });
     expect(screen.queryByRole('link')).toBeNull();
   });
@@ -182,7 +183,7 @@ describe('ConversationScreen', () => {
       alreadyReported: false,
     });
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Abusive text')).toBeOnTheScreen(), { timeout: 8000 });
     expect(screen.queryByRole('button', { name: 'Report message' })).toBeOnTheScreen();
     expect(screen.getByText('My reply')).toBeOnTheScreen();
@@ -205,7 +206,7 @@ describe('ConversationScreen', () => {
     fetchConversationMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'));
     fetchConversationMock.mockResolvedValueOnce(conversationDetail([]));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('The server had a problem.')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -232,7 +233,7 @@ describe('ConversationScreen', () => {
       ),
     );
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Unable to send message.')).toBeOnTheScreen());
     expect(screen.queryByLabelText('Reply')).toBeNull();
   });
@@ -256,7 +257,7 @@ describe('ConversationScreen', () => {
       ),
     );
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() =>
       expect(
         screen.getByText('You have blocked this member. They can no longer send you private messages.'),
@@ -286,7 +287,7 @@ describe('ConversationScreen', () => {
       bubbleRenders += 1;
     };
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Hello')).toBeOnTheScreen());
     const afterLoad = bubbleRenders;
     expect(afterLoad).toBeGreaterThan(0);
@@ -314,7 +315,7 @@ describe('ConversationScreen', () => {
       ]),
     );
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -340,7 +341,7 @@ describe('ConversationScreen', () => {
   it('disables the send button until a reply is drafted', async () => {
     fetchConversationMock.mockResolvedValue(conversationDetail([]));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeDisabled();
@@ -373,7 +374,7 @@ describe('ConversationScreen', () => {
     );
     archiveConversationMock.mockResolvedValueOnce(undefined);
 
-    renderConversation(navigation);
+    await renderConversation(navigation);
     await waitFor(() => expect(screen.getByText('Hello')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -425,14 +426,14 @@ describe('ConversationScreen', () => {
     );
     blockConversationParticipantMock.mockResolvedValue(undefined);
 
-    const main = renderConversation(navigation);
+    const main = await renderConversation(navigation);
     await waitFor(() => expect(main.getByText('Hello')).toBeOnTheScreen());
 
     // The native-stack header isn't mounted by this harness (navigation is a
     // jest.fn() stub), so render the headerRight element it was configured
     // with directly to reach the overflow button.
     const latestOptions = navigation.setOptions.mock.calls.at(-1)?.[0];
-    const header = renderWithProviders(latestOptions.headerRight(), { navigation: false });
+    const header = await renderWithProviders(latestOptions.headerRight(), { navigation: false });
 
     const user = userEvent.setup();
     await user.press(header.getByRole('button', { name: 'More options' }));
@@ -501,7 +502,7 @@ describe('ConversationScreen', () => {
     );
     unblockConversationParticipantMock.mockResolvedValue(undefined);
 
-    const main = renderConversation(navigation);
+    const main = await renderConversation(navigation);
     await waitFor(() =>
       expect(
         main.getByText('You have blocked this member. They can no longer send you private messages.'),
@@ -509,7 +510,7 @@ describe('ConversationScreen', () => {
     );
 
     const latestOptions = navigation.setOptions.mock.calls.at(-1)?.[0];
-    const header = renderWithProviders(latestOptions.headerRight(), { navigation: false });
+    const header = await renderWithProviders(latestOptions.headerRight(), { navigation: false });
 
     const user = userEvent.setup();
     await user.press(header.getByRole('button', { name: 'More options' }));
@@ -547,7 +548,7 @@ describe('ConversationScreen', () => {
     ]);
     fetchConversationResultMock.mockResolvedValue(asCache(snapshot));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Hello from cache')).toBeOnTheScreen());
     expect(screen.getByTestId(testIds.offlineBanner)).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeOnTheScreen();
@@ -589,7 +590,7 @@ describe('ConversationScreen', () => {
       },
     ]);
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Hello from cache')).toBeOnTheScreen());
     expect(screen.getByText('Queued hello')).toBeOnTheScreen();
     expect(screen.getByTestId(testIds.pendingMessage)).toBeOnTheScreen();
@@ -611,12 +612,12 @@ describe('ConversationScreen', () => {
     ]);
     fetchConversationResultMock.mockResolvedValueOnce(asCache(snapshot));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Hello from cache')).toBeOnTheScreen());
     expect(fetchConversationResultMock).toHaveBeenCalledTimes(1);
 
     fetchConversationResultMock.mockRejectedValueOnce(ApiError.offline());
-    fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
 
     await waitFor(() => expect(fetchConversationResultMock).toHaveBeenCalledTimes(2));
     expect(screen.getByText('Hello from cache')).toBeOnTheScreen();
@@ -643,7 +644,7 @@ describe('ConversationScreen', () => {
     ]);
     fetchConversationResultMock.mockResolvedValue(asCache(snapshot));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByText('Hello from cache')).toBeOnTheScreen());
     expect(fetchConversationResultMock).toHaveBeenCalledWith(
       accessToken,
@@ -655,10 +656,10 @@ describe('ConversationScreen', () => {
   it('offsets KeyboardAvoidingView by the native-stack header height on iOS', async () => {
     fetchConversationMock.mockResolvedValue(conversationDetail([]));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
-    const avoiding = screen.UNSAFE_getByType(KeyboardAvoidingView);
+    const avoiding = componentProps(KeyboardAvoidingView);
     expect(avoiding.props.behavior).toBe('padding');
     expect(avoiding.props.keyboardVerticalOffset).toBe(testHeaderHeight);
   });
@@ -666,10 +667,10 @@ describe('ConversationScreen', () => {
   it('keeps the composer as a sibling of the thread list, not a FlatList footer', async () => {
     fetchConversationMock.mockResolvedValue(conversationDetail([]));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
-    const list = screen.UNSAFE_getByType(FlatList);
+    const list = componentProps(FlatList);
     expect(list.props.ListFooterComponent).toBeFalsy();
     expect(screen.getByLabelText('Reply')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Send reply' })).toBeOnTheScreen();
@@ -678,7 +679,7 @@ describe('ConversationScreen', () => {
   it('keeps the home-indicator inset on the composer while the keyboard is closed', async () => {
     fetchConversationMock.mockResolvedValue(conversationDetail([]));
 
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
     expect(screen.getByTestId(testIds.conversationComposer)).toHaveStyle({ paddingBottom: 34 });
@@ -693,15 +694,15 @@ describe('ConversationScreen', () => {
     });
 
     fetchConversationMock.mockResolvedValue(conversationDetail([]));
-    renderConversation();
+    await renderConversation();
     await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
-    act(() => {
+    await act(() => {
       listeners.keyboardWillShow?.forEach((listener) => listener());
     });
     expect(screen.getByTestId(testIds.conversationComposer)).toHaveStyle({ paddingBottom: space.md });
 
-    act(() => {
+    await act(() => {
       listeners.keyboardWillHide?.forEach((listener) => listener());
     });
     expect(screen.getByTestId(testIds.conversationComposer)).toHaveStyle({ paddingBottom: 34 });
@@ -715,10 +716,10 @@ describe('ConversationScreen', () => {
 
     try {
       fetchConversationMock.mockResolvedValue(conversationDetail([]));
-      renderConversation();
+      await renderConversation();
       await waitFor(() => expect(screen.getByLabelText('Reply')).toBeOnTheScreen());
 
-      const avoiding = screen.UNSAFE_getByType(KeyboardAvoidingView);
+      const avoiding = componentProps(KeyboardAvoidingView);
       expect(avoiding.props.behavior).toBeUndefined();
       expect(avoiding.props.keyboardVerticalOffset).toBe(0);
       expect(screen.getByTestId(testIds.conversationComposer)).toHaveStyle({ paddingBottom: 34 });

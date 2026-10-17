@@ -229,7 +229,7 @@ SDK; only this mobile client reports.
 | `EXPO_PUBLIC_SENTRY_DSN` | `.env` locally; `vars.SENTRY_DSN` repo variable in CI | Enables reporting. DSNs are not secret. Baked into `extra.sentryDsn` at prebuild. |
 | `EXPO_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | `.env` locally; optional | Fraction (0.0-1.0) of sessions traced for performance. Defaults to `1.0`. |
 | `SENTRY_ORG` / `SENTRY_PROJECT` | CI repo `vars` | `self-0tb` / `queenzone-mobile` — target org/project for source map and dSYM upload at build time. |
-| `SENTRY_AUTH_TOKEN` | Bitwarden `Queenzone Development` project (Android) / `secrets.SENTRY_AUTH_TOKEN` repo secret (iOS) | Lets `sentry-cli` upload symbols during the native build. Never committed — read directly from the build environment, not from Expo config. |
+| `SENTRY_AUTH_TOKEN` | Bitwarden `Queenzone Development` project (Android) / `secrets.SENTRY_AUTH_TOKEN` repo secret (iOS) | Lets `sentry-cli` 3 upload symbols during the native build. Never committed — read directly from the build environment, not from Expo config. |
 | `SENTRY_DISABLE_AUTO_UPLOAD` | CI unsigned mobile jobs (`ci.yml`); optional locally | Skips source-map / dSYM upload when org/token are unset. Required for simulator/debug CI builds once the Sentry Expo plugin is registered — otherwise Xcode fails with "organization ID or slug is required". |
 
 Unsigned CI Android/iOS jobs set `SENTRY_DISABLE_AUTO_UPLOAD=true`. Publish workflows

@@ -49,7 +49,7 @@ function pollFixture(overrides: Partial<ForumPoll> = {}): ForumPoll {
   };
 }
 
-function renderCard(
+async function renderCard(
   poll: ForumPoll,
   handlers: {
     onVote?: (optionIds: string[]) => void;
@@ -63,7 +63,7 @@ function renderCard(
   const onVote = handlers.onVote ?? jest.fn();
   const onClose = handlers.onClose ?? jest.fn();
   const onSignIn = handlers.onSignIn ?? jest.fn();
-  renderWithProviders(
+  await renderWithProviders(
     <ForumPollCard
       poll={poll}
       isSignedIn={handlers.isSignedIn ?? true}
@@ -81,7 +81,7 @@ function renderCard(
 
 describe('ForumPollCard', () => {
   it('selects an option and votes', async () => {
-    const { onVote } = renderCard(pollFixture());
+    const { onVote } = await renderCard(pollFixture());
     const user = userEvent.setup();
     await user.press(screen.getByRole('radio', { name: 'A Night at the Opera' }));
     await user.press(screen.getByRole('button', { name: 'Vote' }));
@@ -89,7 +89,7 @@ describe('ForumPollCard', () => {
   });
 
   it('does not select more than the multi-choice max', async () => {
-    const { onVote } = renderCard(pollFixture({ isMultiChoice: true, maxChoices: 2 }));
+    const { onVote } = await renderCard(pollFixture({ isMultiChoice: true, maxChoices: 2 }));
     const user = userEvent.setup();
     await user.press(screen.getByRole('checkbox', { name: 'A Night at the Opera' }));
     await user.press(screen.getByRole('checkbox', { name: 'Innuendo' }));
@@ -99,7 +99,7 @@ describe('ForumPollCard', () => {
   });
 
   it('prompts unsigned visitors to sign in', async () => {
-    const { onSignIn, onVote } = renderCard(pollFixture(), {
+    const { onSignIn, onVote } = await renderCard(pollFixture(), {
       isSignedIn: false,
       hasAccessToken: false,
     });
@@ -111,7 +111,7 @@ describe('ForumPollCard', () => {
   });
 
   it('closes the poll when the viewer can close it', async () => {
-    const { onClose } = renderCard(pollFixture({ canViewerClose: true }));
+    const { onClose } = await renderCard(pollFixture({ canViewerClose: true }));
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'Close poll' }));
     expect(onClose).toHaveBeenCalled();

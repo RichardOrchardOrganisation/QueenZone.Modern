@@ -22,7 +22,7 @@ describe('ThemeProvider', () => {
   });
 
   it('defaults to the system setting when no choice has been saved', async () => {
-    render(
+    await render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>,
@@ -37,7 +37,7 @@ describe('ThemeProvider', () => {
   it('restores a saved light choice', async () => {
     await AsyncStorage.setItem(themePreferenceStorageKey, 'light');
 
-    render(
+    await render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>,
@@ -57,7 +57,7 @@ describe('ThemeProvider', () => {
         </Text>
       );
     }
-    render(
+    await render(
       <ThemeProvider>
         <Reset />
       </ThemeProvider>,
@@ -87,7 +87,7 @@ describe('ThemeProvider', () => {
         setPreference('dark');
       }}>Choose</Text>;
     }
-    render(<ThemeProvider><RepeatedChoice /></ThemeProvider>);
+    await render(<ThemeProvider><RepeatedChoice /></ThemeProvider>);
     await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledWith(themePreferenceStorageKey));
     await act(async () => { screen.getByTestId('repeat').props.onPress(); });
     expect(writes).toHaveBeenCalledTimes(1);
@@ -98,7 +98,7 @@ describe('ThemeProvider', () => {
   });
 
   it('applies and persists a new choice', async () => {
-    render(
+    await render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>,

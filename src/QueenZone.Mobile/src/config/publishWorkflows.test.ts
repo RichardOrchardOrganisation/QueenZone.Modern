@@ -32,6 +32,16 @@ describe('Play publish workflow', () => {
     assert.match(prebuild, /ANDROID_VERSION_CODE: \$\{\{ github\.run_number \}\}/);
   });
 
+  it('uploads symbols with sentry-cli 3 and does not disable the xcframework install', () => {
+    assert.match(play, /name: Confirm sentry-cli 3/);
+    assert.match(play, /Expected sentry-cli 3\.x from @sentry\/react-native 8/);
+    assert.match(play, /SENTRY_AUTH_TOKEN/);
+    assert.match(play, /SENTRY_ORG/);
+    assert.match(play, /SENTRY_PROJECT/);
+    assert.doesNotMatch(play, /SENTRY_DISABLE_AUTO_UPLOAD/);
+    assert.doesNotMatch(play, /SENTRY_USE_XCFRAMEWORK:\s*["']0["']/);
+  });
+
   it('asserts AAB versionCode equals the run number before Play upload', () => {
     const verify = play.split('name: Verify Android App Bundle')[1] ?? '';
     const verifyBeforeUpload = verify.split('name: Upload to Google Play')[0] ?? '';
@@ -52,6 +62,15 @@ describe('TestFlight publish workflow', () => {
   it('defaults store builds to production and offers an explicit staging choice', () => {
     assert.match(testflight, /app_environment:[\s\S]*options:\s*\n\s*- production\s*\n\s*- staging[\s\S]*default: production/);
     assert.match(testflight, /EXPO_PUBLIC_APP_ENV: \$\{\{ inputs\.app_environment \}\}/);
+  });
+
+  it('uploads symbols with sentry-cli 3 and uses the Sentry 8 xcframework install', () => {
+    assert.match(testflight, /name: Confirm sentry-cli 3/);
+    assert.match(testflight, /Expected sentry-cli 3\.x from @sentry\/react-native 8/);
+    assert.match(testflight, /SENTRY_AUTH_TOKEN/);
+    assert.match(testflight, /SENTRY_USE_XCFRAMEWORK:\s*"1"/);
+    assert.doesNotMatch(testflight, /SENTRY_USE_XCFRAMEWORK:\s*["']0["']/);
+    assert.doesNotMatch(testflight, /SENTRY_DISABLE_AUTO_UPLOAD/);
   });
 
   it('asserts CFBundleShortVersionString equals the baked marketing version', () => {

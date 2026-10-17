@@ -19,16 +19,16 @@ jest.mock('../../api', () => {
 const fetchEvent = fetchTimelineEventById as jest.MockedFunction<typeof fetchTimelineEventById>;
 const fetchList = fetchTimelinePage as jest.MockedFunction<typeof fetchTimelinePage>;
 
-function renderEvent(navigation = fakeNavigation(), id = 9999) {
+async function renderEvent(navigation = fakeNavigation(), id = 9999) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <TimelineEventScreen
         navigation={navigation as never}
         route={{ key: 'timeline-event', name: 'TimelineEvent', params: { id } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -43,9 +43,9 @@ describe('TimelineEventScreen', () => {
     const fresh = { id: 2, title: 'New event', summary: 'New event summary', eventDate: '1985-07-13', formattedDate: '13 July 1985', category: 'live', categoryLabel: 'Live', sourceUrl: null };
     fetchEvent.mockReturnValueOnce(old.promise).mockResolvedValueOnce(fresh);
     const navigation = fakeNavigation();
-    const view = renderEvent(navigation, 1);
+    const view = await renderEvent(navigation, 1);
     await waitFor(() => expect(fetchEvent).toHaveBeenCalledTimes(1));
-    view.rerender(<TimelineEventScreen navigation={navigation as never} route={{ key: 'event', name: 'TimelineEvent', params: { id: 2 } }} />);
+    await view.rerender(<TimelineEventScreen navigation={navigation as never} route={{ key: 'event', name: 'TimelineEvent', params: { id: 2 } }} />);
     await waitFor(() => expect(screen.getByText('New event')).toBeOnTheScreen());
     await act(async () => old.resolve({ ...fresh, id: 1, title: 'Old event', formattedDate: '01 July 1970' }));
     expect(screen.queryByText('Old event')).toBeNull();
@@ -66,7 +66,7 @@ describe('TimelineEventScreen', () => {
       categoryLabel: 'Live',
       sourceUrl: 'https://en.wikipedia.org/wiki/Live_Aid',
     });
-    renderEvent();
+    await renderEvent();
 
     await waitFor(() => expect(screen.getByTestId(testIds.timelineEventScreen)).toBeOnTheScreen());
     expect(fetchEvent).toHaveBeenCalledWith(9999, expect.any(AbortSignal));
@@ -91,7 +91,7 @@ describe('TimelineEventScreen', () => {
       sourceUrl: null,
     });
     const navigation = fakeNavigation();
-    renderEvent(navigation);
+    await renderEvent(navigation);
 
     await waitFor(() => expect(screen.getByTestId(testIds.timelineEventSeeAll)).toBeOnTheScreen());
     expect(screen.queryByTestId(testIds.timelineEventSource)).toBeNull();
@@ -102,7 +102,7 @@ describe('TimelineEventScreen', () => {
   it('replaces to the Timeline list when the event is unpublished or missing', async () => {
     fetchEvent.mockRejectedValue(new ApiError(404, 'Not Found'));
     const navigation = fakeNavigation();
-    renderEvent(navigation);
+    await renderEvent(navigation);
 
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Timeline'));
     expect(screen.queryByTestId(testIds.timelineEventScreen)).toBeNull();
@@ -111,7 +111,7 @@ describe('TimelineEventScreen', () => {
 
   it('replaces to the Timeline list when the route id is not a positive integer', async () => {
     const navigation = fakeNavigation();
-    renderEvent(navigation, 0);
+    await renderEvent(navigation, 0);
 
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Timeline'));
     expect(fetchEvent).not.toHaveBeenCalled();

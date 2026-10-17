@@ -24,6 +24,13 @@ describe('app.config Sentry Expo plugin', () => {
     assert.ok(appJson.expo.plugins.includes('@sentry/react-native/expo'));
     assert.match(source, /'@sentry\/react-native\/expo'/);
   });
+
+  it('pins the iOS deployment target at Expo 57\'s Expo.podspec floor 16.4 (#1782)', () => {
+    const appJson = JSON.parse(
+      readFileSync(new URL('../../app.json', import.meta.url), 'utf8'),
+    ) as { expo: { ios?: { deploymentTarget?: string } } };
+    assert.equal(appJson.expo.ios?.deploymentTarget, '16.4');
+  });
 });
 
 describe('app.config TelemetryDeck setting', () => {

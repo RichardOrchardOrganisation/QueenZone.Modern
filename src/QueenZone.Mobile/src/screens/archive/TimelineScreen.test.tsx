@@ -51,7 +51,7 @@ describe('TimelineScreen', () => {
   });
 
   it('expands the event passed as focusId from search', async () => {
-    renderWithProviders(
+    await renderWithProviders(
       <TimelineScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 12 } } as never}
@@ -77,7 +77,7 @@ describe('TimelineScreen', () => {
     fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 20));
     fetchAnchor.mockResolvedValue(pagedResponse([eventFixture()], 20, 20));
 
-    renderWithProviders(
+    await renderWithProviders(
       <TimelineScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 12 } } as never}
@@ -105,7 +105,7 @@ describe('TimelineScreen', () => {
 
   it('reapplies a new focusId when Timeline is already mounted', async () => {
     const navigation = fakeNavigation();
-    const view = renderWithProviders(
+    const view = await renderWithProviders(
       <TimelineScreen
         navigation={navigation as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 12 } } as never}
@@ -124,7 +124,7 @@ describe('TimelineScreen', () => {
     );
     (FlatList.prototype.scrollToIndex as jest.Mock).mockClear();
 
-    view.rerender(
+    await view.rerender(
       <TimelineScreen
         navigation={navigation as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 10 } } as never}
@@ -150,7 +150,7 @@ describe('TimelineScreen', () => {
     fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 1));
     fetchAnchor.mockResolvedValue(pagedResponse([eventFixture()], 2, 2));
 
-    renderWithProviders(
+    await renderWithProviders(
       <TimelineScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 12 } } as never}
@@ -174,7 +174,7 @@ describe('TimelineScreen', () => {
     fetchTimeline.mockResolvedValue(pagedResponse([eventFixture({ id: 10, title: 'Another' })], 1, 1));
     fetchAnchor.mockRejectedValue(new Error('Missing event'));
 
-    renderWithProviders(
+    await renderWithProviders(
       <TimelineScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'timeline', name: 'Timeline', params: { focusId: 99 } } as never}
@@ -193,11 +193,11 @@ describe('TimelineScreen', () => {
   it('pops back to the archive listing when the stack has history', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(true);
-    renderTimeline(navigation);
+    await renderTimeline(navigation);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderLeft(navigation)()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderLeft(navigation)()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.timelineBack));
     expect(navigation.goBack).toHaveBeenCalledTimes(1);
     expect(navigation.navigate).not.toHaveBeenCalled();
@@ -206,11 +206,11 @@ describe('TimelineScreen', () => {
   it('falls back to ArchiveHub when Timeline is the only route', async () => {
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(false);
-    renderTimeline(navigation);
+    await renderTimeline(navigation);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Live Aid' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
-    renderWithProviders(<>{lastHeaderLeft(navigation)()}</>, { navigation: false });
+    await renderWithProviders(<>{lastHeaderLeft(navigation)()}</>, { navigation: false });
     await user.press(screen.getByTestId(testIds.timelineBack));
     expect(navigation.goBack).not.toHaveBeenCalled();
     expect(navigation.navigate).toHaveBeenCalledWith('ArchiveHub');
@@ -225,8 +225,8 @@ function lastHeaderLeft(navigation: ReturnType<typeof fakeNavigation>) {
   return options.headerLeft!;
 }
 
-function renderTimeline(navigation = fakeNavigation()) {
-  return renderWithProviders(
+async function renderTimeline(navigation = fakeNavigation()) {
+  return await renderWithProviders(
     <TimelineScreen
       navigation={navigation as never}
       route={{ key: 'timeline', name: 'Timeline', params: { focusId: 12 } } as never}

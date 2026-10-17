@@ -37,7 +37,7 @@ describe('BiographyScreen', () => {
   });
 
   it('requests the hook-default page size and shows the chapter summary on the row', async () => {
-    renderWithProviders(
+    await renderWithProviders(
       <BiographyScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'biography', name: 'Biography' } as never}

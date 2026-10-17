@@ -15,7 +15,7 @@ jest.mock('../messages/useUnreadConversationCount', () => ({
   useUnreadConversationCount: () => mockUnread.count,
 }));
 
-function renderMasthead(
+async function renderMasthead(
   props: { onSearch?: () => void; onProfilePress?: () => void; onMessagesPress?: () => void } = {},
 ) {
   const onSearch = props.onSearch ?? jest.fn();
@@ -25,14 +25,14 @@ function renderMasthead(
     onSearch,
     onProfilePress,
     onMessagesPress,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <TabRootMasthead
         onSearch={onSearch}
         onProfilePress={onProfilePress}
         onMessagesPress={onMessagesPress}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -43,8 +43,8 @@ describe('TabRootMasthead', () => {
     mockUnread.count = 0;
   });
 
-  it('shows the signed-out affordance and no messages icon', () => {
-    renderMasthead();
+  it('shows the signed-out affordance and no messages icon', async () => {
+    await renderMasthead();
 
     expect(screen.getByTestId(testIds.tabMasthead)).toBeOnTheScreen();
     expect(screen.getByText('Queenzone.org')).toBeOnTheScreen();
@@ -56,11 +56,11 @@ describe('TabRootMasthead', () => {
     expect(screen.queryByText('99+')).not.toBeOnTheScreen();
   });
 
-  it('shows the messages icon without a badge when signed in with zero unread', () => {
+  it('shows the messages icon without a badge when signed in with zero unread', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 0;
-    renderMasthead();
+    await renderMasthead();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.getByLabelText('Messages')).toBeOnTheScreen();
@@ -70,11 +70,11 @@ describe('TabRootMasthead', () => {
     expect(screen.queryByText('99+')).not.toBeOnTheScreen();
   });
 
-  it('badges the messages icon, not the avatar, when signed in with waiting PMs', () => {
+  it('badges the messages icon, not the avatar, when signed in with waiting PMs', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 3;
-    renderMasthead();
+    await renderMasthead();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.queryByLabelText('Profile, 3 unread conversations')).not.toBeOnTheScreen();
@@ -84,20 +84,20 @@ describe('TabRootMasthead', () => {
     expect(screen.getByText('3', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  it('caps the messages badge at 99+', () => {
+  it('caps the messages badge at 99+', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 100;
-    renderMasthead();
+    await renderMasthead();
 
     expect(screen.getByLabelText('Messages, 100 unread conversations')).toBeOnTheScreen();
     expect(screen.getByText('99+', { includeHiddenElements: true })).toBeOnTheScreen();
   });
 
-  it('hides the messages icon when signed out even if a count leaked', () => {
+  it('hides the messages icon when signed out even if a count leaked', async () => {
     mockSession.isSignedIn = false;
     mockUnread.count = 4;
-    renderMasthead();
+    await renderMasthead();
 
     expect(screen.getByLabelText('Profile')).toBeOnTheScreen();
     expect(screen.getByText('·')).toBeOnTheScreen();
@@ -105,10 +105,10 @@ describe('TabRootMasthead', () => {
     expect(screen.queryByText('4')).not.toBeOnTheScreen();
   });
 
-  it('omits search and messages when those slots are not provided', () => {
+  it('omits search and messages when those slots are not provided', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
-    renderWithProviders(<TabRootMasthead onProfilePress={jest.fn()} />, { navigation: false });
+    await renderWithProviders(<TabRootMasthead onProfilePress={jest.fn()} />, { navigation: false });
 
     expect(screen.queryByTestId(testIds.homeSearch)).not.toBeOnTheScreen();
     expect(screen.queryByTestId(testIds.homeMessages)).not.toBeOnTheScreen();
@@ -118,7 +118,7 @@ describe('TabRootMasthead', () => {
   it('opens search, messages, and profile from the shared controls', async () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
-    const { onSearch, onProfilePress, onMessagesPress } = renderMasthead();
+    const { onSearch, onProfilePress, onMessagesPress } = await renderMasthead();
     const user = userEvent.setup();
 
     await user.press(screen.getByTestId(testIds.homeSearch));
@@ -134,7 +134,7 @@ describe('TabRootMasthead', () => {
     mockSession.isSignedIn = true;
     mockSession.displayName = 'Contract Member';
     mockUnread.count = 3;
-    const { onMessagesPress } = renderMasthead();
+    const { onMessagesPress } = await renderMasthead();
     const user = userEvent.setup();
 
     await user.press(screen.getByText('3', { includeHiddenElements: true }));

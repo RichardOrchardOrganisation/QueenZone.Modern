@@ -1,4 +1,5 @@
-import { RefreshControl, ScrollView } from 'react-native';
+import { componentProps, getHostByType } from '../../test/renderer';
+import { RefreshControl } from 'react-native';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { submissionsApiUrl } from '../../api/submissions';
 import { jsonResponse } from '../../test/fixtures';
@@ -119,8 +120,8 @@ function mockSubmissionPages() {
   });
 }
 
-function renderSubmissions() {
-  return renderWithProviders(<MySubmissionsScreen />);
+async function renderSubmissions() {
+  return await renderWithProviders(<MySubmissionsScreen />);
 }
 
 describe('MySubmissionsScreen', () => {
@@ -133,7 +134,7 @@ describe('MySubmissionsScreen', () => {
   });
 
   it('loads photo submissions on the default tab', async () => {
-    renderSubmissions();
+    await renderSubmissions();
     await waitFor(() => expect(screen.getByText('Live in Montreal')).toBeOnTheScreen());
     expect(screen.getByText('Pending review')).toBeOnTheScreen();
     const thumb = screen.getByLabelText('Live in Montreal');
@@ -150,7 +151,7 @@ describe('MySubmissionsScreen', () => {
   });
 
   it('switches tabs to news and articles', async () => {
-    renderSubmissions();
+    await renderSubmissions();
     await waitFor(() => expect(screen.getByText('Live in Montreal')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -199,7 +200,7 @@ describe('MySubmissionsScreen', () => {
       throw new Error(`unexpected fetch ${url}`);
     });
 
-    renderSubmissions();
+    await renderSubmissions();
     const user = userEvent.setup();
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Fan performances' })).toBeOnTheScreen());
     await user.press(screen.getByRole('tab', { name: 'Fan performances' }));
@@ -213,7 +214,7 @@ describe('MySubmissionsScreen', () => {
     fetchMock.mockImplementationOnce(async () => jsonResponse(newsPayload));
     fetchMock.mockImplementationOnce(async () => jsonResponse(articlePayload));
     fetchMock.mockImplementationOnce(async () => jsonResponse(fanPerformancePayload));
-    renderSubmissions();
+    await renderSubmissions();
     await waitFor(() => expect(screen.getByText('Could not load your submissions.')).toBeOnTheScreen());
 
     mockSubmissionPages();
@@ -224,34 +225,34 @@ describe('MySubmissionsScreen', () => {
 
   it('holds refreshing on an immediately resolved no-token pull', async () => {
     mockSession.accessToken = null;
-    renderSubmissions();
+    await renderSubmissions();
     await waitFor(() =>
       expect(
         screen.getByText(/Live submission status needs a QueenZone member token/),
       ).toBeOnTheScreen(),
     );
 
-    expect(screen.UNSAFE_getByType(ScrollView).props.alwaysBounceVertical).toBe(true);
+    expect(getHostByType('RCTScrollView').props.alwaysBounceVertical).toBe(true);
 
     await act(async () => {
-      fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+      await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
     });
-    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
+    expect(componentProps(RefreshControl).props.refreshing).toBe(true);
 
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(true);
-    await waitFor(() => expect(screen.UNSAFE_getByType(RefreshControl).props.refreshing).toBe(false));
+    expect(componentProps(RefreshControl).props.refreshing).toBe(true);
+    await waitFor(() => expect(componentProps(RefreshControl).props.refreshing).toBe(false));
   });
 
   it('pull-to-refresh reloads every submission kind through ThemedRefreshControl', async () => {
-    renderSubmissions();
+    await renderSubmissions();
     await waitFor(() => expect(screen.getByText('Live in Montreal')).toBeOnTheScreen());
     const callsBeforeRefresh = fetchMock.mock.calls.length;
 
-    fireEvent(screen.UNSAFE_getByType(RefreshControl), 'refresh');
+    await fireEvent(getHostByType('RCTRefreshControl'), 'refresh');
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBeforeRefresh));
     expect(fetchMock).toHaveBeenCalledWith(photosUrl, expect.any(Object));

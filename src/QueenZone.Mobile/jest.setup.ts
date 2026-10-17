@@ -243,8 +243,8 @@ console.warn = (...args: unknown[]) => {
   originalWarn(...args);
 };
 
-afterEach(() => {
-  cleanup();
+afterEach(async () => {
+  await cleanup();
 });
 
 const onUnhandled = (reason: unknown) => {

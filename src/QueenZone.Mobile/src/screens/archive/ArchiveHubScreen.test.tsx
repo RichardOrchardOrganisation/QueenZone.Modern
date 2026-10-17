@@ -6,7 +6,7 @@ import { ArchiveHubScreen } from './ArchiveHubScreen';
 describe('ArchiveHubScreen', () => {
   it('shows the updated archive summary and photographs destination', async () => {
     const navigation = fakeNavigation();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -27,7 +27,7 @@ describe('ArchiveHubScreen', () => {
   it('labels the articles destination Articles and opens the Articles route', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -45,7 +45,7 @@ describe('ArchiveHubScreen', () => {
   it('opens the Trivia route from the Queen facts row', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -61,7 +61,7 @@ describe('ArchiveHubScreen', () => {
   it('opens the Quiz route from the Test yourself row', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -77,7 +77,7 @@ describe('ArchiveHubScreen', () => {
   it('opens Timeline in-stack from the listing row', async () => {
     const user = userEvent.setup();
     const navigation = fakeNavigation();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveHubScreen
         navigation={navigation as never}
         route={{ key: 'archive', name: 'ArchiveHub' } as never}
@@ -105,9 +105,9 @@ describe('complete archive destination navigation', () => {
   ])('opens %s through %s', async (id, route) => {
     const row = archiveDestinations.find((destination) => destination.id === id)!;
     const navigation = fakeNavigation();
-    renderWithProviders(<ArchiveHubScreen navigation={navigation as never} route={{ key: 'archive', name: 'ArchiveHub' } as never} />, { navigation: false });
-    fireEvent(screen.getByTestId('archive-hub-screen'), 'layout', { nativeEvent: { layout: { height: 2500, width: 320, x: 0, y: 0 } } });
-    fireEvent(screen.getByTestId('archive-hub-screen'), 'contentSizeChange', 320, 2500);
+    await renderWithProviders(<ArchiveHubScreen navigation={navigation as never} route={{ key: 'archive', name: 'ArchiveHub' } as never} />, { navigation: false });
+    await fireEvent(screen.getByTestId('archive-hub-screen'), 'layout', { nativeEvent: { layout: { height: 2500, width: 320, x: 0, y: 0 } } });
+    await fireEvent(screen.getByTestId('archive-hub-screen'), 'contentSizeChange', 320, 2500);
     await flushVirtualizedList();
     await userEvent.setup().press(screen.getByRole('button', { name: new RegExp(`${row.kicker}\\. ${row.title}\\.`) }));
     if (id === 'recently-restored') {

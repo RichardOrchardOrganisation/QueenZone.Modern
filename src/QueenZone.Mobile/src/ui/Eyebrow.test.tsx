@@ -6,8 +6,8 @@ import { Eyebrow } from './Eyebrow';
 describe('Eyebrow', () => {
   it.each(['light', 'dark'] as const)(
     'keeps onDark as fixed light-on-dark text in %s mode',
-    (preference) => {
-      renderWithProviders(<Eyebrow tone="onDark">Lead story</Eyebrow>, {
+    async (preference) => {
+      await renderWithProviders(<Eyebrow tone="onDark">Lead story</Eyebrow>, {
         navigation: false,
         themePreference: preference,
       });
@@ -18,8 +18,8 @@ describe('Eyebrow', () => {
     },
   );
 
-  it('still uses scheme textPrimary for the primary tone', () => {
-    renderWithProviders(<Eyebrow tone="primary">In the forum</Eyebrow>, {
+  it('still uses scheme textPrimary for the primary tone', async () => {
+    await renderWithProviders(<Eyebrow tone="primary">In the forum</Eyebrow>, {
       navigation: false,
       themePreference: 'light',
     });

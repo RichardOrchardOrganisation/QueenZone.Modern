@@ -85,17 +85,17 @@ function resultFixture(): QuizResult {
   };
 }
 
-function renderPlay() {
+async function renderPlay() {
   const navigation = fakeNavigation();
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <QuizPlayScreen
         navigation={navigation as never}
         route={{ key: 'quiz-play', name: 'QuizPlay', params: { id: 'aaefa33a-dd8f-4330-b844-83887246da65' } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -113,7 +113,7 @@ describe('QuizPlayScreen', () => {
     loadQuiz.mockResolvedValue(quizFixture());
     submitAttempt.mockResolvedValue(resultFixture());
     const user = userEvent.setup();
-    renderPlay();
+    await renderPlay();
 
     await waitFor(() => expect(screen.getByText('Queen Frontman Trivia')).toBeOnTheScreen());
     await user.press(screen.getByLabelText('Freddie Mercury'));
@@ -137,7 +137,7 @@ describe('QuizPlayScreen', () => {
 
   it('prompts a signed-out visitor to sign in instead of submitting', async () => {
     loadQuiz.mockResolvedValue(quizFixture());
-    renderPlay();
+    await renderPlay();
 
     await waitFor(() => expect(screen.getByText('Queen Frontman Trivia')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Sign in to submit' })).toBeOnTheScreen();
@@ -149,7 +149,7 @@ describe('QuizPlayScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'token-123';
     loadQuiz.mockResolvedValue(quizFixture());
-    renderPlay();
+    await renderPlay();
 
     await waitFor(() => expect(screen.getByText('Queen Frontman Trivia')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Submit answers' })).toBeDisabled();

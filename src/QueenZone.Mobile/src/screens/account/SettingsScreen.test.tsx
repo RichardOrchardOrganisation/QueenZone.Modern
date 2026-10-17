@@ -82,12 +82,12 @@ function mockSettingsLoad(
   fetchNotificationPreferencesMock.mockResolvedValue(preferences);
 }
 
-function renderSettings(navigation = fakeNavigation()) {
+async function renderSettings(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <SettingsScreen navigation={navigation as never} route={{ key: 'settings', name: 'Settings' } as never} />,
-    ),
+    )),
   };
 }
 
@@ -103,17 +103,17 @@ describe('SettingsScreen notifications', () => {
     patchNotificationPreferencesMock.mockReset();
   });
 
-  it('gates unsigned visitors', () => {
+  it('gates unsigned visitors', async () => {
     mockSession.isSignedIn = false;
     mockSession.accessToken = null;
-    renderSettings();
+    await renderSettings();
     expect(screen.getByText('Settings')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
 
   it('loads independent toggles from the preferences endpoint', async () => {
     mockSettingsLoad({ forumReply: true, privateMessage: false, news: false });
-    renderSettings();
+    await renderSettings();
 
     await waitFor(() => expect(screen.getByTestId(testIds.settingsNotifyNews)).toBeOnTheScreen());
     expect(screen.getByText('Notifications')).toBeOnTheScreen();
@@ -126,10 +126,10 @@ describe('SettingsScreen notifications', () => {
 
   it('persists a toggle immediately and reports status', async () => {
     patchNotificationPreferencesMock.mockResolvedValue({ forumReply: true, privateMessage: true, news: true });
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('switch', { name: 'News' })).toBeOnTheScreen());
 
-    fireEvent(screen.getByRole('switch', { name: 'News' }), 'valueChange', true);
+    await fireEvent(screen.getByRole('switch', { name: 'News' }), 'valueChange', true);
 
     await waitFor(() => expect(patchNotificationPreferencesMock).toHaveBeenCalledWith('tok', { news: true }));
     expect(screen.getByText('Notification preferences updated.')).toBeOnTheScreen();
@@ -140,10 +140,10 @@ describe('SettingsScreen notifications', () => {
     patchNotificationPreferencesMock.mockRejectedValue(
       new ApiError(500, 'The server had a problem. Try again shortly.'),
     );
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('switch', { name: 'News' })).toHaveProp('value', false));
 
-    fireEvent(screen.getByRole('switch', { name: 'News' }), 'valueChange', true);
+    await fireEvent(screen.getByRole('switch', { name: 'News' }), 'valueChange', true);
 
     await waitFor(() =>
       expect(screen.getByText('The server had a problem. Try again shortly.')).toBeOnTheScreen(),
@@ -152,7 +152,7 @@ describe('SettingsScreen notifications', () => {
   });
 
   it('loads the profile', async () => {
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByDisplayValue('Roger')).toBeOnTheScreen());
     expect(screen.getByText('fan@example.com')).toBeOnTheScreen();
     expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'tok' });
@@ -161,13 +161,13 @@ describe('SettingsScreen notifications', () => {
 
   it('shows a load error when settings cannot be fetched', async () => {
     fetchJsonMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem.'));
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByText('The server had a problem.')).toBeOnTheScreen());
     expect(screen.queryByLabelText('Display name')).toBeOnTheScreen();
   });
 
   it('rejects an invalid display name without PATCHing', async () => {
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByLabelText('Display name')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -196,7 +196,7 @@ describe('SettingsScreen notifications', () => {
           messagePrivacy: 'nobody',
         }),
       );
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByLabelText('Display name')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -221,7 +221,7 @@ describe('SettingsScreen notifications', () => {
   });
 
   it('navigates to DeleteAccount', async () => {
-    const { navigation } = renderSettings();
+    const { navigation } = await renderSettings();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Delete my account' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -250,7 +250,7 @@ describe('SettingsScreen notifications', () => {
         },
       }),
     );
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Claim legacy account' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -279,7 +279,7 @@ describe('SettingsScreen notifications', () => {
         legacyLink: { kind: 'none', match: null, claimableMatches: [], unavailableMatches: [] },
       }),
     );
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Unlink legacy account' })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -319,9 +319,9 @@ describe('SettingsScreen notifications', () => {
       assets: [{ uri: 'file:///tmp/avatar.jpg', fileName: 'avatar.jpg', mimeType: 'image/jpeg' }],
     });
 
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Choose photo' })).toBeOnTheScreen());
-    fireEvent.press(screen.getByRole('button', { name: 'Choose photo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose photo' }));
 
     await waitFor(() => expect(screen.getByText('Avatar updated.')).toBeOnTheScreen());
     expect(uploadMemberAvatarMock).toHaveBeenCalledWith(
@@ -339,9 +339,9 @@ describe('SettingsScreen notifications', () => {
       assets: [{ uri: 'file:///tmp/avatar.jpg', fileName: 'avatar.jpg', mimeType: 'image/jpeg' }],
     });
 
-    renderSettings();
+    await renderSettings();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Choose photo' })).toBeOnTheScreen());
-    fireEvent.press(screen.getByRole('button', { name: 'Choose photo' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose photo' }));
 
     await waitFor(() =>
       expect(screen.getByText('Could not read the selected photo. Try choosing it again.')).toBeOnTheScreen(),

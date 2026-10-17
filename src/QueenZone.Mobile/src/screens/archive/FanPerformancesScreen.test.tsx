@@ -52,17 +52,17 @@ const catalogSignIn = expect.objectContaining({
   }),
 });
 
-function renderList() {
+async function renderList() {
   const navigation = fakeNavigation();
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <FanPerformancesScreen
         navigation={navigation as never}
         route={{ key: 'list', name: 'FanPerformances' } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -90,14 +90,14 @@ describe('FanPerformancesScreen', () => {
     fetchPage.mockResolvedValue(
       pagedResponse([fanPerformanceFixture({ contributorDisplayName: 'Stage Fan' })]),
     );
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByText(/Submitted by Stage Fan/)).toBeOnTheScreen());
     await userEvent.setup().press(screen.getByTestId(testIds.fanPerformanceSubmit));
     expect(navigation.navigate).toHaveBeenCalledWith('FanPerformanceSubmit');
   });
 
   it('opens detail from the title and sends unsigned visitors to sign in from play', async () => {
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByText(track.title)).toBeOnTheScreen());
 
     expect(screen.getByText('Sign in to play')).toBeOnTheScreen();
@@ -112,7 +112,7 @@ describe('FanPerformancesScreen', () => {
   });
 
   it('sends unsigned visitors to sign in from Play All and Shuffle Play All', async () => {
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformancesPlayAll)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -129,7 +129,7 @@ describe('FanPerformancesScreen', () => {
 
   it('does not open sign-in from play while a session is restoring', async () => {
     mockSession.isRestoring = true;
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByText(track.title)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -140,7 +140,7 @@ describe('FanPerformancesScreen', () => {
 
   it('plays from the list when a member is signed in and still opens detail from the title', async () => {
     mockSession.accessToken = 'member-token';
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByRole('button', { name: `Play ${track.title}` })).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -159,7 +159,7 @@ describe('FanPerformancesScreen', () => {
     const third = fanPerformanceFixture({ id: 3, title: 'Third' });
     fetchPage.mockResolvedValue(pagedResponse([first], 1, 2));
     fetchAll.mockResolvedValue([first, second, third]);
-    renderList();
+    await renderList();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformancesPlayAll)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -178,7 +178,7 @@ describe('FanPerformancesScreen', () => {
     fetchPage.mockResolvedValue(pagedResponse([first], 1, 2));
     fetchAll.mockResolvedValue(catalog);
     const random = jest.spyOn(Math, 'random').mockReturnValue(0);
-    renderList();
+    await renderList();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformancesShufflePlayAll)).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -199,7 +199,7 @@ describe('FanPerformancesScreen', () => {
 
   it('opens Downloads from the listing when signed in', async () => {
     mockSession.accessToken = 'member-token';
-    const { navigation } = renderList();
+    const { navigation } = await renderList();
     await waitFor(() => expect(screen.getByTestId(testIds.fanPerformanceDownloads)).toBeOnTheScreen());
     await userEvent.setup().press(screen.getByTestId(testIds.fanPerformanceDownloads));
     expect(navigation.navigate).toHaveBeenCalledWith('FanPerformanceDownloads');
@@ -209,7 +209,7 @@ describe('FanPerformancesScreen', () => {
     mockSession.accessToken = 'member-token';
     mockPlayer.current = { id: track.id };
     mockPlayer.playing = true;
-    renderList();
+    await renderList();
     await waitFor(() => expect(screen.getByRole('button', { name: `Pause ${track.title}` })).toBeOnTheScreen());
 
     const user = userEvent.setup();

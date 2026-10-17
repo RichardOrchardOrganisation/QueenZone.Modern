@@ -59,28 +59,28 @@ describe('WidgetLinkBridge', () => {
 
   it('opens the quote screen from a cold-start quote URL', async () => {
     getInitialURL.mockResolvedValue('queenzone://quotes/9');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', quoteDestination));
   });
 
   it('opens Home from a quote URL with a missing or non-integer id', async () => {
     getInitialURL.mockResolvedValue('queenzone://quotes/abc');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', homeDestination));
   });
 
   it('opens Home when launched from the widget URL', async () => {
     getInitialURL.mockResolvedValue('queenzone://home');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', homeDestination));
   });
 
   it('opens TimelineEvent from a cold-start day-face URL', async () => {
     getInitialURL.mockResolvedValue('queenzone://timeline/12');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', timelineEventDestination));
   });
@@ -92,7 +92,7 @@ describe('WidgetLinkBridge', () => {
       return { remove: jest.fn() } as never;
     });
     getInitialURL.mockResolvedValue('queenzone://timeline/12');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', timelineEventDestination));
     mockNavigate.mockClear();
@@ -109,14 +109,14 @@ describe('WidgetLinkBridge', () => {
 
   it('opens the Timeline list from a day-face URL with no usable id', async () => {
     getInitialURL.mockResolvedValue('queenzone://timeline');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', timelineListDestination));
   });
 
   it('opens Trivia from a cold-start trivia URL', async () => {
     getInitialURL.mockResolvedValue('queenzone://trivia');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', triviaDestination));
   });
@@ -128,7 +128,7 @@ describe('WidgetLinkBridge', () => {
       return { remove: jest.fn() } as never;
     });
 
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(addEventListener).toHaveBeenCalled());
 
     await act(async () => {
@@ -145,7 +145,7 @@ describe('WidgetLinkBridge', () => {
       return { remove: jest.fn() } as never;
     });
 
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(addEventListener).toHaveBeenCalled());
 
     await act(async () => {
@@ -157,13 +157,13 @@ describe('WidgetLinkBridge', () => {
 
   it('does not re-apply the launch URL when the root navigator remounts', async () => {
     getInitialURL.mockResolvedValue('queenzone://home');
-    const first = renderWithProviders(<WidgetLinkBridge />);
+    const first = await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
-    first.unmount();
+    await first.unmount();
     mockNavigate.mockClear();
 
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(getInitialURL).toHaveBeenCalledTimes(2));
     expect(mockNavigate).not.toHaveBeenCalled();
   });
@@ -175,7 +175,7 @@ describe('WidgetLinkBridge', () => {
       return { remove: jest.fn() } as never;
     });
     getInitialURL.mockResolvedValue('queenzone://home');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     mockNavigate.mockClear();
@@ -189,7 +189,7 @@ describe('WidgetLinkBridge', () => {
 
   it('ignores unrelated deep links', async () => {
     getInitialURL.mockResolvedValue('queenzone://forum');
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(getInitialURL).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
   });
@@ -201,7 +201,7 @@ describe('trivia cold/warm link ordering', () => {
     let handler: ((event: { url: string }) => void) | undefined;
     getInitialURL.mockResolvedValue('queenzone://trivia/12');
     addEventListener.mockImplementation((_type, next) => { handler = next as typeof handler; return { remove: jest.fn() } as never; });
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledTimes(1));
     await act(async () => { handler?.({ url: 'queenzone://trivia/13' }); handler?.({ url: 'queenzone://trivia/12' }); });
     const params = mockNavigate.mock.calls.map(call => call[1].params.params);
@@ -213,7 +213,7 @@ describe('trivia cold/warm link ordering', () => {
     let handler: ((event: { url: string }) => void) | undefined;
     getInitialURL.mockReturnValue(new Promise(resolve => { resolveInitial = resolve; }));
     addEventListener.mockImplementation((_type, next) => { handler = next as typeof handler; return { remove: jest.fn() } as never; });
-    renderWithProviders(<WidgetLinkBridge />);
+    await renderWithProviders(<WidgetLinkBridge />);
     await act(async () => { handler?.({ url: 'queenzone://trivia/13' }); resolveInitial('queenzone://trivia/12'); });
     expect(mockNavigate).toHaveBeenCalledTimes(1);
     expect(mockNavigate.mock.calls[0][1].params.params.id).toBe(13);

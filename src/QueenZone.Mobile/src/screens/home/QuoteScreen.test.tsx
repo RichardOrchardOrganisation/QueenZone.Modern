@@ -17,16 +17,16 @@ jest.mock('../../api', () => {
 
 const fetchQuote = fetchQuoteById as jest.MockedFunction<typeof fetchQuoteById>;
 
-function renderQuote(navigation = fakeNavigation(), id = 9) {
+async function renderQuote(navigation = fakeNavigation(), id = 9) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <QuoteScreen
         navigation={navigation as never}
         route={{ key: 'quote', name: 'Quote', params: { id } } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -39,9 +39,9 @@ describe('QuoteScreen', () => {
     const old = deferred<RandomQuote>();
     fetchQuote.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ id: 10, text: 'New quote', whoSaid: 'Brian' });
     const navigation = fakeNavigation();
-    const view = renderQuote(navigation, 9);
+    const view = await renderQuote(navigation, 9);
     await waitFor(() => expect(fetchQuote).toHaveBeenCalledTimes(1));
-    view.rerender(<QuoteScreen navigation={navigation as never} route={{ key: 'quote', name: 'Quote', params: { id: 10 } }} />);
+    await view.rerender(<QuoteScreen navigation={navigation as never} route={{ key: 'quote', name: 'Quote', params: { id: 10 } }} />);
     await waitFor(() => expect(screen.getByText('“New quote”')).toBeOnTheScreen());
     await act(async () => old.resolve({ id: 9, text: 'Old quote', whoSaid: 'Freddie' }));
     expect(screen.queryByText('“Old quote”')).toBeNull();
@@ -56,7 +56,7 @@ describe('QuoteScreen', () => {
       whoSaid: 'Freddie Mercury',
       context: 'Live Aid, 1985',
     });
-    renderQuote();
+    await renderQuote();
 
     await waitFor(() => expect(screen.getByTestId(testIds.quoteScreen)).toBeOnTheScreen());
     expect(screen.getByText('“A kind of magic”')).toBeOnTheScreen();
@@ -73,7 +73,7 @@ describe('QuoteScreen', () => {
       whoSaid: 'Freddie Mercury',
       context: '   ',
     });
-    renderQuote();
+    await renderQuote();
 
     await waitFor(() => expect(screen.getByTestId(testIds.quoteScreen)).toBeOnTheScreen());
     expect(screen.getByText('“A kind of magic”')).toBeOnTheScreen();
@@ -84,7 +84,7 @@ describe('QuoteScreen', () => {
   it('replaces to Home when the quote is unpublished or missing', async () => {
     fetchQuote.mockRejectedValue(new ApiError(404, 'Not Found'));
     const navigation = fakeNavigation();
-    renderQuote(navigation);
+    await renderQuote(navigation);
 
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Home'));
     expect(screen.queryByTestId(testIds.quoteScreen)).toBeNull();
@@ -92,7 +92,7 @@ describe('QuoteScreen', () => {
 
   it('replaces to Home when the route id is not a positive integer', async () => {
     const navigation = fakeNavigation();
-    renderQuote(navigation, 0);
+    await renderQuote(navigation, 0);
 
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Home'));
     expect(fetchQuote).not.toHaveBeenCalled();

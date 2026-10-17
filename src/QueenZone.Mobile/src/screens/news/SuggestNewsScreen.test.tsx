@@ -1,3 +1,4 @@
+import { allComponentProps } from '../../test/renderer';
 import { Button } from '../../ui/Button';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import type { NewsShareView } from '../../share/news/session';
@@ -20,16 +21,16 @@ jest.mock('../../share/news/NewsShare', () => ({
   openSuggestNews: jest.fn(),
 }));
 
-function renderSuggest(navigation = fakeNavigation()) {
+async function renderSuggest(navigation = fakeNavigation()) {
   return {
     navigation,
-    ...renderWithProviders(
+    ...(await renderWithProviders(
       <SuggestNewsScreen
         navigation={navigation as never}
         route={{ key: 'suggest', name: 'SuggestNews' } as never}
       />,
       { navigation: false },
-    ),
+    )),
   };
 }
 
@@ -53,7 +54,7 @@ describe('SuggestNewsScreen', () => {
   });
 
   it('shows a signed-out form and signs in with SuggestNews returnTo', async () => {
-    const { navigation } = renderSuggest();
+    const { navigation } = await renderSuggest();
     expect(screen.getByTestId(testIds.suggestNewsScreen)).toBeOnTheScreen();
     expect(screen.getByTestId(testIds.suggestNewsUrl)).toBeOnTheScreen();
     expect(screen.getByDisplayValue('https://www.bbc.co.uk/news/example')).toBeOnTheScreen();
@@ -84,7 +85,7 @@ describe('SuggestNewsScreen', () => {
     };
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(true);
-    renderSuggest(navigation);
+    await renderSuggest(navigation);
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.suggestNewsCancel));
     expect(cancel).toHaveBeenCalled();
@@ -100,7 +101,7 @@ describe('SuggestNewsScreen', () => {
       cancel,
     };
     const navigation = fakeNavigation();
-    renderSuggest(navigation);
+    await renderSuggest(navigation);
     expect(screen.getByText('Needs an https:// link')).toBeOnTheScreen();
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.suggestNewsCancel));
@@ -111,7 +112,7 @@ describe('SuggestNewsScreen', () => {
   it('closes the idle empty state', async () => {
     mockShare = { kind: 'idle' };
     const navigation = fakeNavigation();
-    renderSuggest(navigation);
+    await renderSuggest(navigation);
     expect(screen.getByText('No story is waiting to be suggested.')).toBeOnTheScreen();
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.suggestNewsCancel));
@@ -134,7 +135,7 @@ describe('SuggestNewsScreen', () => {
     };
     const navigation = fakeNavigation();
     navigation.canGoBack.mockReturnValue(true);
-    renderSuggest(navigation);
+    await renderSuggest(navigation);
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.suggestNewsCancel));
     expect(cancel).toHaveBeenCalled();
@@ -149,7 +150,7 @@ describe('SuggestNewsScreen', () => {
       choose,
       cancel: jest.fn(),
     };
-    renderSuggest();
+    await renderSuggest();
     expect(screen.getByTestId(testIds.suggestNewsChooser)).toBeOnTheScreen();
     const user = userEvent.setup();
     await user.press(screen.getByLabelText('Use https://www.bbc.co.uk/two'));
@@ -169,7 +170,7 @@ describe('SuggestNewsScreen', () => {
       },
       acknowledge,
     };
-    const { navigation } = renderSuggest();
+    const { navigation } = await renderSuggest();
     expect(screen.getByTestId(testIds.suggestNewsSuccess)).toBeOnTheScreen();
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: 'View my submissions' }));
@@ -198,7 +199,7 @@ describe('SuggestNewsScreen', () => {
       cancel: jest.fn(),
       submit,
     };
-    renderSuggest();
+    await renderSuggest();
     const user = userEvent.setup();
     await user.press(screen.getByTestId(testIds.suggestNewsRetry));
     expect(submit).toHaveBeenCalledWith('tok');
@@ -213,7 +214,7 @@ describe('suggestion submit and retry guards', () => {
     const submit = jest.fn(async () => undefined);
     const base = { draft, patch: jest.fn(), cancel: jest.fn(), submit };
     mockShare = kind === 'form' ? { kind, ...base } : { kind, ...base, error: { code: 'network', message: 'Network unavailable', retryable: true } };
-    renderSuggest();
+    await renderSuggest();
     const user = userEvent.setup();
     expect(screen.getByTestId(testIds.suggestNewsSubmit)).toBeEnabled();
     await user.press(screen.getByTestId(testIds.suggestNewsSubmit));
@@ -230,10 +231,10 @@ describe('suggestion submit and retry guards', () => {
     mockShare = state === 'submitting'
       ? { kind: 'submitting', draft }
       : { kind: 'failed', draft, submit, patch: jest.fn(), cancel: jest.fn(), error: { code: 'unauthorized', message: 'Sign in again', retryable: true } };
-    renderSuggest();
+    await renderSuggest();
     expect(screen.getByTestId(testIds.suggestNewsSubmit)).toBeDisabled();
     await userEvent.setup().press(screen.getByTestId(testIds.suggestNewsSubmit));
-    for (const button of screen.UNSAFE_getAllByType(Button).filter((item) => ['Submit', 'Retry'].includes(item.props.label))) {
+    for (const button of allComponentProps(Button).filter((item) => ['Submit', 'Retry'].includes(item.props.label))) {
       await act(async () => button.props.onPress());
     }
     expect(submit).not.toHaveBeenCalled();

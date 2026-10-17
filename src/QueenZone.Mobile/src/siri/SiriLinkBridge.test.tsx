@@ -29,36 +29,36 @@ describe('SiriLinkBridge', () => {
 
   it('opens News from a cold start', async () => {
     getInitialURL.mockResolvedValue('queenzone://news');
-    renderWithProviders(<SiriLinkBridge />);
+    await renderWithProviders(<SiriLinkBridge />);
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
       screen: 'NewsTab', params: { screen: 'NewsIndex', initial: false },
     }));
   });
 
-  it('searches from a warm launch and ignores private destinations', () => {
+  it('searches from a warm launch and ignores private destinations', async () => {
     let handler: ((event: { url: string }) => void) | undefined;
     addEventListener.mockImplementation((_type, callback) => {
       handler = callback;
       return { remove: jest.fn() } as never;
     });
-    renderWithProviders(<SiriLinkBridge />);
-    act(() => handler?.({ url: 'queenzone://inbox' }));
+    await renderWithProviders(<SiriLinkBridge />);
+    await act(() => handler?.({ url: 'queenzone://inbox' }));
     expect(mockNavigate).not.toHaveBeenCalled();
-    act(() => handler?.({ url: 'queenzone://search?q=Queen%20II' }));
+    await act(() => handler?.({ url: 'queenzone://search?q=Queen%20II' }));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
       screen: 'ArchiveTab', params: { screen: 'Search', params: { query: 'Queen II' }, initial: false },
     });
-    act(() => handler?.({ url: 'queenzone://album/12' }));
+    await act(() => handler?.({ url: 'queenzone://album/12' }));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
       screen: 'ArchiveTab', params: { screen: 'Album', params: { id: 12 }, initial: false },
     });
-    act(() => handler?.({ url: 'queenzone://biography/3' }));
+    await act(() => handler?.({ url: 'queenzone://biography/3' }));
     expect(mockNavigate).toHaveBeenCalledWith('Tabs', {
       screen: 'ArchiveTab', params: { screen: 'BiographyChapter', params: { id: 3 }, initial: false },
     });
     const count = mockNavigate.mock.calls.length;
-    act(() => handler?.({ url: 'queenzone://timeline/42' }));
-    act(() => handler?.({ url: 'queenzone://trivia' }));
+    await act(() => handler?.({ url: 'queenzone://timeline/42' }));
+    await act(() => handler?.({ url: 'queenzone://trivia' }));
     expect(mockNavigate).toHaveBeenCalledTimes(count);
   });
 });

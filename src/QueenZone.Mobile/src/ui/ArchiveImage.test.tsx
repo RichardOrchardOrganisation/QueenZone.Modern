@@ -3,8 +3,8 @@ import { renderWithProviders } from '../test/render';
 import { ArchiveImage } from './ArchiveImage';
 
 describe('ArchiveImage', () => {
-  it('forwards label, recycling key, priority, and invert-colors', () => {
-    renderWithProviders(
+  it('forwards label, recycling key, priority, and invert-colors', async () => {
+    await renderWithProviders(
       <ArchiveImage
         source={{ uri: 'https://cdn.queenzone.org/discography/a-night-at-the-opera.jpg' }}
         label="A Night at the Opera"
@@ -26,8 +26,8 @@ describe('ArchiveImage', () => {
     expect(image.props.accessibilityIgnoresInvertColors).toBe(true);
   });
 
-  it('falls back to the URI when recyclingKey is omitted', () => {
-    renderWithProviders(
+  it('falls back to the URI when recyclingKey is omitted', async () => {
+    await renderWithProviders(
       <ArchiveImage
         source={{ uri: 'https://cdn.queenzone.org/photos/101.jpg' }}
         label="Live Aid"
@@ -42,11 +42,11 @@ describe('ArchiveImage', () => {
     expect(screen.getByLabelText('Live Aid').props.priority).toBe('normal');
   });
 
-  it('forwards load callbacks to expo-image', () => {
+  it('forwards load callbacks to expo-image', async () => {
     const onLoadStart = jest.fn();
     const onLoad = jest.fn();
     const onError = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ArchiveImage
         source={{ uri: 'https://cdn.queenzone.org/photos/101.jpg' }}
         label="Live Aid"

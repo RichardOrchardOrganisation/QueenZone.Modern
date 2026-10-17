@@ -36,7 +36,7 @@ describe('ForumAttachmentAudioPlayer', () => {
 
   it('plays from the file URI without FanPerformance options', async () => {
     const onSave = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ForumAttachmentAudioPlayer
         fileUri="file:///cache/brighton-rock-solo.mp3"
         fileName="brighton-rock-solo.mp3"
@@ -62,7 +62,7 @@ describe('ForumAttachmentAudioPlayer', () => {
       throw new Error('decode failed');
     });
     const onSave = jest.fn();
-    renderWithProviders(
+    await renderWithProviders(
       <ForumAttachmentAudioPlayer
         fileUri="file:///cache/broken.mp3"
         fileName="broken.mp3"

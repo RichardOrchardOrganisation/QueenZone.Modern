@@ -35,8 +35,8 @@ jest.mock('@react-navigation/native', () => {
 const fetchArchivedInboxMock = fetchArchivedInbox as jest.MockedFunction<typeof fetchArchivedInbox>;
 const unarchiveConversationMock = unarchiveConversation as jest.MockedFunction<typeof unarchiveConversation>;
 
-function renderArchived() {
-  return renderWithProviders(
+async function renderArchived() {
+  return await renderWithProviders(
     <ArchivedScreen navigation={fakeNavigation() as never} route={{ key: 'archived', name: 'Archived' } as never} />,
   );
 }
@@ -49,8 +49,8 @@ describe('ArchivedScreen', () => {
     unarchiveConversationMock.mockReset();
   });
 
-  it('gates unsigned visitors', () => {
-    renderArchived();
+  it('gates unsigned visitors', async () => {
+    await renderArchived();
     expect(screen.getByText('Archived messages')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeOnTheScreen();
   });
@@ -59,11 +59,11 @@ describe('ArchivedScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchArchivedInboxMock.mockResolvedValue(pagedResponse([inboxConversationFixture()], 1, 1));
-    renderArchived();
+    await renderArchived();
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
     expect(fetchArchivedInboxMock).toHaveBeenCalledTimes(1);
 
-    act(() => {
+    await act(() => {
       mockLastFocusEffect?.();
     });
 
@@ -74,7 +74,7 @@ describe('ArchivedScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchArchivedInboxMock.mockResolvedValueOnce(pagedResponse([], 1, 0));
-    renderArchived();
+    await renderArchived();
     await waitFor(() => expect(screen.getByText('You have no archived conversations.')).toBeOnTheScreen());
   });
 
@@ -100,7 +100,7 @@ describe('ArchivedScreen', () => {
         1,
       ),
     );
-    renderWithProviders(
+    await renderWithProviders(
       <ArchivedScreen navigation={navigation as never} route={{ key: 'archived', name: 'Archived' } as never} />,
     );
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
@@ -131,7 +131,7 @@ describe('ArchivedScreen', () => {
       ),
     );
     unarchiveConversationMock.mockResolvedValueOnce(undefined);
-    renderArchived();
+    await renderArchived();
     await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
 
     const user = userEvent.setup();
@@ -145,7 +145,7 @@ describe('ArchivedScreen', () => {
     mockSession.isSignedIn = true;
     mockSession.accessToken = 'tok';
     fetchArchivedInboxMock.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
-    renderArchived();
+    await renderArchived();
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     expect(screen.getByRole('button', { name: 'Try again' })).toBeOnTheScreen();
   });

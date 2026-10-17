@@ -23,8 +23,8 @@ function triviaRoute(id?: number, requestId = 1) {
   return { key: "trivia", name: "Trivia" as const, params: { id, requestId } };
 }
 
-function renderTrivia() {
-  return renderWithProviders(<TriviaScreen />, { navigation: false });
+async function renderTrivia() {
+  return await renderWithProviders(<TriviaScreen />, { navigation: false });
 }
 
 describe('widget fact selection', () => {
@@ -33,13 +33,13 @@ describe('widget fact selection', () => {
   it('opens only the requested fact and lets Next fact resume random trivia', async () => {
     fetchById.mockResolvedValue({ id: 12, text: 'Widget fact.' });
     fetchTrivia.mockResolvedValue({ id: 99, text: 'Next random fact.' });
-    const view = renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
+    const view = await renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
     await waitFor(() => expect(screen.getByText('Widget fact.')).toBeOnTheScreen());
     expect(fetchById).toHaveBeenCalledWith(12, expect.any(AbortSignal));
     expect(fetchTrivia).not.toHaveBeenCalled();
     await userEvent.setup().press(screen.getByTestId(testIds.triviaNext));
     await waitFor(() => expect(screen.getByText('Next random fact.')).toBeOnTheScreen());
-    view.rerender(<TriviaScreen route={triviaRoute(12, 2)} />);
+    await view.rerender(<TriviaScreen route={triviaRoute(12, 2)} />);
     await waitFor(() => expect(screen.getByText('Widget fact.')).toBeOnTheScreen());
     expect(fetchById).toHaveBeenCalledTimes(2);
   });
@@ -47,10 +47,10 @@ describe('widget fact selection', () => {
   it('changes a warm target and ignores an older request finishing later', async () => {
     const old = deferred<RandomTrivia>();
     fetchById.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ id: 2, text: 'New widget fact.' });
-    const view = renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
+    const view = await renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
     await waitFor(() => expect(fetchById).toHaveBeenCalledTimes(1));
     const signal = fetchById.mock.calls[0][1];
-    view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
+    await view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
     await waitFor(() => expect(screen.getByText('New widget fact.')).toBeOnTheScreen());
     expect(signal?.aborted).toBe(true);
     await act(async () => old.resolve({ id: 1, text: 'Old widget fact.' }));
@@ -62,9 +62,9 @@ describe('widget fact selection', () => {
   it('clears an existing warm fact immediately while the next target loads', async () => {
     const next = deferred<RandomTrivia>();
     fetchById.mockResolvedValueOnce({ id: 1, text: 'First widget fact.' }).mockReturnValueOnce(next.promise);
-    const view = renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
+    const view = await renderWithProviders(<TriviaScreen route={triviaRoute(1)} />, { navigation: false });
     await waitFor(() => expect(screen.getByText('First widget fact.')).toBeOnTheScreen());
-    view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
+    await view.rerender(<TriviaScreen route={triviaRoute(2, 2)} />);
     expect(screen.queryByText('First widget fact.')).toBeNull();
     await act(async () => next.resolve({ id: 2, text: 'Second widget fact.' }));
     await waitFor(() => expect(screen.getByText('Second widget fact.')).toBeOnTheScreen());
@@ -72,7 +72,7 @@ describe('widget fact selection', () => {
 
   it('does not substitute random trivia for missing or unpublished targets', async () => {
     fetchById.mockRejectedValue(new ApiError(404, 'This trivia fact is unavailable.'));
-    renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
+    await renderWithProviders(<TriviaScreen route={triviaRoute(12)} />, { navigation: false });
     await waitFor(() => expect(screen.getByText('This trivia fact is unavailable.')).toBeOnTheScreen());
     expect(fetchTrivia).not.toHaveBeenCalled();
     expect(screen.queryByTestId(testIds.triviaNext)).toBeNull();
@@ -80,10 +80,10 @@ describe('widget fact selection', () => {
 
   it('rejects invalid route ids locally and preserves legacy random links', async () => {
     fetchTrivia.mockResolvedValue({ id: 3, text: 'Legacy random fact.' });
-    const view = renderWithProviders(<TriviaScreen route={triviaRoute(-1)} />, { navigation: false });
+    const view = await renderWithProviders(<TriviaScreen route={triviaRoute(-1)} />, { navigation: false });
     await waitFor(() => expect(screen.getByText('This trivia fact is unavailable.')).toBeOnTheScreen());
     expect(fetchById).not.toHaveBeenCalled();
-    view.rerender(<TriviaScreen route={triviaRoute(undefined, 2)} />);
+    await view.rerender(<TriviaScreen route={triviaRoute(undefined, 2)} />);
     await waitFor(() => expect(screen.getByText('Legacy random fact.')).toBeOnTheScreen());
   });
 });
@@ -102,7 +102,7 @@ describe('TriviaScreen', () => {
       difficulty: 'Easy',
       source: 'Queen archive',
     });
-    renderTrivia();
+    await renderTrivia();
 
     await waitFor(() => expect(screen.getByTestId(testIds.triviaScreen)).toBeOnTheScreen());
     expect(screen.getByText('The first Queen album was recorded in 1972.')).toBeOnTheScreen();
@@ -118,7 +118,7 @@ describe('TriviaScreen', () => {
       difficulty: null,
       source: undefined,
     });
-    renderTrivia();
+    await renderTrivia();
 
     await waitFor(() => expect(screen.getByTestId(testIds.triviaScreen)).toBeOnTheScreen());
     expect(screen.getByText('Brian May built the Red Special.')).toBeOnTheScreen();
@@ -137,7 +137,7 @@ describe('TriviaScreen', () => {
         text: 'Second fact.',
         category: 'Live',
       });
-    renderTrivia();
+    await renderTrivia();
 
     await waitFor(() => expect(screen.getByText('First fact.')).toBeOnTheScreen());
     await user.press(screen.getByTestId(testIds.triviaNext));
@@ -148,7 +148,7 @@ describe('TriviaScreen', () => {
 
   it('shows an empty state when the API returns null', async () => {
     fetchTrivia.mockResolvedValue(null);
-    renderTrivia();
+    await renderTrivia();
 
     await waitFor(() => expect(screen.getByTestId(testIds.triviaScreen)).toBeOnTheScreen());
     expect(screen.getByText('No trivia facts have been published yet.')).toBeOnTheScreen();
@@ -160,7 +160,7 @@ describe('TriviaScreen', () => {
     const pending = deferred<null>();
     fetchTrivia.mockRejectedValueOnce(new ApiError(500, 'The server had a problem. Try again shortly.'));
     fetchTrivia.mockReturnValueOnce(pending.promise);
-    renderTrivia();
+    await renderTrivia();
 
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
     expect(screen.getByText('The server had a problem. Try again shortly.')).toBeOnTheScreen();

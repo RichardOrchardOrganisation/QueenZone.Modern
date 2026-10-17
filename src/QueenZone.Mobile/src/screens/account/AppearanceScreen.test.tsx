@@ -16,8 +16,8 @@ jest.mock('../../api/client', () => ({
   sendJson: jest.fn(),
 }));
 
-function renderScreen() {
-  return renderWithProviders(
+async function renderScreen() {
+  return await renderWithProviders(
     <AppearanceScreen
       navigation={fakeNavigation() as never}
       route={{ key: 'appearance', name: 'Appearance' } as never}
@@ -39,7 +39,7 @@ describe('AppearanceScreen', () => {
   });
 
   it('signed out: starts with the system setting and saves the choice on the device only', async () => {
-    renderScreen();
+    await renderScreen();
 
     expect(selected('Use system setting')).toEqual({ selected: true, disabled: false });
 
@@ -54,7 +54,7 @@ describe('AppearanceScreen', () => {
   it('signed in: saves the account choice to the profile and leaves the device alone', async () => {
     mockSession.accessToken = 'token';
     jest.mocked(sendJson).mockResolvedValue({});
-    renderScreen();
+    await renderScreen();
 
     await userEvent.setup().press(screen.getByRole('radio', { name: 'Dark' }));
 
@@ -71,7 +71,7 @@ describe('AppearanceScreen', () => {
 
   it('signed in: a device override is stored locally without touching the account', async () => {
     mockSession.accessToken = 'token';
-    renderScreen();
+    await renderScreen();
 
     expect(selected('This device: Same as account')).toEqual({ selected: true, disabled: false });
 
@@ -89,14 +89,14 @@ describe('AppearanceScreen', () => {
     mockSession.accessToken = 'token';
     let finish!: (value: unknown) => void;
     jest.mocked(sendJson).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
-    renderScreen();
-    fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
+    await renderScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
     expect(screen.getByRole('radio', { name: 'Light' })).toBeDisabled();
-    fireEvent.press(screen.getByRole('radio', { name: 'Light' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Light' }));
     expect(sendJson).toHaveBeenCalledTimes(1);
     await act(async () => { finish({}); });
     expect(screen.getByRole('radio', { name: 'Light' })).toBeEnabled();
-    fireEvent.press(screen.getByRole('radio', { name: 'Light' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Light' }));
     expect(sendJson).toHaveBeenCalledTimes(2);
     await act(async () => { finish({}); });
   });
@@ -105,9 +105,9 @@ describe('AppearanceScreen', () => {
     mockSession.accessToken = 'token';
     let finish!: (value: unknown) => void;
     jest.mocked(sendJson).mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
-    const rendered = renderScreen();
-    fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
-    rendered.unmount();
+    const rendered = await renderScreen();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Dark' }));
+    await rendered.unmount();
     await act(async () => { finish({}); });
     expect(mockSession.refreshProfile).not.toHaveBeenCalled();
   });
@@ -115,7 +115,7 @@ describe('AppearanceScreen', () => {
   it('signed in: explains when the account save fails', async () => {
     mockSession.accessToken = 'token';
     jest.mocked(sendJson).mockRejectedValue(new Error('offline'));
-    renderScreen();
+    await renderScreen();
 
     await userEvent.setup().press(screen.getByRole('radio', { name: 'Light' }));
 

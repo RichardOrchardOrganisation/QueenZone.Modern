@@ -101,8 +101,8 @@ function Probe() {
   );
 }
 
-function renderPlayer() {
-  return renderWithProviders(
+async function renderPlayer() {
+  return await renderWithProviders(
     <FanPerformancePlayerProvider>
       <Probe />
     </FanPerformancePlayerProvider>,
@@ -130,8 +130,8 @@ describe('FanPerformancePlayerProvider', () => {
     mockPlayer.clearLockScreenControls.mockReset();
   });
 
-  it('configures the native session for background playback', () => {
-    renderPlayer();
+  it('configures the native session for background playback', async () => {
+    await renderPlayer();
     expect(setAudioModeAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         playsInSilentMode: true,
@@ -150,7 +150,7 @@ describe('FanPerformancePlayerProvider', () => {
     mockPlayer.play.mockImplementation(() => {
       order.push('play');
     });
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
 
     await waitFor(() => expect(mockPlayer.replace).toHaveBeenCalledWith({
@@ -175,7 +175,7 @@ describe('FanPerformancePlayerProvider', () => {
   it('plays without artwork when the bundled icon cannot be resolved', async () => {
     (resolveLockScreenArtworkUrl as jest.Mock).mockRejectedValueOnce(new Error('asset missing'));
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
 
     await waitFor(() =>
@@ -192,7 +192,7 @@ describe('FanPerformancePlayerProvider', () => {
   it('refuses to load without a member token', async () => {
     mockSession.accessToken = null;
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() =>
       expect(screen.getByTestId('error')).toHaveTextContent(
@@ -208,7 +208,7 @@ describe('FanPerformancePlayerProvider', () => {
     mockSession.accessToken = 'expired-token';
     mockSession.ensureAccessToken.mockResolvedValue('fresh-token');
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() =>
       expect(mockPlayer.replace).toHaveBeenCalledWith(
@@ -221,12 +221,12 @@ describe('FanPerformancePlayerProvider', () => {
 
   it('advances lock-screen metadata to the next queued track', async () => {
     const user = userEvent.setup();
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackA.title));
     mockPlayer.setActiveForLockScreen.mockClear();
     mockStatus.didJustFinish = true;
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -242,11 +242,11 @@ describe('FanPerformancePlayerProvider', () => {
 
   it('clears lock-screen controls when the queue ends', async () => {
     const user = userEvent.setup();
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-last'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackB.title));
     mockStatus.didJustFinish = true;
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -258,11 +258,11 @@ describe('FanPerformancePlayerProvider', () => {
 
   it('stops playback and clears controls on sign-out', async () => {
     const user = userEvent.setup();
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackA.title));
     mockSession.accessToken = null;
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -276,10 +276,10 @@ describe('FanPerformancePlayerProvider', () => {
   it('pauses the same player from in-app toggle', async () => {
     const user = userEvent.setup();
     mockStatus.playing = true;
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackA.title));
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -293,10 +293,10 @@ describe('FanPerformancePlayerProvider', () => {
     mockStatus.playing = false;
     mockStatus.currentTime = 40;
     mockStatus.duration = 320;
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-last'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackB.title));
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -316,10 +316,10 @@ describe('FanPerformancePlayerProvider', () => {
     const user = userEvent.setup();
     mockStatus.currentTime = 40;
     mockStatus.duration = 320;
-    const { rerender } = renderPlayer();
+    const { rerender } = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackA.title));
-    rerender(
+    await rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -332,11 +332,11 @@ describe('FanPerformancePlayerProvider', () => {
 
   it('clears lock-screen controls on unmount', async () => {
     const user = userEvent.setup();
-    const view = renderPlayer();
+    const view = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('current')).toHaveTextContent(trackA.title));
     mockPlayer.clearLockScreenControls.mockClear();
-    view.unmount();
+    await view.unmount();
     expect(mockPlayer.clearLockScreenControls).toHaveBeenCalled();
   });
 
@@ -356,7 +356,7 @@ describe('FanPerformancePlayerProvider', () => {
     });
     mockSession.ensureAccessToken.mockClear();
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() =>
       expect(mockPlayer.replace).toHaveBeenCalledWith({
@@ -373,7 +373,7 @@ describe('FanPerformancePlayerProvider', () => {
       throw new Error('decoder failed');
     });
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent('Could not start playback.'));
   });
@@ -401,7 +401,7 @@ describe('FanPerformancePlayerProvider', () => {
     getNetworkStateAsync.mockResolvedValueOnce({ isConnected: true, isInternetReachable: true });
     getNetworkStateAsync.mockResolvedValueOnce({ isConnected: false, isInternetReachable: false });
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent(OFFLINE_PLAYBACK_MESSAGE));
   });
@@ -424,7 +424,7 @@ describe('FanPerformancePlayerProvider', () => {
       throw new Error('corrupt local file');
     });
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() =>
       expect(mockPlayer.replace).toHaveBeenCalledWith({
@@ -452,7 +452,7 @@ describe('FanPerformancePlayerProvider', () => {
       memberId: 'member-1',
     });
     const user = userEvent.setup();
-    const view = renderPlayer();
+    const view = await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() =>
       expect(mockPlayer.replace).toHaveBeenCalledWith({
@@ -463,7 +463,7 @@ describe('FanPerformancePlayerProvider', () => {
 
     mockPlayer.replace.mockClear();
     mockStatus.error = 'The operation could not be completed';
-    view.rerender(
+    await view.rerender(
       <FanPerformancePlayerProvider>
         <Probe />
       </FanPerformancePlayerProvider>,
@@ -486,14 +486,14 @@ describe('FanPerformancePlayerProvider', () => {
     };
     getNetworkStateAsync.mockResolvedValueOnce({ isConnected: false, isInternetReachable: false });
     const user = userEvent.setup();
-    renderPlayer();
+    await renderPlayer();
     await user.press(screen.getByTestId('play-a'));
     await waitFor(() => expect(screen.getByTestId('error')).toHaveTextContent(OFFLINE_PLAYBACK_MESSAGE));
     expect(mockPlayer.replace).not.toHaveBeenCalled();
   });
 
-  it('throws outside the provider', () => {
-    expect(() => renderWithProviders(<Probe />, { navigation: false })).toThrow(
+  it('throws outside the provider', async () => {
+    await expect(renderWithProviders(<Probe />, { navigation: false })).rejects.toThrow(
       'useFanPerformancePlayer must be used inside FanPerformancePlayerProvider',
     );
   });

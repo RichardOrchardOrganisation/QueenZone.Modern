@@ -40,7 +40,7 @@ describe('FreddieTributeScreen', () => {
     fetchPage.mockResolvedValue(
       pagedResponse([tributeFixture(), tributeFixture({ id: 2, name: 'Roger', thought: 'Short tribute.' })]),
     );
-    renderWithProviders(<FreddieTributeScreen />, { navigation: false });
+    await renderWithProviders(<FreddieTributeScreen />, { navigation: false });
 
     await waitFor(() => expect(screen.getByText('Jane')).toBeOnTheScreen());
     expect(screen.getByText('Roger')).toBeOnTheScreen();
@@ -56,7 +56,7 @@ describe('FreddieTributeScreen', () => {
     fetchPage
       .mockRejectedValueOnce(new ApiError(0, 'Unable to reach QueenZone. Check your connection and try again.'))
       .mockResolvedValueOnce(pagedResponse([tributeFixture()]));
-    renderWithProviders(<FreddieTributeScreen />, { navigation: false });
+    await renderWithProviders(<FreddieTributeScreen />, { navigation: false });
     await waitFor(() => expect(screen.getByText('Unable to load')).toBeOnTheScreen());
 
     const user = userEvent.setup();

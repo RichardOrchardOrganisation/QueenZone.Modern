@@ -22,11 +22,11 @@ jest.mock('../../audio/FanPerformancePlayer', () => ({
 }));
 
 describe('SavedListScreen', () => {
-  it('shows downloaded performances for the offline library kind', () => {
+  it('shows downloaded performances for the offline library kind', async () => {
     resetDownloadUiForTests();
     mockSession.isSignedIn = true;
     mockSession.profile = memberProfileFixture({ memberId: 'member-1' });
-    renderWithProviders(
+    await renderWithProviders(
       <SavedListScreen
         navigation={fakeNavigation() as never}
         route={{ key: 'saved', name: 'SavedList', params: { kind: 'offline' } } as never}

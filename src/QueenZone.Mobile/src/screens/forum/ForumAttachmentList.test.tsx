@@ -53,8 +53,8 @@ const mp3 = forumAttachmentFixture({
   thumbnailUrl: null,
 });
 
-function renderList(attachments = [image]) {
-  return renderWithProviders(
+async function renderList(attachments = [image]) {
+  return await renderWithProviders(
     <ForumAttachmentList
       attachments={attachments}
       isSignedIn
@@ -81,7 +81,7 @@ beforeEach(() => {
 
 describe('ForumAttachmentList save', () => {
   it('keeps tap-to-view and saves the image to Photos', async () => {
-    renderList();
+    await renderList();
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: /anoto-setlist-scan.jpg/ }));
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadAttachmentViewer)).toBeOnTheScreen());
@@ -103,7 +103,7 @@ describe('ForumAttachmentList save', () => {
       new SaveToPhotosError('permission-denied', saveToPhotosCopy.denied),
     );
     jest.spyOn(Alert, 'alert');
-    renderList();
+    await renderList();
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: /anoto-setlist-scan.jpg/ }));
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadAttachmentSave)).toBeOnTheScreen());
@@ -112,7 +112,7 @@ describe('ForumAttachmentList save', () => {
   });
 
   it('shares a non-image through the Files path', async () => {
-    renderList([pdf]);
+    await renderList([pdf]);
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: /opera-side-two-notes.pdf/ }));
     await waitFor(() =>
@@ -127,7 +127,7 @@ describe('ForumAttachmentList save', () => {
   });
 
   it('plays audio from the cached file URI and still offers Files', async () => {
-    renderList([mp3]);
+    await renderList([mp3]);
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: /brighton-rock-solo.mp3/ }));
     await waitFor(() => expect(screen.getByTestId(testIds.forumThreadAttachmentAudio)).toBeOnTheScreen());
@@ -153,7 +153,7 @@ describe('ForumAttachmentList save', () => {
 
   it('shows a 401 on the existing caption and does not save', async () => {
     openImage.mockRejectedValueOnce(new ApiError(401, 'Sign in to continue.'));
-    renderList();
+    await renderList();
     const user = userEvent.setup();
     await user.press(screen.getByRole('button', { name: /anoto-setlist-scan.jpg/ }));
     await waitFor(() => expect(screen.getByText('Sign in to continue.')).toBeOnTheScreen());
