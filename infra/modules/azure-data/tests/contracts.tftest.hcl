@@ -70,8 +70,8 @@ run "existing_production_shape_remains_managed" {
   }
 
   assert {
-    condition     = var.containers["forum"] == "Blob" && var.containers["mp3"] == "Blob" && contains(var.public_blob_containers, "forum") && contains(var.public_blob_containers, "mp3")
-    error_message = "forum and mp3 stay public blob on the allow-list until Gilfoyle's anonymous-read metrics land."
+    condition     = var.containers["forum"] == "None" && var.containers["mp3"] == "None" && !contains(var.public_blob_containers, "forum") && !contains(var.public_blob_containers, "mp3")
+    error_message = "forum and mp3 are private and off the public allow-list (#2211)."
   }
 
   assert {
@@ -343,13 +343,13 @@ run "rejects_public_container_off_allow_list" {
       "databasebackup"          = "None"
       "fan-art"                 = "Blob"
       "fan-pics"                = "Blob"
-      "forum"                   = "Blob"
+      "forum"                   = "None"
       "freddie-mercury"         = "Blob"
       "freddie-tribute-concert" = "Blob"
       "images"                  = "Blob"
       "john-deacon"             = "Blob"
       "miscellaneous"           = "Blob"
-      "mp3"                     = "Blob"
+      "mp3"                     = "None"
       "pre-queen"               = "Blob"
       "queen"                   = "Blob"
       "queen-and-adam-lambert"  = "Blob"

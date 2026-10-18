@@ -16,7 +16,10 @@ stored raw blob URLs. That follow-up is tracked separately.
 
 Until then, OpenTofu rejects any container whose `publicAccess` is not `None`
 unless it is named in `public_blob_containers`. Backup, modern UGC,
-`songfiles`, and legacy `attachments` must stay private. The leftover prod
+`songfiles`, and legacy `attachments` must stay private. `forum` and `mp3`
+moved to `None` in #2211 after Cloudflare showed 0 requests under `/forum/`
+and `/mp3/` on `cdn` and `cdn2` over 30 days (cache hits included), with no
+URL builder or direct `*.blob.core.windows.net` link to either in code. The leftover prod
 `test` container stays in inventory at `None` and is not deleted.
 
 ## Public containers
@@ -28,8 +31,6 @@ unless it is named in `public_blob_containers`. Backup, modern UGC,
 | `album-or-single-covers` | `queenzoneprod` / `queenzonedev` | Blob | `cdn.queenzone.org` (`AlbumCoverUrl`) |
 | `avatars` | `queenzoneprod` / `queenzonedev` | Blob | `cdn` / `cdn2` for legacy public avatars. Modern member avatars are private `ugc-avatars` via `/account/avatar/*` |
 | `css` | `queenzoneprod` / `queenzonedev` | Blob | Raw blob / CDN for published site CSS. Access is Blob so the container is not anonymously listable |
-| `forum` | `queenzoneprod` / `queenzonedev` | Blob | No URL builder in the modern app. Stays on the allow-list until 7-day anonymous-read metrics land |
-| `mp3` | `queenzoneprod` / `queenzonedev` | Blob | No URL builder in the modern app. Stays on the allow-list until 7-day anonymous-read metrics land |
 | `builds` | `queenzonemobilebuilds` | Blob | Direct anonymous blob links for throwaway mobile test builds |
 
 `allowBlobPublicAccess` stays on until the signing-Worker follow-up lands.
