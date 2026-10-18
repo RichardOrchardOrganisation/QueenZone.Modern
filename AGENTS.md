@@ -184,6 +184,14 @@ The codebase is agents' memory, so a workaround copied once becomes the pattern.
 
 Follow `docs/architecture/testing-policy.md`.
 
+### Mutation testing
+
+Use mutation testing as an opt-in assertion-quality check. Consider a targeted run when changing permissions, publication/visibility rules, validation, URL safety, cache invalidation, concurrency, or complex branching; also consider it for repeated defects or weak assertions despite high coverage. Run the agreed scope when a reviewer requests it.
+
+Follow [the mutation testing policy](docs/architecture/testing-policy.md#mutation-testing). Use the existing deterministic tests for the selected module; mobile `.test.ts` uses Node while `.test.tsx` uses Jest. Record the command, tool version, commit, scope, runtime and mutation outcomes in the PR. Recheck suspicious survivors without coverage optimisation where supported, strengthen useful behaviour assertions, and explain equivalent or unreachable mutations. Report an unavailable run and its reason explicitly.
+
+There is no minimum mutation score or required mutation CI job. Keep normal coverage, provider, browser and device checks. Do not add exclusions, suppressions or assertions on private implementation merely to increase the score. See the [October 2026 pilot assessment](docs/architecture/mutation-testing-pilot.md) for measured costs and findings.
+
 ### Web UI verification for every agent
 
 For web UI changes, read the [shared web verification guide](.cursor/skills/verify-queenzone/SKILL.md), regardless of agent or editor. Its location under `.cursor` is historical; this verification workflow applies to Codex, Claude, Grok, Composer, Cursor, and other agents. It does not enable the Cursor issue-queue orchestration loop.

@@ -47,6 +47,31 @@ Assert results through the interface (ordering, paging, validation, state transi
 
 Code coverage is reported for the default automated test suite. Treat coverage as a review signal, not as a replacement for useful assertions. New or changed pure logic should normally include targeted unit coverage, especially for canonical routes, pagination, visibility rules, date formatting, and HTML sanitisation.
 
+#### Mutation testing
+
+Mutation testing is an **opt-in check of assertion quality**. There is no minimum mutation score, required CI mutation job or recurring schedule.
+
+Consider a small run when:
+
+- Changing permissions, publication/visibility rules, validation or URL safety.
+- Changing cache invalidation, concurrency or other complex branching.
+- Refactoring logic where useful assertions are uncertain.
+- Investigating repeated defects or high coverage that still misses incorrect behaviour.
+
+A reviewer may request a targeted run. Agree the module and test scope, then run it or disclose the gap and reason in the PR. Reserve mutation runs for changes to tested logic; documentation, formatting and appearance changes alone do not justify one.
+
+Use Stryker.NET for C# and StrykerJS for TypeScript/JavaScript. Run existing deterministic tests without production services or real databases. Mobile pure `.test.ts` files use Node's test runner; component `.test.tsx` files use Jest with `jest-expo`. Select the actual tests covering the module rather than assuming Jest includes both suites.
+
+For each run:
+
+1. Keep the source scope small and confirm the normal selected tests pass first.
+2. Record the command/configuration, tool version, source commit, test selection, worker count, elapsed time and cache/setup conditions in the PR. Report killed, survived, uncovered, timed-out and invalid/excluded mutations separately.
+3. Review survivors against observable behaviour. Recheck suspicious survivors without coverage optimisation where supported before accepting them as equivalent or reporting a test gap.
+4. Strengthen assertions for meaningful gaps. Explain equivalent, unreachable or internal-cleanup mutations; record unresolved behavioural gaps and their follow-up. Do not add private-structure assertions, exclusions or suppressions just to improve a score. Existing suppression rules still apply.
+5. Rerun the selected normal tests after cleanup. A mutation score does not replace coverage, integration tests, provider probes or browser/device verification.
+
+Scheduled advisory runs or merge gates need a separate reviewed change, measured runtime on the intended runner and an agreed approach to survivors. The [October 2026 pilot assessment](mutation-testing-pilot.md) records the initial findings and costs; its selected-module scores are not repository-wide baselines.
+
 ### Web Integration Tests
 
 Use ASP.NET Core integration tests for route and page behavior. These tests should use fake, in-memory, or sample repositories by default so they can run in CI without SQL Server.
