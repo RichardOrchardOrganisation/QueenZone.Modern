@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" />
     <PackageReference Include="Azure.Storage.Blobs" />
     <PackageReference Include="HtmlSanitizer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />

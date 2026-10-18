@@ -469,7 +469,7 @@ function runSelfTest() {
     ghsa: 'GHSA-vfj7-8cjw-p6xm',
     package: 'braces',
     via: 'micromatch@4.0.8',
-    expires: '2026-10-17',
+    expires: '2026-10-31',
   };
   const bracesAudit = {
     vulnerabilities: {
@@ -488,7 +488,7 @@ function runSelfTest() {
     const result = evaluatePolicy({
       audit: bracesAudit,
       allowlist: { advisories: [bracesRow] },
-      now: new Date('2026-10-17T23:59:59.999Z'),
+      now: new Date('2026-10-31T23:59:59.999Z'),
     });
     if (!result.ok) throw new Error(result.failures.join(' '));
   });
@@ -497,7 +497,7 @@ function runSelfTest() {
     expectThrow(() => evaluatePolicy({
       audit: bracesAudit,
       allowlist: { advisories: [bracesRow] },
-      now: new Date('2026-10-18T00:00:00.000Z'),
+      now: new Date('2026-11-01T00:00:00.000Z'),
     }), /Expired allowlist entry GHSA-VFJ7-8CJW-P6XM/);
   });
 

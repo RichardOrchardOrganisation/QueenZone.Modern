@@ -115,3 +115,29 @@ jobs:
           assert.equal(process.env.KEY_RESULT, expectedFailure ? '' : 'fixture-key');
           assert.equal(process.env.MOBILE_AUTH_SIGNING_KEY, 'unchanged-fixture-canary');
           JS
+
+  # Own non-required job: do not fold this into `scripts-tests` (that name is a
+  # required check on main). Live required contexts checked 2026-10-17:
+  # build, test (0-5), sql-server-tests, coverage, smoke-test, e2e-test,
+  # Verify formatting, Small test projects (Tools/Storage/NewsAgent),
+  # Mobile typecheck and unit tests, Mobile Android build, Mobile iOS build,
+  # Scripts unit tests. Repo rulesets are tag-only (release immutability).
+  check-eol:
+    name: Workflow line endings
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Test the checker
+        run: node --test scripts/check-eol.test.mjs
+
+      - name: Check workflow line endings
+        run: node scripts/check-eol.mjs

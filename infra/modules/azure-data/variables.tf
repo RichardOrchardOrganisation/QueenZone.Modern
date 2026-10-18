@@ -198,14 +198,12 @@ variable "public_blob_containers" {
     "css",
     "fan-art",
     "fan-pics",
-    # forum and mp3 stay public until Gilfoyle's 7-day anonymous-read metrics land (#2211).
-    "forum",
+    # forum and mp3 left the allow-list in #2211: 0 Cloudflare requests on cdn/cdn2 in 30 days and no direct-to-blob links in code.
     "freddie-mercury",
     "freddie-tribute-concert",
     "images",
     "john-deacon",
     "miscellaneous",
-    "mp3",
     "pre-queen",
     "queen",
     "queen-and-adam-lambert",
@@ -229,15 +227,15 @@ variable "containers" {
     "databasebackup"         = "None"
     "fan-art"                = "Blob"
     "fan-pics"               = "Blob"
-    # Stays Blob pending Gilfoyle's 7-day anonymous-read metrics (#2211).
-    "forum"                   = "Blob"
+    # Private since #2211: no anonymous reads via cdn/cdn2 in 30 days, no URL builder in code.
+    "forum"                   = "None"
     "freddie-mercury"         = "Blob"
     "freddie-tribute-concert" = "Blob"
     "images"                  = "Blob"
     "john-deacon"             = "Blob"
     "miscellaneous"           = "Blob"
-    # Stays Blob pending Gilfoyle's 7-day anonymous-read metrics (#2211).
-    "mp3"                    = "Blob"
+    # Private since #2211: no anonymous reads via cdn/cdn2 in 30 days, no URL builder in code.
+    "mp3"                    = "None"
     "pre-queen"              = "Blob"
     "queen"                  = "Blob"
     "queen-and-adam-lambert" = "Blob"

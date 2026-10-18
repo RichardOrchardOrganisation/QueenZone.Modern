@@ -1,8 +1,13 @@
 import * as Sharing from 'expo-sharing';
 
 export function isShareCanceled(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /cancel|dismissed|ERR_SHARING_CANCELLED/i.test(message);
+  // Native dismissal resolves normally. Keep legacy cancellation errors compatible,
+  // but never let a filename/message turn a coded native failure into success.
+  if (error instanceof Error && 'code' in error && typeof error.code === 'string') {
+    return error.code === 'ERR_SHARING_CANCELLED';
+  }
+  const message = error instanceof Error ? error.message : error;
+  return typeof message === 'string' && /cancel|dismissed|ERR_SHARING_CANCELLED/i.test(message);
 }
 
 /**
