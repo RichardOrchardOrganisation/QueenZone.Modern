@@ -48,26 +48,43 @@ and expiry enforcement remain enabled.
 
 ## braces recursion denial of service (#2016)
 
-Richard approved the single `GHSA-vfj7-8cjw-p6xm` exception on 2026-10-03.
-It accepts unresolved `braces@3.0.3` tooling risk; it is not a vulnerability fix.
+Richard approved the single `GHSA-vfj7-8cjw-p6xm` exception on 2026-10-03
+and a further 14 days on 2026-10-17. It accepts unresolved `braces@3.0.3`
+build/test-tooling denial-of-service risk; it is not a vulnerability fix.
 The [official advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
-lists no patched release. [Upstream PR72](https://github.com/micromatch/braces/pull/72)
-is unmerged/unreleased at approval; release timing is unknown.
+still lists no patched release as of 2026-10-17. [Upstream PR72](https://github.com/micromatch/braces/pull/72)
+closed without merging; no release date is assumed.
 
-Expo/React Native CLI and Metro file maps, plus Jest tooling, independently
-reach braces through micromatch. Inspected callers match build/test filesystem
-and configuration globs. No first-party application import or remote user-content
-pattern sink was identified, but complete runtime/minified-tool reachability
-has not been established. Expo Doctor and resolve-workspace-root also bundle
-matching code: a standalone override would not establish complete remediation.
-Deep brace expansion can still exhaust the Node stack and terminate tooling.
+Metro and Jest independently install braces through micromatch. Both
+`resolve-workspace-root@2.0.1` and `expo-doctor@1.21.4` also embed vulnerable
+copies; Doctor 1.21.5 still contains the unguarded implementation. A standalone
+override or patch does not fix those embedded copies. Direct brace expansion
+can exhaust the Node stack with input within the existing character limit.
 
-Owner: **QueenZone maintainers**. Review on **2026-10-10**; expires
-**2026-10-17** (inclusive UTC date), so the unchanged validator rejects it from
-**2026-10-18T00:00:00Z**. **No automatic renewal.** Remove earlier on a published
-Expo-compatible fixed release and revalidate the full graph and native tooling.
-If no fix exists at expiry, let CI block and obtain a fresh explicit decision.
-Reassess before processing externally supplied glob patterns or adding runtime
-imports. [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016)
-tracks review/removal. All other advisories, existing exceptions, full-graph audit,
-expiry enforcement and required checks remain active.
+The inspected Metro/Jest and workspace-resolver callers use micromatch matching
+APIs, which delegate to picomatch, rather than its braces expansion APIs.
+Instrumented samples invoked no braces APIs, with a working positive control.
+The generated production Android/iOS source maps contained none of the affected
+packages. No first-party runtime import or public-content-to-pattern sink was
+identified. These observations narrow the assessed exposure; they do not prove
+all tooling paths, configurations or already published binaries are unaffected.
+Repository/workspace configuration and dependencies remain tooling trust
+boundaries, and vulnerable code remains installed on build machines.
+
+Owner: **QueenZone maintainers**. Review again by **2026-10-21**; expires
+**2026-10-31** (inclusive UTC date). The unchanged validator rejects the row from
+**2026-11-01T00:00:00Z**, or **08:00 Perth**. **No automatic renewal.** Remove
+earlier on a complete published compatible fix, including rebuilt bundled
+copies, and revalidate full-graph audit, preflight, risk gates and native tooling.
+If no complete fix exists at expiry, let policy block and obtain a fresh explicit
+decision. Reassess immediately before accepting external glob patterns or adding
+runtime imports. [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016)
+remains open for review/removal. All other advisory decisions and gates stay active.
+
+CI `mobile-js` and the manual TestFlight/Google Play preflight jobs explicitly
+run the same full-graph advisory validator after installation and before the
+remaining preflight checks. Missing/malformed audit output, an expired exception,
+or another unallowlisted high/critical advisory fails the job. Both publication
+jobs require a successful preflight, so policy failure prevents signing/upload
+in those workflows. Independent native CI jobs are not stopped by this gate;
+they do not publish store releases.
