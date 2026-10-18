@@ -156,3 +156,47 @@ describe('shared external store + keys.ts namespace', () => {
     assert.ok(!downloadUiCacheKey('member-a', 'perf-1').startsWith(PRIVATE_CACHE_KEY_PREFIX));
   });
 });
+
+describe('listener preservation and prefix version contracts', () => {
+  it('retains all listeners for one key and unsubscribes only the selected listener', () => {
+    const store = createExternalStore();
+    let first = 0;
+    let second = 0;
+    const stopFirst = store.subscribe('news:list', () => { first++; });
+    store.subscribe('news:list', () => { second++; });
+    store.invalidate('news:list');
+    assert.equal(first, 1);
+    assert.equal(second, 1);
+    stopFirst();
+    store.invalidate('news:list');
+    assert.equal(first, 1);
+    assert.equal(second, 2);
+  });
+
+  it('retains prefix listeners when another listener unsubscribes', () => {
+    const store = createExternalStore();
+    let first = 0;
+    let second = 0;
+    const stopFirst = store.subscribePrefix('news:', () => { first++; });
+    store.subscribePrefix('news:', () => { second++; });
+    store.invalidate('news:list');
+    assert.equal(first, 1);
+    assert.equal(second, 1);
+    stopFirst();
+    store.invalidatePrefix('news:');
+    assert.equal(first, 1);
+    assert.equal(second, 2);
+  });
+
+  it('counts both ancestor and descendant invalidations without counting unrelated prefixes', () => {
+    const store = createExternalStore();
+    store.invalidatePrefix('messages:member:abc:');
+    assert.equal(store.getPrefixVersion('messages:member:'), 1);
+    assert.equal(store.getPrefixVersion('messages:member:abc:'), 1);
+    assert.equal(store.getPrefixVersion('news:'), 0);
+    store.invalidatePrefix('messages:member:');
+    assert.equal(store.getPrefixVersion('messages:member:'), 2);
+    assert.equal(store.getPrefixVersion('messages:member:abc:'), 2);
+    assert.equal(store.getPrefixVersion('news:'), 0);
+  });
+});

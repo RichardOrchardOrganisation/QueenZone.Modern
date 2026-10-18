@@ -140,4 +140,90 @@ public sealed class OutboundUrlSafetyTests
         Assert.False(OutboundUrlSafety.IsAllowedTextContentType("application/octet-stream"));
         Assert.False(OutboundUrlSafety.IsAllowedTextContentType("image/png"));
     }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void TryValidatePublicHttpUrl_LengthBoundary_EnforcesInclusiveLimit(int offset, bool expected)
+    {
+        const string prefix = "https://example.com/";
+        var url = prefix + new string('a', OutboundUrlSafety.MaxUrlLength - prefix.Length + offset);
+
+        Assert.Equal(expected, OutboundUrlSafety.TryValidatePublicHttpUrl(url, out var error, out var normalized));
+        if (expected)
+        {
+            Assert.Empty(error);
+            Assert.Equal(url, normalized);
+        }
+        else
+        {
+            Assert.NotEmpty(error);
+            Assert.Null(normalized);
+        }
+    }
+
+    [Fact]
+    public void TryValidatePublicHttpUrl_WhitespaceAndHostCase_ReturnsNormalizedUrlWithoutError()
+    {
+        Assert.True(OutboundUrlSafety.TryValidatePublicHttpUrl(" https://EXAMPLE.com/news ", out var error, out var normalized));
+        Assert.Empty(error);
+        Assert.Equal("https://example.com/news", normalized);
+    }
+
+    [Theory]
+    [InlineData("ftp://example.com/file")]
+    [InlineData("http://127.0.0.1/private")]
+    public void EnsureAllowedHttpUrl_UnsafeUrl_ThrowsWithReason(string url)
+    {
+        var error = Assert.Throws<InvalidOperationException>(() => OutboundUrlSafety.EnsureAllowedHttpUrl(url));
+        Assert.NotEmpty(error.Message);
+    }
+
+    [Fact]
+    public void EnsureAllowedHttpUrl_PublicHttpsUrl_DoesNotThrow()
+    {
+        Assert.Null(Record.Exception(() => OutboundUrlSafety.EnsureAllowedHttpUrl("https://example.com/news")));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("metadata")]
+    [InlineData("METADATA")]
+    [InlineData("api.localhost")]
+    [InlineData("api.local")]
+    [InlineData("api.internal")]
+    [InlineData("169.254.169.254")]
+    [InlineData("metadata.google.internal")]
+    public void IsBlockedHostName_InternalOrMetadataHost_ReturnsTrue(string host)
+    {
+        Assert.True(OutboundUrlSafety.IsBlockedHostName(host));
+    }
+
+    [Theory]
+    [InlineData("example.com")]
+    [InlineData("localhost.example.com")]
+    [InlineData("metadata.example.com")]
+    public void IsBlockedHostName_PublicHost_ReturnsFalse(string host)
+    {
+        Assert.False(OutboundUrlSafety.IsBlockedHostName(host));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("text/html")]
+    [InlineData("application/xhtml+xml")]
+    [InlineData("text/plain")]
+    [InlineData("application/xml")]
+    [InlineData("text/xml")]
+    [InlineData("application/rss+xml")]
+    [InlineData("application/atom+xml")]
+    [InlineData(" APPLICATION/ATOM+XML ; charset=utf-8")]
+    public void IsAllowedTextContentType_MissingOrSupportedType_ReturnsTrue(string? contentType)
+    {
+        Assert.True(OutboundUrlSafety.IsAllowedTextContentType(contentType));
+    }
 }
