@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolveGitExecutable } from '../check-eol.mjs';
 
 export const DEV_PUBLIC_URL = 'https://dev.queenzone.org';
 
@@ -60,12 +61,13 @@ export function resolveDevTestedSha(stamp, knownSha) {
   // Resolve unambiguously to a commit, then constrain it to the fixed run tip.
   // A later DEV deploy cannot earn proof for a run that started on an older tip.
   try {
+    const git = resolveGitExecutable();
     const gitOptions = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 };
-    const candidates = execFileSync('git', ['rev-parse', `--disambiguate=${token}`], gitOptions).trim().split(/\r?\n/);
+    const candidates = execFileSync(git, ['rev-parse', `--disambiguate=${token}`], gitOptions).trim().split(/\r?\n/);
     if (candidates.length !== 1 || !FULL_SHA.test(candidates[0])) throw new Error('Missing or ambiguous commit.');
     const [resolved] = candidates;
-    if (execFileSync('git', ['cat-file', '-t', resolved], gitOptions).trim() !== 'commit') throw new Error('Not a commit.');
-    execFileSync('git', ['merge-base', '--is-ancestor', resolved, sha], gitOptions);
+    if (execFileSync(git, ['cat-file', '-t', resolved], gitOptions).trim() !== 'commit') throw new Error('Not a commit.');
+    execFileSync(git, ['merge-base', '--is-ancestor', resolved, sha], gitOptions);
     if (FULL_SHA.test(resolved)) return resolved;
   } catch {
     // Missing history, ambiguity and a build outside this tip's history fail closed.

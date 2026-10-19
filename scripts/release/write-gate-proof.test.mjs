@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, existsSync, rmSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,11 +31,11 @@ test('DEV proof credits only the served commit in complete and shallow histories
     git('commit', '--allow-empty', '-m', 'unrelated');
     const side = git('rev-parse', 'HEAD');
     git('checkout', 'main');
-    const run = (stamp, cwd = root, sha = tip) => {
+    const run = (stamp, cwd = root, sha = tip, extraEnv = {}) => {
       const out = path.join(cwd, 'proof.json');
       rmSync(out, { force: true });
       const result = spawnSync(process.execPath, [writer, '--stamp', stamp, '--sha', sha, '--out', out], {
-        cwd, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'summary.md') },
+        cwd, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'summary.md'), ...extraEnv },
       });
       return { ...result, out };
     };
@@ -51,6 +51,18 @@ test('DEV proof credits only the served commit in complete and shallow histories
       assert.deepEqual(JSON.parse(readFileSync(result.out)), { tested_sha: served, full_suite: true });
       assert.match(result.stdout, /no tip proof/);
       assert.match(readFileSync(path.join(root, 'summary.md'), 'utf8'), /no tip proof/);
+    }
+    if (process.platform !== 'win32') {
+      const untrustedBin = path.join(root, 'untrusted-bin');
+      mkdirSync(untrustedBin);
+      const marker = path.join(root, 'untrusted-git-executed');
+      const fakeGit = path.join(untrustedBin, 'git');
+      writeFileSync(fakeGit, `#!/bin/sh\nprintf executed > '${marker}'\nexit 1\n`);
+      chmodSync(fakeGit, 0o755);
+      const fixedExecutable = run(served.slice(0, 7), root, tip, { PATH: untrustedBin });
+      assert.equal(fixedExecutable.status, 0, fixedExecutable.stderr);
+      assert.equal(JSON.parse(readFileSync(fixedExecutable.out)).tested_sha, served);
+      assert.equal(existsSync(marker), false);
     }
     const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: 'not a commit', encoding: 'utf8' }).trim();
     for (const stamp of [blob, blob.slice(0, 7), '', 'abcdef0', '--help', 'abc', `x${served.slice(0, 7)}`, `${served.slice(0, 7)}x`, side, side.slice(0, 7)]) {
