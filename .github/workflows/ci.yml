@@ -293,7 +293,7 @@ jobs:
           echo "/opt/homebrew/sbin" >> "$GITHUB_PATH"
           echo "/usr/local/bin" >> "$GITHUB_PATH"
 
-      # Expo SDK 57 requires Xcode 26.4+ (docs/mobile-development-environment.md);
+      # Expo SDK 58 requires Xcode 26.4+ (docs/mobile-development-environment.md);
       # the runner's default DEVELOPER_DIR can be an older Xcode also installed
       # on the image. Select the newest one actually present rather than
       # hardcoding a version that may not match what GitHub ships on this
@@ -377,9 +377,9 @@ jobs:
       - name: Confirm iOS deployment target is 15.1 or higher
         run: |
           set -euo pipefail
-          # Expo 57 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
+          # Expo 58 writes `platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'`
           # rather than a literal version. Sentry 8 allows 15.0+; the lock is 15.1+.
-          # Expo 57's Expo.podspec (`:ios => '16.4'`) is a hard floor: pod install
+          # Expo 58's Expo.podspec (`:ios => '16.4'`) is a hard floor: pod install
           # rejects a 15.1 app platform. The app pin is therefore 16.4.
           echo "Podfile platform line:"
           grep -n "platform :ios" ios/Podfile || true
