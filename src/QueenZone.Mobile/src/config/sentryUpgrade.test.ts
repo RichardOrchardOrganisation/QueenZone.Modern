@@ -18,13 +18,13 @@ const dependabot = readFileSync(path.join(repoRoot, '.github/dependabot.yml'), '
 const ci = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
 const sentryInit = readFileSync(path.join(mobileRoot, 'src/config/sentry.ts'), 'utf8');
 
-describe('Sentry 8 on Expo SDK 57 (#1782 PR 1)', () => {
+describe('Sentry 8 on Expo SDK 58 (#1782 PR 2)', () => {
   it('pins @sentry/react-native to the SDK 58 bundled ~8.28 line', () => {
     assert.equal(packageJson.dependencies?.['@sentry/react-native'], '~8.28.0');
   });
 
-  it('excludes @sentry/react-native from expo install so SDK 57 cannot pull 7.11 back', () => {
-    assert.ok(packageJson.expo?.install?.exclude?.includes('@sentry/react-native'));
+  it('includes @sentry/react-native in Expo version validation', () => {
+    assert.ok(!packageJson.expo?.install?.exclude?.includes('@sentry/react-native'));
   });
 
   it('lifts the Dependabot ignore for @sentry/react-native', () => {

@@ -16,7 +16,7 @@ function homeArticleImage(item: NewsArticleImageFields, apiBaseUrl: string): num
   });
   if (typeof source === 'number') return source;
   if (Array.isArray(source)) return { uri: source[0]?.uri ?? '' };
-  return { uri: source.uri ?? '' };
+  return { uri: ('uri' in source ? source.uri : undefined) ?? '' };
 }
 
 export const HomeHeroSection = memo(function HomeHeroSection({

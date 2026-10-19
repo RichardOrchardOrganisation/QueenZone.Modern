@@ -13,14 +13,14 @@ Host toolchain: [mobile development environment](../../docs/mobile-development-e
 
 | Tool | Version |
 | --- | --- |
-| Expo SDK | **57** (`expo@~57.0.22`) |
-| React Native | **0.86.3** |
+| Expo SDK | **58** (`expo@~58.0.14`) |
+| React Native | **0.88.0** |
 | Node.js | **24 LTS** (`>=24 <25`) |
 | npm | Bundled with Node.js |
 | JDK | **17** (Eclipse Temurin) |
-| Android `compileSdk` / `targetSdk` | **36** (from Expo SDK 57) |
-| Android SDK Build-Tools | **36.0.0** |
-| Xcode | **26.4+** (SDK 57 requirement) |
+| Android `compileSdk` / `targetSdk` | **37** / **36** (from Expo SDK 58) |
+| Android SDK Build-Tools | **37.0.0** |
+| Xcode | **26.4+** (SDK 58 requirement) |
 | Application id | `org.queenzone.mobile` |
 
 Expo Go is **not** a supported build or test environment. Use a development
@@ -41,7 +41,7 @@ On both platforms:
 - Node.js 24 LTS
 - Git
 - JDK 17, with `JAVA_HOME` pointing at that JDK
-- Android Studio with Android SDK Platform 36, Build-Tools 36.0.0, platform-tools, and an API 36 Google APIs emulator image
+- Android Studio with Android SDK Platforms 36 and 37, Build-Tools 37.0.0, platform-tools, and an API 36 Google APIs emulator image
 
 `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) must point at the SDK:
 
@@ -65,7 +65,7 @@ npm run preflight
 `npm run preflight` runs typecheck, lint, the unit tests, and Expo Doctor
 (`npm run doctor`). The `expo-doctor` binary is lockfile-pinned; the
 SDK package-version check is not — it compares `package.json` against
-Expo's current SDK 57 native-module list. A clean `npm ci` that passed
+Expo's current SDK 58 native-module list. A clean `npm ci` that passed
 Doctor this morning can fail CI later the same day when Expo publishes a
 patch. Fix with `npx expo install <package>` (or `npx expo install --fix`)
 and commit the lockfile. Do not add packages to `expo.install.exclude`
@@ -108,7 +108,7 @@ node ../../scripts/Test-TypeScriptCoverageGate.mjs --self-test
 Do not commit `coverage/`. Policy, measured baseline, and the changed-line
 gate: [`docs/architecture/testing-policy.md`](../../docs/architecture/testing-policy.md).
 
-SDK 57 always uses React Native's New Architecture, so `app.json` does not
+SDK 58 always uses React Native's New Architecture, so `app.json` does not
 set `newArchEnabled` (the field is no longer in the config schema). Splash
 is configured through the `expo-splash-screen` plugin, not a top-level
 `splash` object.
@@ -327,9 +327,8 @@ asks whether to open Trivia; search opens the existing in-app search with the
 spoken term. Empty, offline, and server-error responses never invent content.
 No member-authenticated API or write action is exposed.
 
-The source-controlled config plugin is the SDK 57 integration path: Expo's
-`expo-app-intents` package is documented for SDK 58, so this app does not
-depend on it or edit generated `ios/` files. The shortcut code runs in the
+The source-controlled config plugin provides the app's Siri integration. The app
+does not depend on `expo-app-intents` or edit generated `ios/` files. The shortcut code runs in the
 main app target; no new extension or provisioning profile is needed for this
 implementation. It reuses the existing `queenzone` URL scheme. On iOS 18.4+,
 the app indexes a bounded first page of public albums and timeline events in
@@ -709,7 +708,7 @@ for App Store Connect), records the UTC build time and source revision for the
 in-app build stamp, then runs `pod install` before archiving. Expo writes
 `ITSAppUsesNonExemptEncryption=false` because the app uses only exempt platform
 HTTPS; this prevents each TestFlight build pausing for the same export-compliance
-questionnaire. Expo SDK 57 stamps `aps-environment=development` during prebuild;
+questionnaire. Expo SDK 58 stamps `aps-environment=development` during prebuild;
 Xcode changes it to `production` when archiving with the App Store distribution
 profile. The workflow verifies both stages and rejects an exported IPA that does
 not carry the production entitlement. It also reads the packaged Expo config

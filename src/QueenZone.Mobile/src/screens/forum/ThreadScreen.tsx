@@ -38,7 +38,7 @@ function isStaleReadFailure(err: unknown): boolean {
 }
 
 export function ThreadScreen(props: Props) {
-  const viewport = useRef<View>(null);
+  const viewport = useRef<React.ComponentRef<typeof View>>(null);
   return <View ref={viewport} collapsable={false} style={{ flex: 1 }}>
     <ForumPlayerProvider key={String(props.route.params.id)} viewport={viewport} navigation={props.navigation}>
       <ThreadContent {...props} />

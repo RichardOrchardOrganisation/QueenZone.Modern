@@ -164,8 +164,8 @@ describe('PagedListScreen', () => {
     );
 
     const list = componentProps(FlatList);
-    expect(list.props.getItemLayout!(null, 0)).toEqual({ length: 48, offset: 0, index: 0 });
-    expect(list.props.getItemLayout!(null, 3)).toEqual({ length: 48, offset: 144, index: 3 });
+    expect(list.props.getItemLayout!(undefined, 0)).toEqual({ length: 48, offset: 0, index: 0 });
+    expect(list.props.getItemLayout!(undefined, 3)).toEqual({ length: 48, offset: 144, index: 3 });
   });
 
   it('keeps the list visible when a later refresh or error happens with items', async () => {

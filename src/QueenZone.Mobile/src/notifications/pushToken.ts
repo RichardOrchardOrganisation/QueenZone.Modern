@@ -1,4 +1,5 @@
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { AppState, Platform } from 'react-native';
 import type { DevicePushPlatform } from './api';
 
@@ -15,7 +16,7 @@ export async function ensureAndroidNotificationChannel(): Promise<void> {
 
   await Notifications.setNotificationChannelAsync('default', {
     name: 'Default',
-    importance: Notifications.AndroidImportance.DEFAULT,
+    importance: AndroidImportance.DEFAULT,
   });
 }
 
