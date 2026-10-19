@@ -4,16 +4,21 @@
  *
  * Shape: { tested_sha, full_suite }. DEV proofs take tested_sha from the
  * live DEV homepage `data-build-version` stamp, read in the test job
- * before and after the suite. An unknown or missing stamp fails closed;
- * it is never replaced with the workflow run SHA.
+ * before and after the suite. The stamp is resolved through the GitHub
+ * API and must be on main. Proof is written only when that commit is the
+ * tip; an older main commit ends green with no artifact. A stamp that is
+ * missing, malformed, or not on main fails closed. The run SHA is never
+ * used as a fallback tested_sha.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEV_PUBLIC_URL = 'https://dev.queenzone.org';
+export const NON_MAIN_BUILD_ERROR = 'DEV is serving a non-main build';
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
+const STAMP_SHA = /^[0-9a-f]{7,40}$/;
 const BUILD_STAMP = /data-build-version="([^"]+)"/i;
 
 export function buildGateProof({ testedSha, fullSuite }) {
@@ -44,19 +49,100 @@ export function requireMatchingStamps(before, after) {
   return right;
 }
 
-export function resolveDevTestedSha(stamp, knownSha) {
+export function parseDevBuildStamp(stamp) {
   const token = String(stamp || '').trim().toLowerCase();
-  const sha = String(knownSha || '').trim().toLowerCase();
   if (!token) {
     throw new Error('DEV homepage is missing data-build-version.');
   }
-  if (FULL_SHA.test(token)) {
-    return token;
+  if (!STAMP_SHA.test(token)) {
+    throw new Error(`Malformed DEV build stamp ${JSON.stringify(stamp)}.`);
   }
-  if (FULL_SHA.test(sha) && sha.startsWith(token) && token.length >= 7) {
-    return sha;
+  return token;
+}
+
+export function isOnMainCompare(compare) {
+  if (!compare || typeof compare !== 'object') {
+    return false;
   }
-  throw new Error(`Unknown DEV build stamp ${JSON.stringify(stamp)}; refusing to fall back to the run SHA.`);
+  if (compare.status === 'identical') {
+    return true;
+  }
+  return compare.status === 'ahead' && Number(compare.behind_by) === 0;
+}
+
+export function formatOlderMainNotice(servedSha, tipSha) {
+  return `DEV is on ${servedSha}, tip is ${tipSha}; no proof for ${tipSha}`;
+}
+
+export function writeGithubFile(filePath, text) {
+  if (!filePath) {
+    return;
+  }
+  appendFileSync(filePath, text.endsWith('\n') ? text : `${text}\n`);
+}
+
+export async function githubJson(apiPath, { token, fetchImpl = fetch, baseUrl = 'https://api.github.com' }) {
+  if (!token) {
+    throw new Error('GITHUB_TOKEN is required to resolve the DEV build stamp.');
+  }
+  const response = await fetchImpl(`${baseUrl}${apiPath}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'queenzone-write-gate-proof',
+    },
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    const error = new Error(`GitHub API ${apiPath} failed: HTTP ${response.status} ${detail}`.slice(0, 400));
+    error.status = response.status;
+    throw error;
+  }
+  return response.json();
+}
+
+export async function resolveDevStampOnMain(stamp, {
+  tipSha,
+  repo,
+  token,
+  fetchImpl = fetch,
+  baseUrl = 'https://api.github.com',
+} = {}) {
+  const tokenStamp = parseDevBuildStamp(stamp);
+  const tip = String(tipSha || '').trim().toLowerCase();
+  if (!FULL_SHA.test(tip)) {
+    throw new Error(`tested_sha must be a 40-character commit SHA, got ${JSON.stringify(tipSha)}`);
+  }
+  if (!repo) {
+    throw new Error('GITHUB_REPOSITORY is required to resolve the DEV build stamp.');
+  }
+
+  let commit;
+  try {
+    commit = await githubJson(`/repos/${repo}/commits/${tokenStamp}`, { token, fetchImpl, baseUrl });
+  } catch (error) {
+    if (error.status === 404 || error.status === 422) {
+      throw new Error(`Unknown DEV build stamp ${JSON.stringify(stamp)}; refusing to fall back to the run SHA.`);
+    }
+    throw error;
+  }
+
+  const full = String(commit?.sha || '').trim().toLowerCase();
+  if (!FULL_SHA.test(full)) {
+    throw new Error(`Unknown DEV build stamp ${JSON.stringify(stamp)}; refusing to fall back to the run SHA.`);
+  }
+
+  const compare = await githubJson(`/repos/${repo}/compare/${full}...main`, { token, fetchImpl, baseUrl });
+  if (!isOnMainCompare(compare)) {
+    throw new Error(`${NON_MAIN_BUILD_ERROR} ${full}`);
+  }
+
+  return {
+    sha: full,
+    tipSha: tip,
+    onTip: full === tip || compare.status === 'identical',
+  };
 }
 
 export function parseBooleanFlag(value) {
@@ -125,9 +211,30 @@ export async function writeGateProofFromArgs(argv, env = process.env, fetchImpl 
     console.log(stamp);
     return { stamp };
   }
-  const testedSha = stamp ? resolveDevTestedSha(stamp, options.sha) : options.sha;
-  const proof = buildGateProof({ testedSha, fullSuite: options.fullSuite });
+  if (!stamp) {
+    const proof = buildGateProof({ testedSha: options.sha, fullSuite: options.fullSuite });
+    writeGateProofFile(options.out, proof);
+    writeGithubFile(env.GITHUB_OUTPUT, 'wrote=true');
+    return proof;
+  }
+
+  const resolved = await resolveDevStampOnMain(stamp, {
+    tipSha: options.sha,
+    repo: env.GITHUB_REPOSITORY,
+    token: env.GH_TOKEN || env.GITHUB_TOKEN,
+    fetchImpl,
+  });
+  if (!resolved.onTip) {
+    const notice = formatOlderMainNotice(resolved.sha, resolved.tipSha);
+    console.log(`::notice::${notice}`);
+    writeGithubFile(env.GITHUB_STEP_SUMMARY, `${notice}\n`);
+    writeGithubFile(env.GITHUB_OUTPUT, 'wrote=false');
+    return { skipped: true, servedSha: resolved.sha, tipSha: resolved.tipSha, notice };
+  }
+
+  const proof = buildGateProof({ testedSha: resolved.sha, fullSuite: options.fullSuite });
   writeGateProofFile(options.out, proof);
+  writeGithubFile(env.GITHUB_OUTPUT, 'wrote=true');
   return proof;
 }
 
