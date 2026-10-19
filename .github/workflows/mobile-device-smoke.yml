@@ -528,6 +528,12 @@ jobs:
         && (github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'))
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Emulator image coordinates for the preinstall + cache key (#2351). Keep in
+    # step with the android-emulator-runner api-level/target/arch below.
+    env:
+      ANDROID_EMULATOR_API_LEVEL: "34"
+      ANDROID_EMULATOR_TARGET: google_apis
+      ANDROID_EMULATOR_ARCH: x86_64
     defaults:
       run:
         working-directory: src/QueenZone.Mobile
@@ -633,10 +639,41 @@ jobs:
           else
             echo "DEVICE_SUITE_ARGS=--suite journeys" >> "$GITHUB_ENV"
           fi
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          echo "ANDROID_SYSIMG_DIR=$SDK_ROOT/system-images/android-${ANDROID_EMULATOR_API_LEVEL}/${ANDROID_EMULATOR_TARGET}/${ANDROID_EMULATOR_ARCH}" >> "$GITHUB_ENV"
+
+      # #2351: a truncated system-image zip ("Error on ZipFile unknown archive")
+      # used to kill android-emulator-runner before boot. Restore the image from
+      # cache, preinstall with 3 attempts + backoff (clearing partial downloads),
+      # then let the runner's own sdkmanager call find it already installed.
+      - name: Restore Android emulator system image cache
+        id: android-sysimg-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ANDROID_SYSIMG_DIR }}
+          key: android-sysimg-${{ runner.os }}-api${{ env.ANDROID_EMULATOR_API_LEVEL }}-${{ env.ANDROID_EMULATOR_TARGET }}-${{ env.ANDROID_EMULATOR_ARCH }}-v1
+
+      - name: Install Android emulator and system image
+        id: android-emulator-install
+        continue-on-error: true
+        working-directory: .
+        run: ./scripts/preinstall-android-emulator.sh --results-dir src/QueenZone.Mobile/maestro-results
+
+      - name: Save Android emulator system image cache
+        if: >-
+          steps.android-emulator-install.outcome == 'success'
+          && steps.android-sysimg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ANDROID_SYSIMG_DIR }}
+          key: android-sysimg-${{ runner.os }}-api${{ env.ANDROID_EMULATOR_API_LEVEL }}-${{ env.ANDROID_EMULATOR_TARGET }}-${{ env.ANDROID_EMULATOR_ARCH }}-v1
 
       # Hosted GHA Linux only: API 34 + stable emulator channel (#1458).
+      # The first script line only runs after the emulator booted, so a missing
+      # android-emulator-booted marker means install/boot failure, not a selector miss.
       - name: Run Android device journeys
         id: android-journeys
+        if: steps.android-emulator-install.outcome == 'success'
         continue-on-error: true
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
@@ -650,7 +687,9 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./scripts/run-mobile-device-smoke.sh --platform android $DEVICE_SUITE_ARGS --skip-build --no-build --apk src/QueenZone.Mobile/android/app/build/outputs/apk/release/app-release.apk
+          script: |
+            mkdir -p src/QueenZone.Mobile/maestro-results && date -u +%Y-%m-%dT%H:%M:%SZ > src/QueenZone.Mobile/maestro-results/android-emulator-booted
+            ./scripts/run-mobile-device-smoke.sh --platform android $DEVICE_SUITE_ARGS --skip-build --no-build --apk src/QueenZone.Mobile/android/app/build/outputs/apk/release/app-release.apk
 
       - name: Classify Android journeys transport death
         id: android-journeys-classify
@@ -659,7 +698,11 @@ jobs:
         run: |
           CRASH=src/QueenZone.Mobile/maestro-results/android-app-crash
           MARKER=src/QueenZone.Mobile/maestro-results/android-transport-death
-          if [ -f "$CRASH" ]; then
+          BOOTED=src/QueenZone.Mobile/maestro-results/android-emulator-booted
+          if [ ! -f "$BOOTED" ]; then
+            echo "retry=false" >> "$GITHUB_OUTPUT"
+            echo "First Android journeys attempt never booted the emulator (install/boot failure). Not retrying."
+          elif [ -f "$CRASH" ]; then
             echo "retry=false" >> "$GITHUB_OUTPUT"
             echo "First Android journeys attempt was APP_CRASH. Not retrying."
             echo "--- android-app-crash ---"
@@ -700,13 +743,16 @@ jobs:
           force-avd-creation: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: ./scripts/run-mobile-device-smoke.sh --platform android $DEVICE_SUITE_ARGS --skip-build --no-build --apk src/QueenZone.Mobile/android/app/build/outputs/apk/release/app-release.apk
+          script: |
+            mkdir -p src/QueenZone.Mobile/maestro-results && date -u +%Y-%m-%dT%H:%M:%SZ > src/QueenZone.Mobile/maestro-results/android-emulator-booted
+            ./scripts/run-mobile-device-smoke.sh --platform android $DEVICE_SUITE_ARGS --skip-build --no-build --apk src/QueenZone.Mobile/android/app/build/outputs/apk/release/app-release.apk
 
       - name: Collect leftover Android journeys logs
         if: >-
           always()
-          && steps.android-journeys.outcome == 'failure'
-          && steps.android-journeys-retry.outcome != 'success'
+          && (steps.android-emulator-install.outcome == 'failure'
+            || (steps.android-journeys.outcome == 'failure'
+              && steps.android-journeys-retry.outcome != 'success'))
         timeout-minutes: 2
         working-directory: .
         run: |
@@ -729,8 +775,9 @@ jobs:
       - name: Upload Android journeys diagnostics
         if: >-
           always()
-          && steps.android-journeys.outcome == 'failure'
-          && steps.android-journeys-retry.outcome != 'success'
+          && (steps.android-emulator-install.outcome == 'failure'
+            || (steps.android-journeys.outcome == 'failure'
+              && steps.android-journeys-retry.outcome != 'success'))
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-android-journeys-${{ github.run_id }}
@@ -768,8 +815,9 @@ jobs:
       - name: Fail Android journeys after unrecovered failure
         if: >-
           always()
-          && steps.android-journeys.outcome == 'failure'
-          && steps.android-journeys-retry.outcome != 'success'
+          && (steps.android-emulator-install.outcome == 'failure'
+            || (steps.android-journeys.outcome == 'failure'
+              && steps.android-journeys-retry.outcome != 'success'))
         working-directory: .
         run: |
           CRASH_DIR=src/QueenZone.Mobile/maestro-results
@@ -777,7 +825,12 @@ jobs:
             && [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-app-crash ]; then
             CRASH_DIR=src/QueenZone.Mobile/maestro-results-transport-first
           fi
-          if [ -f "$CRASH_DIR/android-app-crash" ]; then
+          if [ -f src/QueenZone.Mobile/maestro-results/android-install-failure ]; then
+            echo "::error::Android journeys failed on an emulator install failure (SDK emulator/system image install). No journey ran. Not a selector or assertion miss."
+            cat src/QueenZone.Mobile/maestro-results/android-install-failure || true
+          elif [ ! -f src/QueenZone.Mobile/maestro-results/android-emulator-booted ]; then
+            echo "::error::Android journeys failed on an emulator install failure (emulator/system image install or boot did not complete). No journey ran. Not a selector or assertion miss."
+          elif [ -f "$CRASH_DIR/android-app-crash" ]; then
             echo "::error::Android journeys failed because the app process crashed (APP_CRASH). Not a selector miss."
             cat "$CRASH_DIR/android-app-crash" || true
             if [ -f "$CRASH_DIR/android-app-crash-frames.txt" ]; then
