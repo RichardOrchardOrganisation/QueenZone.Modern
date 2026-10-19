@@ -7,9 +7,11 @@
  * before and after the suite. An unknown or missing stamp fails closed;
  * it is never replaced with the workflow run SHA.
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { resolveGitExecutable } from '../check-eol.mjs';
 
 export const DEV_PUBLIC_URL = 'https://dev.queenzone.org';
 
@@ -50,11 +52,25 @@ export function resolveDevTestedSha(stamp, knownSha) {
   if (!token) {
     throw new Error('DEV homepage is missing data-build-version.');
   }
-  if (FULL_SHA.test(token)) {
-    return token;
+  if (!/^[0-9a-f]{7,40}$/.test(token)) {
+    throw new Error(`Invalid DEV build stamp ${JSON.stringify(stamp)}.`);
   }
-  if (FULL_SHA.test(sha) && sha.startsWith(token) && token.length >= 7) {
+  if (FULL_SHA.test(sha) && token === sha) {
     return sha;
+  }
+  // Resolve unambiguously to a commit, then constrain it to the fixed run tip.
+  // A later DEV deploy cannot earn proof for a run that started on an older tip.
+  try {
+    const git = resolveGitExecutable();
+    const gitOptions = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 };
+    const candidates = execFileSync(git, ['rev-parse', `--disambiguate=${token}`], gitOptions).trim().split(/\r?\n/);
+    if (candidates.length !== 1 || !FULL_SHA.test(candidates[0])) throw new Error('Missing or ambiguous commit.');
+    const [resolved] = candidates;
+    if (execFileSync(git, ['cat-file', '-t', resolved], gitOptions).trim() !== 'commit') throw new Error('Not a commit.');
+    execFileSync(git, ['merge-base', '--is-ancestor', resolved, sha], gitOptions);
+    if (FULL_SHA.test(resolved)) return resolved;
+  } catch {
+    // Missing history, ambiguity and a build outside this tip's history fail closed.
   }
   throw new Error(`Unknown DEV build stamp ${JSON.stringify(stamp)}; refusing to fall back to the run SHA.`);
 }
@@ -81,6 +97,7 @@ export function parseWriteProofArgs(argv, env = process.env) {
   const args = [...argv];
   const options = {
     dev: false,
+    stampProvided: Object.hasOwn(env, 'DEV_BUILD_STAMP'),
     printStamp: false,
     out: 'gate-proof/gate-proof.json',
     fullSuite: parseBooleanFlag(env.GATE_FULL_SUITE ?? 'true'),
@@ -102,6 +119,7 @@ export function parseWriteProofArgs(argv, env = process.env) {
     } else if (arg === '--sha') {
       options.sha = args.shift();
     } else if (arg === '--stamp') {
+      options.stampProvided = true;
       options.stamp = args.shift();
     } else if (arg === '--require-match') {
       options.requireMatch = args.shift();
@@ -125,9 +143,16 @@ export async function writeGateProofFromArgs(argv, env = process.env, fetchImpl 
     console.log(stamp);
     return { stamp };
   }
-  const testedSha = stamp ? resolveDevTestedSha(stamp, options.sha) : options.sha;
+  const testedSha = (options.dev || options.stampProvided) ? resolveDevTestedSha(stamp, options.sha) : options.sha;
   const proof = buildGateProof({ testedSha, fullSuite: options.fullSuite });
   writeGateProofFile(options.out, proof);
+  if (options.dev || options.stampProvided) {
+    const message = testedSha === options.sha.toLowerCase()
+      ? `DEV is on ${testedSha}, tip is ${options.sha}; tip proof written.`
+      : `DEV is on ${testedSha}, tip is ${options.sha}; no tip proof. Proof credits only the served commit.`;
+    console.log(message);
+    if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${message}\n`);
+  }
   return proof;
 }
 
