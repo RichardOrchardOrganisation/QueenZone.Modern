@@ -167,6 +167,7 @@ export function parseWriteProofArgs(argv, env = process.env) {
   const args = [...argv];
   const options = {
     dev: false,
+    stampProvided: Object.hasOwn(env, 'DEV_BUILD_STAMP'),
     printStamp: false,
     out: 'gate-proof/gate-proof.json',
     fullSuite: parseBooleanFlag(env.GATE_FULL_SUITE ?? 'true'),
@@ -188,6 +189,7 @@ export function parseWriteProofArgs(argv, env = process.env) {
     } else if (arg === '--sha') {
       options.sha = args.shift();
     } else if (arg === '--stamp') {
+      options.stampProvided = true;
       options.stamp = args.shift();
     } else if (arg === '--require-match') {
       options.requireMatch = args.shift();
@@ -211,7 +213,8 @@ export async function writeGateProofFromArgs(argv, env = process.env, fetchImpl 
     console.log(stamp);
     return { stamp };
   }
-  if (!stamp) {
+  const resolveStamp = options.dev || options.stampProvided;
+  if (!resolveStamp) {
     const proof = buildGateProof({ testedSha: options.sha, fullSuite: options.fullSuite });
     writeGateProofFile(options.out, proof);
     writeGithubFile(env.GITHUB_OUTPUT, 'wrote=true');

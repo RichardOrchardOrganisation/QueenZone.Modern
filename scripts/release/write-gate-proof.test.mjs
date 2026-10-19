@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
+import { GATES, evaluateRun } from './check-gates.mjs';
 import {
   NON_MAIN_BUILD_ERROR,
   formatOlderMainNotice,
@@ -187,4 +188,34 @@ test('unknown stamp from GitHub is not replaced with the run SHA', async () => {
     ),
     /Unknown DEV build stamp/,
   );
+});
+
+test('an explicitly empty DEV stamp fails instead of taking the nightly path', async () => {
+  const { fetchImpl, calls } = githubFetch();
+  await assert.rejects(
+    () => writeGateProofFromArgs(
+      ['--stamp', '', '--out', 'unused.json', '--sha', tip],
+      githubEnv(),
+      fetchImpl,
+    ),
+    /missing data-build-version/,
+  );
+  assert.deepEqual(calls, []);
+});
+
+test('every production gate rejects an older served proof even with a green exact-tip job', async () => {
+  const context = { maxAgeHours: 72, now: () => Date.parse('2026-10-19T12:00:00Z') };
+  const run = {
+    id: 1,
+    head_sha: tip,
+    jobs: [{ name: 'gate-proof', status: 'completed', conclusion: 'success', completed_at: '2026-10-19T11:00:00Z' }],
+    proof: { tested_sha: older, full_suite: true },
+  };
+  assert.equal(GATES.length, 3);
+  for (const gate of GATES) {
+    const stale = await evaluateRun(gate, run, tip, context);
+    assert.equal(stale.ok, false, gate.id);
+    assert.match(stale.error, /tested_sha/);
+    assert.equal((await evaluateRun(gate, { ...run, proof: { tested_sha: tip, full_suite: true } }, tip, context)).ok, true);
+  }
 });

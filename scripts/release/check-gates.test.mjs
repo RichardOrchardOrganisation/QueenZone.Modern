@@ -516,6 +516,9 @@ test('DEV e2e workflows keep their crons and trigger after a successful deploy-d
     assert.match(workflow, /--require-match/);
     assert.match(workflow, /name: gate-proof/);
     assert.match(workflow, /outputs\.stamp != ''/);
+    // Checkout depth is workflow configuration, not an implementation detail:
+    // the proof job must have ancestors even on a fresh hosted runner (#2354).
+    assert.match(workflow.split('  gate-proof:')[1], /fetch-depth: 0/);
     assert.doesNotMatch(workflow.split('jobs:')[0], /id-token:\s*write/);
     assert.match(workflow, /permissions:\r?\n\s+contents: read\r?\n\s+id-token: write/);
   }
