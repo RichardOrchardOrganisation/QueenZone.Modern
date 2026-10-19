@@ -72,6 +72,9 @@ export function evaluateChanges(code, migrations) {
   if (migrations !== 'true' && migrations !== 'false') {
     throw new Error(`Unknown changes.migrations=${JSON.stringify(migrations)}; failing closed.`);
   }
+  // Same path classifier as Deploy-dev (`scripts/classify-pipeline-changes.sh`).
+  // Deploy-dev skips when code=false. That script never sets migrations=true
+  // without also setting code=true, so this exemption is the skip-deploy set.
   if (code === 'true' || migrations === 'true') {
     return { needed: true };
   }

@@ -1,123 +1,215 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, existsSync, rmSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { GATES, evaluateRun } from './check-gates.mjs';
-import { resolveDevTestedSha } from './write-gate-proof.mjs';
+import {
+  NON_MAIN_BUILD_ERROR,
+  formatOlderMainNotice,
+  isOnMainCompare,
+  parseDevBuildStamp,
+  resolveDevStampOnMain,
+  writeGateProofFromArgs,
+} from './write-gate-proof.mjs';
 
-const writer = fileURLToPath(new URL('./write-gate-proof.mjs', import.meta.url));
+const tip = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+const older = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const other = 'cccccccccccccccccccccccccccccccccccccccc';
+const repo = 'owner/repo';
+const token = 'test-token';
 
-// Real local Git repositories exercise resolution and shallow-history failures;
-// these synthetic proofs are never uploaded as hosted DEV evidence.
-test('DEV proof credits only the served commit in complete and shallow histories', () => {
-  const root = mkdtempSync(path.join(tmpdir(), 'qz-dev-proof-'));
-  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+function jsonResponse(body, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    async json() {
+      return body;
+    },
+    async text() {
+      return JSON.stringify(body);
+    },
+  };
+}
+
+function githubFetch({ commits = {}, compares = {} } = {}) {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    const parsed = new URL(url);
+    const commitMatch = parsed.pathname.match(/\/commits\/([^/]+)$/);
+    if (commitMatch) {
+      const key = decodeURIComponent(commitMatch[1]).toLowerCase();
+      if (Object.prototype.hasOwnProperty.call(commits, key)) {
+        const commit = commits[key];
+        if (commit === null) {
+          return jsonResponse({ message: 'Not Found' }, 404);
+        }
+        return jsonResponse(commit);
+      }
+      return jsonResponse({ message: 'Not Found' }, 404);
+    }
+    const compareMatch = parsed.pathname.match(/\/compare\/(.+)$/);
+    if (compareMatch) {
+      const key = decodeURIComponent(compareMatch[1]);
+      if (Object.prototype.hasOwnProperty.call(compares, key)) {
+        return jsonResponse(compares[key]);
+      }
+      throw new Error(`unexpected compare ${key}`);
+    }
+    throw new Error(`unexpected GitHub URL ${url}`);
+  };
+  return { fetchImpl, calls };
+}
+
+function githubEnv(extra = {}) {
+  return {
+    GITHUB_REPOSITORY: repo,
+    GITHUB_TOKEN: token,
+    ...extra,
+  };
+}
+
+test('parseDevBuildStamp rejects malformed and empty stamps', () => {
+  assert.equal(parseDevBuildStamp(tip.slice(0, 7)), tip.slice(0, 7));
+  assert.throws(() => parseDevBuildStamp(''), /missing data-build-version/);
+  assert.throws(() => parseDevBuildStamp('not-a-sha'), /Malformed DEV build stamp/);
+  assert.throws(() => parseDevBuildStamp('main'), /Malformed DEV build stamp/);
+  assert.throws(() => parseDevBuildStamp('abcd'), /Malformed DEV build stamp/);
+});
+
+test('isOnMainCompare accepts only identical or ancestor-of-main compares', () => {
+  assert.equal(isOnMainCompare({ status: 'identical' }), true);
+  assert.equal(isOnMainCompare({ status: 'ahead', behind_by: 0 }), true);
+  assert.equal(isOnMainCompare({ status: 'ahead', behind_by: 1 }), false);
+  assert.equal(isOnMainCompare({ status: 'diverged', behind_by: 1 }), false);
+  assert.equal(isOnMainCompare({ status: 'behind', behind_by: 1 }), false);
+  assert.equal(isOnMainCompare(null), false);
+});
+
+test('stamp equal to the tip writes proof for that commit', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'qz-gate-proof-tip-'));
+  const out = path.join(directory, 'gate-proof.json');
+  const output = path.join(directory, 'github-output');
+  const { fetchImpl, calls } = githubFetch({
+    commits: { [tip.slice(0, 7)]: { sha: tip } },
+    compares: { [`${tip}...main`]: { status: 'identical', behind_by: 0 } },
+  });
   try {
-    git('init', '-b', 'main');
-    git('config', 'user.name', 'Proof test');
-    git('config', 'user.email', 'proof@example.invalid');
-    git('commit', '--allow-empty', '-m', 'served');
-    const served = git('rev-parse', 'HEAD');
-    assert.equal(resolveDevTestedSha(served, ` ${served.toUpperCase()} `), served);
-    git('commit', '--allow-empty', '-m', 'tip');
-    const tip = git('rev-parse', 'HEAD');
-    // Hex-named refs must not redirect an object stamp to a different commit.
-    git('branch', served.slice(0, 7), tip);
-    git('checkout', '-b', 'side', served);
-    git('commit', '--allow-empty', '-m', 'unrelated');
-    const side = git('rev-parse', 'HEAD');
-    git('checkout', 'main');
-    const run = (stamp, cwd = root, sha = tip, extraEnv = {}) => {
-      const out = path.join(cwd, 'proof.json');
-      rmSync(out, { force: true });
-      const result = spawnSync(process.execPath, [writer, '--stamp', stamp, '--sha', sha, '--out', out], {
-        cwd, encoding: 'utf8', env: { ...process.env, GITHUB_STEP_SUMMARY: path.join(root, 'summary.md'), ...extraEnv },
-      });
-      return { ...result, out };
-    };
-    for (const stamp of [tip.slice(0, 7), tip, ` ${tip.toUpperCase()} `]) {
-      const result = run(stamp);
-      assert.equal(result.status, 0, result.stderr);
-      assert.deepEqual(JSON.parse(readFileSync(result.out)), { tested_sha: tip, full_suite: true });
-      assert.match(result.stdout, /tip proof written/);
-    }
-    for (const stamp of [served.slice(0, 7), served]) {
-      const result = run(stamp);
-      assert.equal(result.status, 0, result.stderr);
-      assert.deepEqual(JSON.parse(readFileSync(result.out)), { tested_sha: served, full_suite: true });
-      assert.match(result.stdout, /no tip proof/);
-      assert.match(readFileSync(path.join(root, 'summary.md'), 'utf8'), /no tip proof/);
-    }
-    if (process.platform !== 'win32') {
-      const untrustedBin = path.join(root, 'untrusted-bin');
-      mkdirSync(untrustedBin);
-      const marker = path.join(root, 'untrusted-git-executed');
-      const fakeGit = path.join(untrustedBin, 'git');
-      writeFileSync(fakeGit, `#!/bin/sh\nprintf executed > '${marker}'\nexit 1\n`);
-      chmodSync(fakeGit, 0o755);
-      const fixedExecutable = run(served.slice(0, 7), root, tip, { PATH: untrustedBin });
-      assert.equal(fixedExecutable.status, 0, fixedExecutable.stderr);
-      assert.equal(JSON.parse(readFileSync(fixedExecutable.out)).tested_sha, served);
-      assert.equal(existsSync(marker), false);
-    }
-    const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: 'not a commit', encoding: 'utf8' }).trim();
-    for (const stamp of [blob, blob.slice(0, 7), '', 'abcdef0', '--help', 'abc', `x${served.slice(0, 7)}`, `${served.slice(0, 7)}x`, side, side.slice(0, 7)]) {
-      const result = run(stamp);
-      assert.notEqual(result.status, 0, stamp);
-      assert.equal(existsSync(result.out), false, stamp);
-      if (stamp === '') assert.match(result.stderr, /missing data-build-version/);
-      else if (['--help', 'abc', `x${served.slice(0, 7)}`, `${served.slice(0, 7)}x`].includes(stamp)) assert.match(result.stderr, /Invalid DEV build stamp/);
-    }
-    // A deploy racing ahead of the run must fail closed, never credit its old tip.
-    const ahead = run(tip.slice(0, 7), root, served);
-    assert.notEqual(ahead.status, 0);
-    assert.equal(existsSync(ahead.out), false);
-    // Build a real seven-hex collision deterministically, without a large history.
-    const tree = git('rev-parse', 'HEAD^{tree}');
-    const seen = new Map();
-    let collision;
-    for (let i = 0; i < 200_000; i += 1) {
-      const body = `tree ${tree}\nauthor Proof <proof@example.invalid> 1 +0000\ncommitter Proof <proof@example.invalid> 1 +0000\n\ncollision ${i}\n`;
-      const hash = createHash('sha1').update(`commit ${Buffer.byteLength(body)}\0${body}`).digest('hex');
-      const prefix = hash.slice(0, 7);
-      if (seen.has(prefix)) { collision = [prefix, seen.get(prefix), body]; break; }
-      seen.set(prefix, body);
-    }
-    assert.ok(collision, 'fixture must contain an ambiguous object prefix');
-    for (const body of collision.slice(1)) execFileSync('git', ['hash-object', '-t', 'commit', '-w', '--stdin'], { cwd: root, input: body, stdio: ['pipe', 'pipe', 'pipe'] });
-    const collisionShas = collision.slice(1).map(body => createHash('sha1').update(`commit ${Buffer.byteLength(body)}\0${body}`).digest('hex'));
-    // Both colliding commits are ancestors: picking either would wrongly pass.
-    const mergeTip = git('commit-tree', tree, '-p', collisionShas[0], '-p', collisionShas[1], '-p', tip, '-m', 'collision ancestors');
-    const ambiguous = run(collision[0], root, mergeTip);
-    assert.notEqual(ambiguous.status, 0);
-    assert.equal(existsSync(ambiguous.out), false);
-    const shallow = path.join(root, 'shallow');
-    git('clone', '--depth=1', `file://${root}`, shallow);
-    const missing = run(served.slice(0, 7), shallow);
-    assert.notEqual(missing.status, 0);
-    assert.match(missing.stderr, /Unknown DEV build stamp/);
-    assert.equal(existsSync(missing.out), false);
-    execFileSync('git', ['fetch', '--unshallow', 'origin'], { cwd: shallow, stdio: 'pipe' });
-    const restored = run(served.slice(0, 7), shallow);
-    assert.equal(restored.status, 0, restored.stderr);
-    assert.equal(JSON.parse(readFileSync(restored.out)).tested_sha, served);
+    const written = await writeGateProofFromArgs(
+      ['--stamp', tip.slice(0, 7), '--out', out, '--sha', tip],
+      githubEnv({ GITHUB_OUTPUT: output }),
+      fetchImpl,
+    );
+    assert.deepEqual(written, { tested_sha: tip, full_suite: true });
+    assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')), written);
+    assert.equal(readFileSync(output, 'utf8'), 'wrote=true\n');
+    assert.ok(calls.some((url) => url.endsWith(`/commits/${tip.slice(0, 7)}`)));
+    assert.ok(calls.some((url) => url.endsWith(`/compare/${tip}...main`)));
   } finally {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(directory, { recursive: true, force: true });
   }
 });
 
+test('older main stamp writes no artifact and ends green', async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'qz-gate-proof-older-'));
+  const out = path.join(directory, 'gate-proof.json');
+  const output = path.join(directory, 'github-output');
+  const summary = path.join(directory, 'summary.md');
+  const logs = [];
+  const originalLog = console.log;
+  const { fetchImpl } = githubFetch({
+    commits: { [older.slice(0, 7)]: { sha: older } },
+    compares: { [`${older}...main`]: { status: 'ahead', ahead_by: 1, behind_by: 0 } },
+  });
+  try {
+    console.log = (...args) => logs.push(args.join(' '));
+    const result = await writeGateProofFromArgs(
+      ['--stamp', older.slice(0, 7), '--out', out, '--sha', tip],
+      githubEnv({ GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary }),
+      fetchImpl,
+    );
+    const notice = formatOlderMainNotice(older, tip);
+    assert.deepEqual(result, { skipped: true, servedSha: older, tipSha: tip, notice });
+    assert.equal(existsSync(out), false);
+    assert.equal(readFileSync(output, 'utf8'), 'wrote=false\n');
+    assert.equal(readFileSync(summary, 'utf8'), `${notice}\n`);
+    assert.ok(logs.some((line) => line === `::notice::${notice}`));
+    assert.match(notice, /DEV is on /);
+    assert.match(notice, /tip is /);
+  } finally {
+    console.log = originalLog;
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('stamp not on main fails red', async () => {
+  const { fetchImpl } = githubFetch({
+    commits: { [other.slice(0, 7)]: { sha: other } },
+    compares: { [`${other}...main`]: { status: 'diverged', ahead_by: 3, behind_by: 1 } },
+  });
+  await assert.rejects(
+    () => resolveDevStampOnMain(other.slice(0, 7), {
+      tipSha: tip,
+      repo,
+      token,
+      fetchImpl,
+    }),
+    (error) => {
+      assert.match(error.message, new RegExp(NON_MAIN_BUILD_ERROR));
+      assert.match(error.message, new RegExp(other));
+      return true;
+    },
+  );
+});
+
+test('malformed stamp fails red without calling GitHub', async () => {
+  const { fetchImpl, calls } = githubFetch();
+  await assert.rejects(
+    () => writeGateProofFromArgs(
+      ['--stamp', 'not-a-sha', '--out', 'unused.json', '--sha', tip],
+      githubEnv(),
+      fetchImpl,
+    ),
+    /Malformed DEV build stamp/,
+  );
+  assert.deepEqual(calls, []);
+});
+
+test('unknown stamp from GitHub is not replaced with the run SHA', async () => {
+  const { fetchImpl } = githubFetch({
+    commits: { ccccccc: null },
+  });
+  await assert.rejects(
+    () => writeGateProofFromArgs(
+      ['--stamp', 'ccccccc', '--out', 'unused.json', '--sha', tip],
+      githubEnv(),
+      fetchImpl,
+    ),
+    /Unknown DEV build stamp/,
+  );
+});
+
+test('an explicitly empty DEV stamp fails instead of taking the nightly path', async () => {
+  const { fetchImpl, calls } = githubFetch();
+  await assert.rejects(
+    () => writeGateProofFromArgs(
+      ['--stamp', '', '--out', 'unused.json', '--sha', tip],
+      githubEnv(),
+      fetchImpl,
+    ),
+    /missing data-build-version/,
+  );
+  assert.deepEqual(calls, []);
+});
+
 test('every production gate rejects an older served proof even with a green exact-tip job', async () => {
-  const tip = 'a'.repeat(40);
-  const served = 'b'.repeat(40);
   const context = { maxAgeHours: 72, now: () => Date.parse('2026-10-19T12:00:00Z') };
   const run = {
-    id: 1, head_sha: tip,
+    id: 1,
+    head_sha: tip,
     jobs: [{ name: 'gate-proof', status: 'completed', conclusion: 'success', completed_at: '2026-10-19T11:00:00Z' }],
-    proof: { tested_sha: served, full_suite: true },
+    proof: { tested_sha: older, full_suite: true },
   };
   assert.equal(GATES.length, 3);
   for (const gate of GATES) {

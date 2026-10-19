@@ -156,11 +156,15 @@ jobs:
         with:
           node-version: 24
       - name: Write gate-proof
+        id: proof
         env:
           GITHUB_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           DEV_BUILD_STAMP: ${{ needs.member-auth.outputs.stamp }}
         run: node scripts/release/write-gate-proof.mjs --stamp "$DEV_BUILD_STAMP" --out gate-proof/gate-proof.json
       - name: Upload gate-proof
+        if: steps.proof.outputs.wrote == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: gate-proof

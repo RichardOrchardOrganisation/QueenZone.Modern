@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -35,7 +36,6 @@ import {
   extractBuildStamp,
   parseWriteProofArgs,
   requireMatchingStamps,
-  resolveDevTestedSha,
   writeGateProofFromArgs,
 } from './write-gate-proof.mjs';
 
@@ -86,6 +86,50 @@ test('docs-, mobile- and workflow-only ranges do not require gates', () => {
   });
   assert.equal(evaluateChanges('true', 'false').needed, true);
   assert.equal(evaluateChanges('false', 'true').needed, true);
+});
+
+function classifyPaths(paths) {
+  const result = spawnSync(
+    'bash',
+    [path.join(repoRoot, 'scripts/classify-pipeline-changes.sh')],
+    { input: `${paths.join('\n')}\n`, encoding: 'utf8' },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const flags = {};
+  for (const line of result.stdout.split('\n')) {
+    const match = /^(code|migrations)=(true|false)$/.exec(line);
+    if (match) {
+      flags[match[1]] = match[2];
+    }
+  }
+  return flags;
+}
+
+test('evaluateChanges skips exactly the ranges Deploy-dev skips', async () => {
+  const skipRanges = [
+    ['docs/architecture/testing-policy.md'],
+    ['src/QueenZone.Mobile/App.tsx'],
+    ['.github/workflows/deploy.yml'],
+  ];
+  for (const paths of skipRanges) {
+    const flags = classifyPaths(paths);
+    assert.equal(flags.code, 'false', paths.join(','));
+    assert.equal(flags.migrations, 'false', paths.join(','));
+    assert.equal(evaluateChanges(flags.code, flags.migrations).needed, false);
+  }
+
+  const deployFlags = classifyPaths(['src/QueenZone.Web/Program.cs']);
+  assert.equal(deployFlags.code, 'true');
+  assert.equal(evaluateChanges(deployFlags.code, deployFlags.migrations).needed, true);
+
+  const skipped = await checkGates({
+    sha,
+    changesCode: classifyPaths(['docs/architecture/testing-policy.md']).code,
+    changesMigrations: classifyPaths(['docs/architecture/testing-policy.md']).migrations,
+    eventName: 'push',
+    ref: 'refs/tags/v1',
+  }, fakeGithub());
+  assert.equal(skipped.skipped, true);
 });
 
 test('version tag refs and override validation follow Bob\'s rules', () => {
@@ -408,24 +452,8 @@ test('main --validate-override and --comment-override read the reason from env',
 
 test('DEV tested_sha comes from the live build stamp', async () => {
   assert.equal(extractBuildStamp('<div data-build-version="abcdef1"></div>'), 'abcdef1');
-  assert.equal(resolveDevTestedSha(sha, sha), sha);
-  assert.throws(() => resolveDevTestedSha(other, sha), /Unknown DEV build stamp/);
-  assert.throws(() => resolveDevTestedSha('ccccccc', sha), /Unknown DEV build stamp/);
-  assert.throws(() => resolveDevTestedSha('', sha), /missing data-build-version/);
   assert.equal(requireMatchingStamps('abc', 'abc'), 'abc');
   assert.throws(() => requireMatchingStamps('abc', 'def'), /changed during the tests/);
-  const directory = mkdtempSync(path.join(tmpdir(), 'qz-gate-proof-'));
-  try {
-    const out = path.join(directory, 'gate-proof.json');
-    const written = await writeGateProofFromArgs(
-      ['--stamp', sha, '--out', out, '--sha', sha],
-      { DEV_PUBLIC_URL },
-    );
-    assert.deepEqual(written, proof);
-    assert.deepEqual(JSON.parse(readFileSync(out, 'utf8')), proof);
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
   assert.equal(parseWriteProofArgs(['--full-suite', 'false']).fullSuite, false);
   assert.throws(() => buildGateProof({ testedSha: 'short', fullSuite: true }), /40-character/);
   const printed = await writeGateProofFromArgs(
@@ -434,14 +462,6 @@ test('DEV tested_sha comes from the live build stamp', async () => {
     async () => ({ ok: true, text: async () => `<div data-build-version="${sha.slice(0, 7)}"></div>` }),
   );
   assert.equal(printed.stamp, sha.slice(0, 7));
-  await assert.rejects(
-    () => writeGateProofFromArgs(
-      ['--dev', '--out', 'unused.json', '--sha', sha],
-      { DEV_PUBLIC_URL },
-      async () => ({ ok: true, text: async () => '<div data-build-version="ccccccc"></div>' }),
-    ),
-    /Unknown DEV build stamp/,
-  );
 });
 
 test('DEV publish requires the exact commit and retains the freshly built fallback stamp', () => {
@@ -488,6 +508,10 @@ test('DEV e2e workflows keep their crons and trigger after a successful deploy-d
     assert.match(workflow, /workflow_run\.event == 'push'/);
     assert.match(workflow, / {2}gate-proof:/);
     assert.match(workflow, /write-gate-proof\.mjs --stamp/);
+    assert.match(workflow, /GITHUB_TOKEN: \$\{{\s*secrets\.GITHUB_TOKEN\s*\}\}/);
+    assert.match(workflow, /GITHUB_REPOSITORY: \$\{{\s*github\.repository\s*\}\}/);
+    assert.match(workflow, /id: proof/);
+    assert.match(workflow, /steps\.proof\.outputs\.wrote == 'true'/);
     assert.match(workflow, /--print-stamp/);
     assert.match(workflow, /--require-match/);
     assert.match(workflow, /name: gate-proof/);
