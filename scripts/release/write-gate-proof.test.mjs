@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { GATES, evaluateRun } from './check-gates.mjs';
+import { resolveDevTestedSha } from './write-gate-proof.mjs';
 
 const writer = fileURLToPath(new URL('./write-gate-proof.mjs', import.meta.url));
 
@@ -21,6 +22,7 @@ test('DEV proof credits only the served commit in complete and shallow histories
     git('config', 'user.email', 'proof@example.invalid');
     git('commit', '--allow-empty', '-m', 'served');
     const served = git('rev-parse', 'HEAD');
+    assert.equal(resolveDevTestedSha(served, ` ${served.toUpperCase()} `), served);
     git('commit', '--allow-empty', '-m', 'tip');
     const tip = git('rev-parse', 'HEAD');
     // Hex-named refs must not redirect an object stamp to a different commit.
@@ -51,12 +53,12 @@ test('DEV proof credits only the served commit in complete and shallow histories
       assert.match(readFileSync(path.join(root, 'summary.md'), 'utf8'), /no tip proof/);
     }
     const blob = execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: root, input: 'not a commit', encoding: 'utf8' }).trim();
-    for (const stamp of [blob, blob.slice(0, 7), '', 'abcdef0', '--help', 'abc', side, side.slice(0, 7)]) {
+    for (const stamp of [blob, blob.slice(0, 7), '', 'abcdef0', '--help', 'abc', `x${served.slice(0, 7)}`, `${served.slice(0, 7)}x`, side, side.slice(0, 7)]) {
       const result = run(stamp);
       assert.notEqual(result.status, 0, stamp);
       assert.equal(existsSync(result.out), false, stamp);
       if (stamp === '') assert.match(result.stderr, /missing data-build-version/);
-      else if (['--help', 'abc'].includes(stamp)) assert.match(result.stderr, /Invalid DEV build stamp/);
+      else if (['--help', 'abc', `x${served.slice(0, 7)}`, `${served.slice(0, 7)}x`].includes(stamp)) assert.match(result.stderr, /Invalid DEV build stamp/);
     }
     // A deploy racing ahead of the run must fail closed, never credit its old tip.
     const ahead = run(tip.slice(0, 7), root, served);
