@@ -36,7 +36,7 @@ gh workflow run dev-member-auth-e2e.yml --ref main
 gh workflow run dev-journey-e2e.yml --ref main
 ```
 
-DEV artifact reuse requires the artifact's commit SHA to equal the deployed main SHA. A PR and squash merge can have the same source tree but different embedded build stamps. In that case DEV publishes a fresh package from the checked-out main commit; it does not relabel a PR package or reinterpret an old proof. The proof writer and exact-SHA release gate stay unchanged. After this policy changes, promotion still needs a fresh DEV deployment and new full gate runs; failed historical evidence cannot be reused.
+DEV artifact reuse requires the artifact's commit SHA to equal the deployed main SHA. A PR and squash merge can have the same source tree but different embedded build stamps. In that case DEV publishes a fresh package from the checked-out main commit; it does not relabel a PR package or reinterpret an old proof. The exact-SHA release gate stays unchanged. After this policy changes, promotion still needs a fresh DEV deployment and new full gate runs; failed historical evidence cannot be reused.
 
 ### Explicit DEV redeploy for a non-application tip
 
@@ -49,6 +49,8 @@ gh workflow run deploy-dev.yml --ref main -f force_redeploy=true -f expected_mai
 The guard runs before Azure login and requires the supplied SHA to match the workflow run, checkout, and current remote main. A missing, malformed, or stale SHA fails closed. The explicit option overrides only the web deployment flag; migration and mobile classification remain unchanged. The existing exact-commit artifact requirement and fresh-publish fallback stamp remain in force. It never relabels an old package or old proof. Main can move after validation: keep it frozen through deployment and proof generation, and recheck the served stamp and run SHA before promotion.
 
 After a successful manual DEV deployment and its stamp/health checks, explicitly dispatch all three full tip gates using the commands above. The existing browser workflow_run triggers accept push-triggered DEV runs only; manual DEV deployment does not automatically run those suites. Do not narrow Nightly with skip_sync or category_filter. All proof runs must target the same main SHA. This DEV option does not authorize a production release or bypass any production proof check.
+
+DEV proof jobs fetch full history to resolve the served stamp unambiguously to a commit in the workflow run tip’s history. If DEV lags that tip, the artifact credits only the served commit and the log and step summary say `no tip proof`; a green proof job alone cannot authorize release. Missing, ambiguous, non-commit or unrelated stamps fail closed. A deployment that races ahead of the fixed run tip also fails closed and needs a new run. The before/after stamp comparison still rejects a build change during the suite. These reads do not establish that no transient deployment occurred between them; freeze DEV and main through release verification.
 
 Each gate uploads a `gate-proof` artifact `{ tested_sha, full_suite }`. For the DEV gates, `tested_sha` is the live DEV `data-build-version` stamp read in the test job before and after the suite; those two reads must match, and an unknown stamp fails closed. `deploy.yml` requires `tested_sha` to equal the deploy SHA. Freshness is at most 72 hours, set by the repo variable `PROD_GATE_MAX_AGE_HOURS`.
 
