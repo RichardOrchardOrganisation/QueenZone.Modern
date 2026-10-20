@@ -20,16 +20,16 @@ Xcode.
 | npm | Bundled with Node.js | Do not pin a separate global npm unless the client project later requires it. |
 | JDK | **17** | Use Eclipse Temurin 17. Higher JDK majors can be incompatible with the Gradle version used by React Native. |
 | Android Studio | Latest stable | Install the native build for the host architecture. |
-| Android SDK Platform | **Android 16 / API 36** | Set `compileSdk` and `targetSdk` to 36 unless the client project documents a later level. |
-| Android SDK Build-Tools | **36.0.0** | Install through Android Studio's SDK Manager. |
+| Android SDK Platform | **API 37** | Expo SDK 58 uses `compileSdk` 37 and `targetSdk` 36. |
+| Android SDK Build-Tools | **37.0.0** | Install through Android Studio's SDK Manager. |
 | Android SDK Command-line Tools | Latest | Provides `sdkmanager` and `avdmanager`. |
 | Android SDK Platform-Tools | Latest | Provides `adb`. |
 | Android Emulator | Latest | Keep current through Android Studio. |
 | Emulator system image | **API 36, Google APIs** | Use `arm64-v8a` on Apple Silicon and `x86_64` on Windows x64. |
 | Git | Latest stable | Xcode Command Line Tools Git or Homebrew Git is sufficient on macOS. |
 | Watchman | Latest stable | Recommended on macOS. It is not required on Windows. |
-| Expo SDK | **57** | Pinned in `src/QueenZone.Mobile/package.json`. Development builds only; Expo Go is not supported. |
-| Xcode | **26.4+** | Required on macOS to compile the iOS target for Expo SDK 57. |
+| Expo SDK | **58** | Pinned in `src/QueenZone.Mobile/package.json`. Development builds only; Expo Go is not supported. |
+| Xcode | **26.4+** | Required on macOS to compile the iOS target for Expo SDK 58. |
 | CocoaPods | Homebrew `cocoapods` on the self-hosted Mac; Expo prebuild on hosted CI | Interactive `npx expo run:ios` can install pods itself. The self-hosted runner service does not load `~/.zprofile`, so both iOS workflows add Homebrew to `PATH`; TestFlight also sets `IOS_BUILD_NUMBER` and runs `pod install` explicitly. |
 
 ### Self-hosted Mac build service
@@ -50,7 +50,7 @@ back-to-back builds may thermal-throttle this Mini, so compare runner choice in
 the job summary before treating a slow compile as a code regression.
 
 The established Windows reference currently uses Node 24, Temurin 17, Android
-SDK Platform 36, and Build-Tools 36.0.0. Match those compatibility versions on
+SDK Platform 37, and Build-Tools 37.0.0. Match those compatibility versions on
 macOS rather than copying Windows-specific paths or emulator architecture.
 
 ## macOS Setup
@@ -77,13 +77,13 @@ Open **Android Studio > Settings > Languages & Frameworks > Android SDK**.
 
 Under **SDK Platforms**, enable **Show Package Details** and install:
 
-- Android SDK Platform 36;
+- Android SDK Platform 37;
 - Google APIs ARM 64 v8a System Image, API 36; and
 - Sources for Android 36 (recommended, but not required to build).
 
 Under **SDK Tools**, install:
 
-- Android SDK Build-Tools 36.0.0;
+- Android SDK Build-Tools 37.0.0;
 - Android SDK Command-line Tools (latest);
 - Android SDK Platform-Tools; and
 - Android Emulator.
@@ -177,12 +177,12 @@ Do not install these as baseline dependencies:
 
 Install NDK or CMake only when the client or a native dependency specifies a
 version. The first `npx expo run:android` / Gradle build may download NDK
-27.1.12297006 and CMake 3.22.1 through `sdkmanager` because Expo SDK 57's
+27.1.12297006 and CMake 3.22.1 through `sdkmanager` because Expo SDK 58's
 generated Android project requests them; that is expected and is not a manual
 baseline install. Run React Native commands through the project's local
 tooling, normally with `npx`, rather than maintaining a global CLI.
 
-Developing or signing the iOS target requires Xcode 26.4 or newer (Expo SDK 57)
+Developing or signing the iOS target requires Xcode 26.4 or newer (Expo SDK 58)
 and CocoaPods. Clean-checkout commands live in
 [`src/QueenZone.Mobile/README.md`](../src/QueenZone.Mobile/README.md).
 

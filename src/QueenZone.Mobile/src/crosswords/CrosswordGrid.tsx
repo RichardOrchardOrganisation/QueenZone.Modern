@@ -33,8 +33,8 @@ function CrosswordGridView({ puzzle, model, state, disabled, onCell }: Props) {
   const [scale, setScale] = useState(MIN_ZOOM);
   const baseline = useSharedValue(MIN_ZOOM);
   const liveScale = useSharedValue(MIN_ZOOM);
-  const horizontal = useRef<ScrollView>(null);
-  const vertical = useRef<ScrollView>(null);
+  const horizontal = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const vertical = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const fitted = puzzle.width <= 9 ? Math.min(viewport.width, Math.max(100, viewport.height - 44)) : viewport.width;
   const boardHeight = Math.max(56, viewport.height - 44);
   const cellSize = Math.max(16, fitted / puzzle.width) * scale;

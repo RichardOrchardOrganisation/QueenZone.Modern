@@ -115,6 +115,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       smokeEmbed: smokeEmbed || undefined,
     },
     plugins: [
+      // Mods run inside-out: register before media-library so this removes
+      // READ_MEDIA_* after its permission mod runs (#1230 / #1232).
+      './plugins/withAndroidAddOnlyPhotos.cjs',
       // app.json registers @sentry/react-native/expo; keep a single configured
       // copy here so org/project env still apply and the plugin is not doubled.
       // Smoke embed also drops expo-dev-client so Release (and Debug) launch
@@ -129,18 +132,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // react-native-android-widget's work-runtime does not clash with a
       // transitive work-runtime-ktx 2.7.1 (duplicate OneTimeWorkRequestKt).
       './plugins/withAndroidWorkRuntimeAlignment.cjs',
-      // Expo executes stacked mods inside-out: consume the scene/native boundary output.
+      // Expo executes stacked mods inside-out: consume the native WebView boundary output.
       './plugins/withForumFullscreenOrientation.cjs',
       './plugins/withForumWebViewBoundary.cjs',
       // iOS expo-audio 57.0.4: currentStatus must not call currentDate() (#1234).
       './plugins/withExpoAudioIosCurrentOffsetFromLive.cjs',
-      // Xcode/iOS 27 requires UIScene; Expo SDK 57 still generates the legacy
-      // AppDelegate-owned UIWindow and the resulting app traps at launch.
-      './plugins/withIosSceneLifecycle.cjs',
       ['./plugins/withIosAppIntents.cjs', { apiBaseUrl }],
-      // After expo-media-library: drop READ_MEDIA_* so add-only save does not
-      // request photo/video/audio read at install (#1230 / #1232).
-      './plugins/withAndroidAddOnlyPhotos.cjs',
       // expo-build-properties turns on release minification/shrinking. Finish
       // the AGP 8.12 setup with optimizing defaults + integrated shrinking.
       './plugins/withAndroidR8Optimization.cjs',
@@ -159,9 +156,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // gitignored sentry.properties file. See publish-*.yml workflows.
         // CI unsigned builds set SENTRY_DISABLE_AUTO_UPLOAD=true so missing
         // org/token does not fail the Bundle RN script (#857).
-        // Temporary: package.json expo.install.exclude keeps @sentry/react-native
-        // on ~8.28.0 while Expo SDK 57 still bundles ~7.11.0. Remove with the
-        // SDK 58 PR (#1782).
+        // SDK 58 bundles @sentry/react-native ~8.28.0; no install exclude needed.
         '@sentry/react-native/expo',
         {
           ...(process.env.SENTRY_ORG ? { organization: process.env.SENTRY_ORG } : {}),

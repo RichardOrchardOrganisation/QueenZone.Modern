@@ -245,7 +245,7 @@ function ConversationThread({ navigation, route }: Props) {
         ListHeaderComponent={
           offlineSnapshot ? (
             <OfflineBanner cachedAt={cachedAt} testID={testIds.offlineBanner} />
-          ) : null
+          ) : undefined
         }
         contentContainerStyle={styles.thread}
         renderItem={renderItem}

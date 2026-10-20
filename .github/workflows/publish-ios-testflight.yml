@@ -238,11 +238,9 @@ jobs:
             echo "::error::The generated app does not declare the required iOS scene delegate."
             exit 1
           fi
-          app_delegate=$(find ios -path '*/AppDelegate.swift' -not -path '*/Pods/*' -print -quit)
-          if [ -z "$app_delegate" ] \
-            || ! grep -Fq 'class SceneDelegate: UIResponder, UIWindowSceneDelegate' "$app_delegate" \
-            || ! grep -Fq 'configurationForConnecting connectingSceneSession' "$app_delegate"; then
-            echo "::error::The generated AppDelegate is missing the QueenZone iOS scene lifecycle."
+          scene_delegate_file=$(find ios -path '*/SceneDelegate.swift' -not -path '*/Pods/*' -print -quit)
+          if [ -z "$scene_delegate_file" ] || ! grep -Fq 'class SceneDelegate: ExpoAppSceneDelegate' "$scene_delegate_file"; then
+            echo "::error::The generated app is missing Expo's iOS scene delegate (SceneDelegate.swift)."
             exit 1
           fi
           echo "iOS scene lifecycle is present (delegate ${scene_delegate})."
@@ -260,7 +258,7 @@ jobs:
           echo "Entitlements aps-environment=${aps_environment} (from ${entitlements})"
           if [ "$aps_environment" != "development" ]; then
             echo "::error::Prebuild aps-environment is ${aps_environment}, expected development."
-            echo "Expo SDK 57 emits development at prebuild; Xcode changes it to production during the App Store archive."
+            echo "Expo SDK 58 emits development at prebuild; Xcode changes it to production during the App Store archive."
             exit 1
           fi
 

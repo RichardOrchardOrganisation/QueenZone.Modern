@@ -715,7 +715,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const handleUrl = (url: string | null) => {
+    const handleUrl = (url: string | null | undefined) => {
       if (!url) {
         return;
       }

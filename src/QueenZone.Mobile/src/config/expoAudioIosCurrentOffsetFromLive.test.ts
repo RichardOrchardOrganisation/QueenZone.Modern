@@ -15,7 +15,7 @@ const { applyCurrentOffsetFromLiveNil, AUDIO_PLAYER_RELATIVE_PATH } = require(
 
 const mobileRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-const expoAudio57CurrentStatus = `  var currentTime: Double {
+const expoAudio58CurrentStatus = `  var currentTime: Double {
     let seconds = ref.currentItem?.currentTime().seconds ?? 0.0
     return seconds.isNaN ? 0.0 : seconds
   }
@@ -31,12 +31,12 @@ const expoAudio57CurrentStatus = `  var currentTime: Double {
     return Date().timeIntervalSince1970 - currentDate.timeIntervalSince1970
   }
 
-  func currentStatus() -> [String: Any?] {
+  func currentStatus(knownCurrentTime: Double? = nil) -> [String: Any?] {
     let currentDuration = ref.status == .readyToPlay ? duration : 0.0
     let rate = isPlaying ? ref.rate : currentRate
     return [
       "id": id,
-      "currentTime": currentTime,
+      "currentTime": knownCurrentTime ?? currentTime,
       "playbackState": statusToString(status: ref.status),
       "timeControlStatus": timeControlStatusString(status: ref.timeControlStatus),
       "reasonForWaitingToPlay": reasonForWaitingToPlayString(status: ref.reasonForWaitingToPlay),
@@ -61,7 +61,7 @@ const expoAudio57CurrentStatus = `  var currentTime: Double {
 `;
 
 function extractCurrentStatus(source: string): string {
-  const start = source.indexOf('func currentStatus()');
+  const start = source.indexOf('func currentStatus(knownCurrentTime: Double? = nil)');
   assert.notEqual(start, -1, 'expected currentStatus()');
   const end = source.indexOf('\n  func ', start + 1);
   return source.slice(start, end === -1 ? undefined : end);
@@ -69,13 +69,13 @@ function extractCurrentStatus(source: string): string {
 
 describe('applyCurrentOffsetFromLiveNil', () => {
   it('makes currentStatus send nil without calling currentDate, and keeps currentTime', () => {
-    const first = applyCurrentOffsetFromLiveNil(expoAudio57CurrentStatus);
+    const first = applyCurrentOffsetFromLiveNil(expoAudio58CurrentStatus);
     const status = extractCurrentStatus(first);
 
     assert.match(status, /"currentOffsetFromLive": nil,/);
     assert.equal(status.includes('currentDate'), false);
     assert.equal(status.includes('currentOffsetFromLive,'), false);
-    assert.match(status, /"currentTime": currentTime,/);
+    assert.match(status, /"currentTime": knownCurrentTime \?\? currentTime,/);
     assert.match(first, /currentTime\(\)\.seconds/);
     assert.equal(status.includes('isLive ?'), false);
     assert.equal(status.includes('if isLive'), false);
@@ -86,19 +86,22 @@ describe('applyCurrentOffsetFromLiveNil', () => {
 
   it('fails closed when currentStatus no longer assigns currentOffsetFromLive', () => {
     assert.throws(
-      () => applyCurrentOffsetFromLiveNil('func currentStatus() -> [String: Any?] { return [:] }'),
+      () => applyCurrentOffsetFromLiveNil('func currentStatus(knownCurrentTime: Double? = nil) -> [String: Any?] { return [:] }'),
       /template may have changed/,
     );
   });
 
-  it('matches installed expo-audio 57 AudioPlayer.currentStatus', () => {
+  it('matches installed expo-audio 58 AudioPlayer.currentStatus', () => {
     const installed = path.join(mobileRoot, AUDIO_PLAYER_RELATIVE_PATH);
     assert.equal(existsSync(installed), true, `expected ${AUDIO_PLAYER_RELATIVE_PATH} after npm ci`);
     const patched = applyCurrentOffsetFromLiveNil(readFileSync(installed, 'utf8'));
     const status = extractCurrentStatus(patched);
     assert.match(status, /"currentOffsetFromLive": nil,/);
     assert.equal(status.includes('currentDate'), false);
-    assert.match(status, /"currentTime": currentTime,/);
+    assert.match(status, /"currentTime": knownCurrentTime \?\? currentTime,/);
+    assert.equal((patched.match(/currentOffsetFromLive/g) ?? []).length, 2, 'only the getter and nil status field remain');
+    const playlist = readFileSync(path.join(mobileRoot, 'node_modules/expo-audio/ios/AudioPlaylist.swift'), 'utf8');
+    assert.doesNotMatch(playlist, /currentOffsetFromLive|currentDate\(/);
   });
 });
 

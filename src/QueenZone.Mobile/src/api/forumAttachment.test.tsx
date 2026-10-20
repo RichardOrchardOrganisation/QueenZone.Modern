@@ -28,7 +28,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   global.fetch = fetchMock as unknown as typeof fetch;
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
-  jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
+  jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction, activityType: undefined });
   isAvailableAsync.mockResolvedValue(true);
   shareAsync.mockResolvedValue(undefined);
   saveToLibrary.mockResolvedValue(undefined);

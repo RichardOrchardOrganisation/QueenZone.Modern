@@ -53,5 +53,6 @@ describe('add-only Photos plugin config', () => {
 
     const appConfig = readFileSync(new URL('../../app.config.ts', import.meta.url), 'utf8');
     assert.match(appConfig, /withAndroidAddOnlyPhotos\.cjs/);
+    assert.ok(appConfig.indexOf("'./plugins/withAndroidAddOnlyPhotos.cjs'") < appConfig.indexOf('...(filterExpoPluginsForSmokeEmbed('), 'The removal mod must run after the inherited media-library permission mod');
   });
 });

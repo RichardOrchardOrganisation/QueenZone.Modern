@@ -24,7 +24,7 @@ function NativeReleaseBarrier({ pool, generation }: { pool: PlayerPool; generati
       else if (event.nativeEvent.layout.width > 0) pool.confirmRelease(generation);
     }} />;
 }
-export function ForumPlayerProvider({ children, viewport, navigation }: { children: ReactNode; viewport: React.RefObject<View | null>; navigation: FocusNavigation }) {
+export function ForumPlayerProvider({ children, viewport, navigation }: { children: ReactNode; viewport: React.RefObject<React.ComponentRef<typeof View> | null>; navigation: FocusNavigation }) {
   const [focused, setFocused] = useState(() => navigation.isFocused());
   const [online, setOnline] = useState(false);
   const [active, setActive] = useState(AppState.currentState === 'active');

@@ -41,7 +41,7 @@ updates:
     directory: "/src/QueenZone.Mobile"
     # Expo SDK majors and SDK-pinned natives are manual via
     # `npx expo install --fix` under #1782. This ignore list mirrors
-    # expo@57.0.27 bundledNativeModules.json (exact vs ~ split from that
+    # expo@58.0.16 bundledNativeModules.json (exact vs ~ split from that
     # file, not memory) and is revisited at each SDK upgrade.
     #
     # Every ignore uses update-types to block only ordinary version updates.
@@ -55,68 +55,68 @@ updates:
       - "dependencies"
     ignore:
       # Expo family: in-SDK patches and minors still flow through expo-sdk.
-      - dependency-name: "expo" # SDK 57 pin: ~57.0.27
+      - dependency-name: "expo" # SDK 58 pin: ~58.0.16
         update-types:
           - "version-update:semver-major"
-      - dependency-name: "expo-*" # SDK 57 family (bundledNativeModules ~57.x)
+      - dependency-name: "expo-*" # SDK 58 family (bundledNativeModules ~58.x)
         update-types:
           - "version-update:semver-major"
-      - dependency-name: "@expo/*" # SDK 57 family (e.g. @expo/ui ~57.0.22)
+      - dependency-name: "@expo/*" # SDK 58 family (e.g. @expo/ui ~58.0.20)
         update-types:
           - "version-update:semver-major"
-      - dependency-name: "babel-preset-expo" # SDK 57 pin: ~57.0.4
+      - dependency-name: "babel-preset-expo" # SDK 58 pin: ~58.0.0
         update-types:
           - "version-update:semver-major"
-      - dependency-name: "jest-expo" # SDK 57 pin: ~57.0.5
+      - dependency-name: "jest-expo" # SDK 58 pin: ~58.0.11
         update-types:
           - "version-update:semver-major"
-      - dependency-name: "eslint-config-expo" # SDK 57 pin: ~57.0.2
+      - dependency-name: "eslint-config-expo" # SDK 58 pin: ~58.0.4
         update-types:
           - "version-update:semver-major"
       # Exact bundledNativeModules pins: ignore all version updates.
-      - dependency-name: "@react-native-async-storage/async-storage" # SDK 57 pin: 2.2.0
+      - dependency-name: "@react-native-async-storage/async-storage" # SDK 58 pin: 2.2.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "react" # SDK 57 pin: 19.2.3
+      - dependency-name: "react" # SDK 58 pin: 19.3.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "react-native" # SDK 57 pin: 0.86.3
+      - dependency-name: "react-native" # SDK 58 pin: 0.88.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "react-native-reanimated" # SDK 57 pin: 4.5.1
+      - dependency-name: "react-native-reanimated" # SDK 58 pin: 4.7.1
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "react-native-svg" # SDK 57 pin: 15.15.4
+      - dependency-name: "react-native-svg" # SDK 58 pin: 15.16.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      - dependency-name: "react-native-worklets" # SDK 57 pin: 0.10.1
+      - dependency-name: "react-native-worklets" # SDK 58 pin: 0.13.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
       # Tilde bundledNativeModules pins: ignore major and minor; patches still come.
-      # @sentry/react-native is not ignored: PR 1 of #1782 ships ~8.28.0 on SDK 57
-      # via expo.install.exclude. Dependabot may propose 8.x patches. PR 2 (SDK 58)
-      # drops the exclude; do not re-add a 7.x ignore.
-      - dependency-name: "react-native-gesture-handler" # SDK 57 pin: ~2.32.0
+      # @sentry/react-native is not ignored: SDK 58 bundles ~8.28.0.
+      # PR 2 of #1782 removed expo.install.exclude; Dependabot may propose patches.
+      # Do not re-add a 7.x ignore.
+      - dependency-name: "react-native-gesture-handler" # SDK 58 pin: ~3.3.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
-      - dependency-name: "react-native-safe-area-context" # SDK 57 pin: ~5.7.0
+      - dependency-name: "react-native-safe-area-context" # SDK 58 pin: ~5.10.1
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
-      - dependency-name: "react-native-screens" # SDK 57 pin: ~4.26.0
+      - dependency-name: "react-native-screens" # SDK 58 pin: ~4.30.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"

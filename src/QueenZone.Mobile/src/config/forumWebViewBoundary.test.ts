@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const { patchAndroid, patchIos, patchAndroidNavigation, patchAndroidPopups, patchIosPopups } = require('../../plugins/withForumWebViewBoundary.cjs');
 describe('CNG forum WebView native boundary', () => {
@@ -32,7 +34,13 @@ describe('CNG forum WebView native boundary', () => {
       'return qzShouldOverride(view, url, request.isForMainFrame(), request.hasGesture());',
     ));
     assert.match(next.slice(overloadStart), /^    @Override\n    public boolean shouldOverrideUrlLoading\(WebView view, WebResourceRequest request\) {\n        final String url = request.getUrl\(\).toString\(\);\n        return qzShouldOverride\(view, url, request.isForMainFrame\(\), request.hasGesture\(\)\);\n    }/);
-    assert.throws(() => patchAndroidNavigation(source.replace(overloadAnchor, '')), /WebView navigation helper template changed/);
+    // Prebuild patches installed sources in place; exercise drift with an unpatched
+    // helper fixture so the idempotency marker cannot short-circuit this check.
+    const missingOverload = 'public boolean shouldOverrideUrlLoading(WebView view, String url) {\n'
+      + 'event.putDouble("lockIdentifier", lockIdentifier);\n'
+      + 'int reactTag = RNCWebViewWrapper.getReactTagFromWebView(view);\n            UIManagerHelper\n'
+      + 'createWebViewEvent(view, url)));\n}';
+    assert.throws(() => patchAndroidNavigation(missingOverload), /WebView navigation helper template changed/);
     assert.match(next, /putBoolean\("isTopFrame", isTopFrame\)/);
     assert.match(next, /return shouldOverride \|\| blockedNavigation/);
     assert.match(next, /return blockedNavigation/);
@@ -65,7 +73,11 @@ describe('CNG forum WebView native boundary', () => {
 });
 
 describe('scoped iOS forum fullscreen generation', () => {
-  const { patchNative, patchScene } = require('../../plugins/withForumFullscreenOrientation.cjs');
+  function template(name: string): string {
+    return execFileSync('tar', ['-xOf', fileURLToPath(new URL('../../node_modules/expo/template.tgz', import.meta.url)), `package/ios/HelloWorld/${name}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+  }
+
+  const { patchNative, patchScene, patchAppDelegate } = require('../../plugins/withForumFullscreenOrientation.cjs');
   it('uses public video ancestry, weak window ownership and explicit teardown instead of trusting overlay visibility', () => {
     const original = readFileSync(new URL('../../node_modules/react-native-webview/apple/RNCWebViewImpl.m', import.meta.url), 'utf8');
     const next = patchNative(patchIos(original));
@@ -77,8 +89,19 @@ describe('scoped iOS forum fullscreen generation', () => {
     assert.equal(patchNative(next), next);
     assert.throws(() => patchNative('changed upstream'));
   });
+  it('patches the SDK 58 AppDelegate once and rejects missing or duplicate anchors', () => {
+    const fixture = template('AppDelegate.swift');
+    const next = patchAppDelegate(fixture);
+    assert.equal(patchAppDelegate(next), next);
+    assert.equal((next.match(/public override func application\(_ application: UIApplication, supportedInterfaceOrientationsFor/g) ?? []).length, 1);
+    assert.match(next, /return delegate.qzSupportedOrientations\(in: scene\)/);
+    assert.match(next, /return super.application\(application, supportedInterfaceOrientationsFor: window\)/);
+    assert.throws(() => patchAppDelegate('changed template'));
+    assert.throws(() => patchAppDelegate(fixture + fixture));
+    assert.throws(() => patchAppDelegate(fixture.replace('class ReactNativeDelegate:', 'class ChangedDelegate:')));
+  });
   it('preserves normal masks and prior orientation, scopes observation to its window and rejects scene drift', () => {
-    const fixture = 'class AppDelegate {\n  // Linking API\n}\nclass SceneDelegate: UIResponder, UIWindowSceneDelegate {\n  var window: UIWindow?\n  func connect() {\n    window = nextWindow\n  }\n}';
+    const fixture = template('SceneDelegate.swift');
     const next = patchScene(fixture);
     assert.match(next, /qzFullscreenPlayers.allObjects.isEmpty \? qzBaselineOrientations : .allButUpsideDown/);
     assert.match(next, /UISupportedInterfaceOrientations~ipad/);
@@ -86,8 +109,14 @@ describe('scoped iOS forum fullscreen generation', () => {
     assert.match(next, /qzPreviousOrientation = scene.interfaceOrientation/);
     assert.match(next, /requested.formIntersection\(self.qzBaselineOrientations\)/);
     assert.equal(patchScene(next), next);
-    const regeneratedScene = next.slice(0, next.indexOf('class SceneDelegate:')) + fixture.slice(fixture.indexOf('class SceneDelegate:'));
-    assert.equal((patchScene(regeneratedScene).match(/public override func application/g) ?? []).length, 1, 'Regenerating the scene does not duplicate the legacy AppDelegate orientation override');
+    assert.match(next, /import UIKit/);
+    assert.match(next, /override func scene\(/);
+    assert.ok(next.indexOf('super.scene(scene, willConnectTo: session, options: connectionOptions)') < next.indexOf('if let window { qzObserveVideo(in: window) }'));
+    assert.match(next, /@available\(iOS 27.0, \*\)\n  @objc func supportedInterfaceOrientations/);
+    assert.equal((next.match(/class SceneDelegate:/g) ?? []).length, 1);
+    assert.throws(() => patchScene(fixture.replace('internal import Expo', 'import Expo')));
+    assert.throws(() => patchScene(fixture.replace('ExpoAppSceneDelegate {', 'ChangedDelegate {')));
+    assert.throws(() => patchScene(fixture + fixture));
     assert.throws(() => patchScene('changed scene template'));
   });
 });

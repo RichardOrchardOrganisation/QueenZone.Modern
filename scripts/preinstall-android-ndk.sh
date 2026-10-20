@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preinstall Expo SDK 57's NDK so Gradle assemble does not download it
+# Preinstall Expo SDK 58's NDK so Gradle assemble does not download it
 # during configuration (#1247). Verify source.properties, then export
 # ANDROID_NDK_HOME. Do not change android.ndkVersion.
 set -euo pipefail

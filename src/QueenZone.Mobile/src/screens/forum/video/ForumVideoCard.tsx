@@ -17,9 +17,9 @@ export function ForumVideoCard({ cardKey, video, originalHtml }: Props) {
   // layout after a live Dynamic Type change. Recreate only text leaves so the
   // label is remeasured; keep the player, fallback control and focus stable.
   const context = useForumPlayers();
-  const view = useRef<View>(null);
+  const view = useRef<React.ComponentRef<typeof View>>(null);
   const player = useRef<WebView<object>>(null);
-  const fallback = useRef<View>(null);
+  const fallback = useRef<React.ComponentRef<typeof View>>(null);
   const accessibilityFocused = useRef(false);
   const [owner, setOwner] = useState<number | null>(null);
   const [width, setWidth] = useState(0);

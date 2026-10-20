@@ -117,7 +117,7 @@ function DeleteAccountForm({ onReceipt }: { onReceipt: (receipt: DeletionReceipt
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [requested, setRequested] = useState<{ title: string; message: string } | null>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const confirmationFocused = useRef(false);
 
   const revealConfirmation = useCallback(() => {

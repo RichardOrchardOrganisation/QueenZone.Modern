@@ -50,7 +50,7 @@ function PhotoSubmitForm({ navigation }: Pick<Props, 'navigation'>) {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const { accessToken } = useSession();
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [suggestedCategory, setSuggestedCategory] = useState('');

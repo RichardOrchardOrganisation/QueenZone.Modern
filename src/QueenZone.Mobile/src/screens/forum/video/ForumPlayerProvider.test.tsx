@@ -14,7 +14,7 @@ describe('forum screen player lifecycle', () => {
     jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => { appListener = callback; return { remove: jest.fn() }; });
     let networkListener: (state: NetworkState) => void = () => {};
     jest.mocked(addNetworkStateListener).mockImplementation(callback => { networkListener = callback; return { remove: jest.fn() }; });
-    const viewport = createRef<View>();
+    const viewport = createRef<React.ComponentRef<typeof View>>();
     Object.assign(viewport, { current: { measureInWindow: (callback: (x: number, y: number, w: number, h: number) => void) => callback(0, 0, 320, 800) } });
     const rendered = await renderWithProviders(<ForumPlayerProvider viewport={viewport} navigation={navigation}><Probe /></ForumPlayerProvider>, { navigation: false });
     await act(() => appListener('active'));
@@ -49,7 +49,7 @@ describe('forum screen player lifecycle', () => {
   });
   it('unknown or failed initial network detection stays offline with no player requests', async () => {
     jest.mocked(getNetworkStateAsync).mockRejectedValueOnce(new Error('Unknown network'));
-    const rendered = await renderWithProviders(<ForumPlayerProvider viewport={createRef<View>()} navigation={fakeNavigation()}><Probe /></ForumPlayerProvider>, { navigation: false });
+    const rendered = await renderWithProviders(<ForumPlayerProvider viewport={createRef<React.ComponentRef<typeof View>>()} navigation={fakeNavigation()}><Probe /></ForumPlayerProvider>, { navigation: false });
     await act(async () => {});
     expect(context!.online).toBe(false); expect(context!.pool.enabled).toBe(false);
     await rendered.unmount();

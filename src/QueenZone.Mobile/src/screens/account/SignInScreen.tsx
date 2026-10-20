@@ -27,9 +27,9 @@ export function SignInScreen({ navigation, route }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finished = useRef(false);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const inputFocused = useRef(false);
-  const passwordInput = useRef<TextInput>(null);
+  const passwordInput = useRef<React.ComponentRef<typeof TextInput>>(null);
   const formBusy = busyProvider !== null || passwordBusy;
 
   const revealPasswordForm = useCallback(() => {

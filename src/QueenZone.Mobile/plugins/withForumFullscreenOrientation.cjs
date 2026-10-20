@@ -82,7 +82,7 @@ const sceneMethods = `  // ${tag}
     return mask.isEmpty ? .portrait : mask
   }
   @available(iOS 27.0, *)
-  func supportedInterfaceOrientations(for windowScene: UIWindowScene) -> UIInterfaceOrientationMask {
+  @objc func supportedInterfaceOrientations(for windowScene: UIWindowScene) -> UIInterfaceOrientationMask {
     return qzSupportedOrientations(in: windowScene)
   }
   func qzSupportedOrientations(in windowScene: UIWindowScene) -> UIInterfaceOrientationMask {
@@ -121,10 +121,9 @@ const sceneMethods = `  // ${tag}
   }
   deinit { if let observer = qzVideoObserver { NotificationCenter.default.removeObserver(observer) } }
 `;
-function patchScene(source) {
-  if (source.includes(tag)) return source;
+function patchAppDelegate(source) {
   source = source.replace(/\n {2}\/\/ @generated begin qz-forum-app-orientation[\s\S]*?\/\/ @generated end qz-forum-app-orientation\n/, '\n');
-  source = once(source, '\n  // Linking API', `
+  return once(source, '\n}\n\nclass ReactNativeDelegate: ExpoReactNativeFactoryDelegate', `
   // @generated begin qz-forum-app-orientation
   public override func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
     if let scene = window?.windowScene, let delegate = scene.delegate as? SceneDelegate {
@@ -133,16 +132,36 @@ function patchScene(source) {
     return super.application(application, supportedInterfaceOrientationsFor: window)
   }
   // @generated end qz-forum-app-orientation
-  // Linking API`);
-  source = once(source, 'class SceneDelegate: UIResponder, UIWindowSceneDelegate {' , 'class SceneDelegate: UIResponder, UIWindowSceneDelegate {\n' + sceneMethods);
-  return once(source, '    window = nextWindow\n', '    window = nextWindow\n    qzObserveVideo(in: nextWindow)\n');
+}
+
+class ReactNativeDelegate: ExpoReactNativeFactoryDelegate`);
+}
+function patchScene(source) {
+  if (source.includes(tag)) return source;
+  if (!/^import UIKit$/m.test(source)) {
+    source = once(source, 'internal import Expo\n', 'internal import Expo\nimport UIKit\n');
+  }
+  return once(source, 'class SceneDelegate: ExpoAppSceneDelegate {', `class SceneDelegate: ExpoAppSceneDelegate {
+${sceneMethods}
+  override func scene(
+    _ scene: UIScene,
+    willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions
+  ) {
+    super.scene(scene, willConnectTo: session, options: connectionOptions)
+    if let window { qzObserveVideo(in: window) }
+  }
+`);
 }
 function plugin(config) {
   config = withAppDelegate(config, mod => {
     if (mod.modResults.language !== 'swift') throw new Error('Forum fullscreen requires the Swift scene delegate.');
-    mod.modResults.contents = patchScene(mod.modResults.contents); return mod;
+    mod.modResults.contents = patchAppDelegate(mod.modResults.contents); return mod;
   });
   return withDangerousMod(config, ['ios', mod => {
+    // Prebuild copies the native template before running dangerous mods.
+    const sceneFile = path.join(mod.modRequest.platformProjectRoot, mod.modRequest.projectName, 'SceneDelegate.swift');
+    fs.writeFileSync(sceneFile, patchScene(fs.readFileSync(sceneFile, 'utf8')));
     const file = path.join(mod.modRequest.projectRoot, 'node_modules/react-native-webview/apple/RNCWebViewImpl.m');
     fs.writeFileSync(file, patchNative(fs.readFileSync(file, 'utf8'))); return mod;
   }]);
@@ -150,3 +169,4 @@ function plugin(config) {
 module.exports = plugin;
 module.exports.patchNative = patchNative;
 module.exports.patchScene = patchScene;
+module.exports.patchAppDelegate = patchAppDelegate;

@@ -31,14 +31,13 @@ describe('Expo Doctor React Native Directory policy', () => {
   });
 });
 
-describe('Expo install exclude for Sentry 8 on SDK 57 (#1782)', () => {
-  it('keeps @sentry/react-native out of expo install --check until SDK 58', () => {
-    assert.ok(packageConfig.expo?.install?.exclude?.includes('@sentry/react-native'));
-  });
-});
-
-describe('Expo install exclude for react-native-webview 14 on SDK 57 (#1958)', () => {
-  it('excludes only Sentry and the re-ported WebView from SDK version validation', () => {
-    assert.deepEqual(packageConfig.expo?.install?.exclude, ['@sentry/react-native', 'react-native-webview']);
-  });
+describe('Expo SDK 58 native pins (#1782)', () => {
+  const bundled = JSON.parse(readFileSync(new URL('../../node_modules/expo/bundledNativeModules.json', import.meta.url), 'utf8')) as Record<string, string>;
+  for (const name of ['@sentry/react-native', 'react-native-webview']) {
+    it(`validates ${name} against the SDK bundle without an exclusion`, () => {
+      assert.ok(!packageConfig.expo?.install?.exclude?.includes(name));
+      const installed = JSON.parse(readFileSync(new URL(`../../node_modules/${name}/package.json`, import.meta.url), 'utf8')) as { version: string };
+      assert.equal(installed.version, bundled[name].replace(/^~/, ''));
+    });
+  }
 });
