@@ -41,7 +41,7 @@ updates:
     directory: "/src/QueenZone.Mobile"
     # Expo SDK majors and SDK-pinned natives are manual via
     # `npx expo install --fix` under #1782. This ignore list mirrors
-    # expo@58.0.14 bundledNativeModules.json (exact vs ~ split from that
+    # expo@58.0.16 bundledNativeModules.json (exact vs ~ split from that
     # file, not memory) and is revisited at each SDK upgrade.
     #
     # Every ignore uses update-types to block only ordinary version updates.
@@ -55,7 +55,7 @@ updates:
       - "dependencies"
     ignore:
       # Expo family: in-SDK patches and minors still flow through expo-sdk.
-      - dependency-name: "expo" # SDK 58 pin: ~58.0.14
+      - dependency-name: "expo" # SDK 58 pin: ~58.0.16
         update-types:
           - "version-update:semver-major"
       - dependency-name: "expo-*" # SDK 58 family (bundledNativeModules ~58.x)

@@ -13,7 +13,7 @@ Host toolchain: [mobile development environment](../../docs/mobile-development-e
 
 | Tool | Version |
 | --- | --- |
-| Expo SDK | **58** (`expo@~58.0.14`) |
+| Expo SDK | **58** (`expo@~58.0.16`) |
 | React Native | **0.88.0** |
 | Node.js | **24 LTS** (`>=24 <25`) |
 | npm | Bundled with Node.js |
