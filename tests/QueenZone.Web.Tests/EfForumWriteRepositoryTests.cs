@@ -423,6 +423,49 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task GetPostAsync_UsesIndexedThreadIdForArchivedPostPosition_WithoutChangingPost()
+    {
+        var member = await SeedMemberAsync();
+        await SeedCategoryAsync();
+        var archivedAt = DateTimeOffset.Parse("2009-04-04T12:00:00Z");
+        var first = await repository.CreateThreadAsync(new NewForumThread(
+            1, member.Id, member.DisplayName, "Archive thread", "<p>Original archive body</p>", archivedAt));
+        var other = await repository.CreateThreadAsync(new NewForumThread(
+            1, member.Id, member.DisplayName, "Other thread", "<p>Other body</p>", archivedAt));
+        var replyId = await repository.CreatePostAsync(new NewForumPost(
+            first.TopicId, member.Id, member.DisplayName, "<p>Archived reply</p>", archivedAt.AddMinutes(1)));
+        var laterId = await repository.CreatePostAsync(new NewForumPost(
+            first.TopicId, member.Id, member.DisplayName, "<p>Later reply</p>", archivedAt.AddMinutes(2)));
+        var stored = await dbContext.ModernForumPosts.SingleAsync(post => post.LegacyPostId == replyId);
+        stored.AuthorMemberId = null;
+        await dbContext.SaveChangesAsync();
+        var updatedAt = stored.UpdatedAt;
+        executedSql.Clear();
+
+        var post = await repository.GetPostAsync(replyId);
+
+        Assert.NotNull(post);
+        Assert.Equal(first.TopicId, post.TopicId);
+        Assert.Equal("Archive thread", post.TopicSubject);
+        Assert.Equal(2, post.PositionInThread);
+        Assert.Null(post.AuthorMemberId);
+        Assert.Equal(archivedAt.AddMinutes(1), post.PostedAt);
+        Assert.Equal("<p>Archived reply</p>", post.Body);
+        var countSql = Assert.Single(executedSql, sql => sql.Contains("COUNT(*)", StringComparison.Ordinal));
+        Assert.Contains("\"ThreadId\" =", countSql);
+        Assert.DoesNotContain("LegacyThreadTopicId", countSql);
+        await dbContext.Entry(stored).ReloadAsync();
+        Assert.Equal(updatedAt, stored.UpdatedAt);
+        Assert.Equal(0, stored.EditCount);
+        Assert.Null(stored.EditedAt);
+        Assert.Equal("<p>Archived reply</p>", stored.BodyHtml);
+        Assert.Equal(1, (await repository.GetPostAsync(first.StarterPostId))!.PositionInThread);
+        Assert.Equal(1, (await repository.GetPostAsync(other.StarterPostId))!.PositionInThread);
+        Assert.Equal(3, (await repository.GetPostAsync(laterId))!.PositionInThread);
+        Assert.Null(await repository.GetPostAsync(int.MaxValue));
+    }
+
+    [Fact]
     public async Task UpdatePostAsync_RejectsEditsAfterWindowExpires()
     {
         var member = await SeedMemberAsync();
@@ -616,6 +659,16 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
 
     private sealed class RecordingCommandInterceptor(List<string> commands) : DbCommandInterceptor
     {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            commands.Add(command.CommandText);
+            return ValueTask.FromResult(result);
+        }
+
         public override InterceptionResult<int> NonQueryExecuting(
             DbCommand command,
             CommandEventData eventData,
