@@ -167,6 +167,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
             .Select(post => new
             {
                 post.LegacyPostId,
+                post.ThreadId,
                 post.LegacyThreadTopicId,
                 TopicSubject = post.Thread!.Title,
                 post.BodyHtml,
@@ -187,7 +188,7 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
         var position = await dbContext.ModernForumPosts
             .AsNoTracking()
             .CountAsync(
-                post => post.LegacyThreadTopicId == row.LegacyThreadTopicId && post.LegacyPostId <= postId,
+                post => post.ThreadId == row.ThreadId && post.LegacyPostId <= postId,
                 cancellationToken);
 
         return new ForumEditablePost(

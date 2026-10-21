@@ -104,6 +104,27 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
     }
 
     [Fact]
+    public async Task AdminCanOpenArchivedPost_WithoutChangingContent()
+    {
+        using var scope = factory.Services.CreateScope();
+        var write = scope.ServiceProvider.GetRequiredService<IForumWriteRepository>();
+        var created = await write.CreateThreadAsync(new NewForumThread(
+            1, Guid.NewGuid(), "Archive author", "Archived editor target", "<p>Original archive body</p>",
+            DateTimeOffset.Parse("2009-04-04T12:00:00Z")));
+        var before = await write.GetPostAsync(created.StarterPostId);
+        using var adminClient = CreateAdminClient();
+
+        using var response = await adminClient.GetAsync($"/forum/post/{created.StarterPostId}/edit");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var form = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Save changes", form);
+        Assert.Contains("Original archive body", form);
+        Assert.Contains("name=\"Body\"", form);
+        Assert.Equal(before, await write.GetPostAsync(created.StarterPostId));
+    }
+
+    [Fact]
     public async Task AllowlistedMemberEmail_CannotEditAnotherMembersPost()
     {
         var ownerId = Guid.NewGuid();
