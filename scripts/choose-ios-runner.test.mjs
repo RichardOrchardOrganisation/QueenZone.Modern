@@ -12,6 +12,8 @@ const selfHosted = '["self-hosted","macOS","ARM64","ios-build"]';
 
 function runner(overrides = {}) {
   return {
+    id: 1,
+    name: 'richards-mac-queenzone',
     status: 'online',
     busy: false,
     labels: [
@@ -25,21 +27,23 @@ function runner(overrides = {}) {
   };
 }
 
-function ghStub(pages) {
+function ghStub() {
   return `#!/usr/bin/env bash
 set -euo pipefail
 echo "$*" >> "$FAKE_STATE/gh-args"
 if [[ "\${GH_FAIL:-}" == "1" ]]; then
+  echo "api failed" >&2
   exit 2
 fi
-if [[ -z "\${GH_PAGES:-}" ]]; then
+if [[ "$*" == *"/orgs/"* ]]; then
+  printf '%s' "\${GH_ORG_PAGES:-}"
   exit 0
 fi
-printf '%s' "$GH_PAGES"
+printf '%s' "\${GH_PAGES:-}"
 `;
 }
 
-function runChooser({ token = 'token', env = {}, pages = [] } = {}) {
+function runChooser({ token = 'token', env = {}, pages = [], orgPages = [{ runners: [] }] } = {}) {
   const tmp = mkdtempSync(path.join(tmpdir(), 'qz-choose-ios-'));
   const output = path.join(tmp, 'github-output');
   writeFileSync(output, '');
@@ -56,6 +60,7 @@ function runChooser({ token = 'token', env = {}, pages = [] } = {}) {
       GH_TOKEN: token,
       FAKE_STATE: tmp,
       GH_PAGES: pages.map((page) => JSON.stringify(page)).join('\n'),
+      GH_ORG_PAGES: orgPages.map((page) => JSON.stringify(page)).join('\n'),
       ...env,
     },
   });
@@ -111,30 +116,49 @@ test('sibling Android claim skips an idle Mac', () => {
   assert.equal(ghArgs, '');
 });
 
-test('API failure fails open to hosted macos-26', () => {
-  const { result, outputs } = runChooser({ env: { GH_FAIL: '1' } });
+test('API failure fails open to hosted macos-26 and logs both probes', () => {
+  const { result, outputs, ghArgs } = runChooser({ env: { GH_FAIL: '1' } });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(lastAssignment(outputs, 'runs_on'), hosted);
-  assert.match(result.stdout, /Runner status could not be read/);
+  assert.match(result.stdout, /Probe repo GET \/repos\/example\/queenzone\/actions\/runners/);
+  assert.match(result.stdout, /Probe org GET \/orgs\/example\/actions\/runners/);
+  assert.match(result.stdout, /No runners parsed from repo or org APIs/);
+  assert.match(ghArgs, /\/repos\/example\/queenzone\/actions\/runners/);
+  assert.match(ghArgs, /\/orgs\/example\/actions\/runners/);
 });
 
 test('online idle ios-build runner is selected', () => {
   const { result, outputs } = runChooser({
     pages: [{ runners: [runner()] }],
   });
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
   assert.equal(lastAssignment(outputs, 'runs_on'), selfHosted);
   assert.equal(lastAssignment(outputs, 'runs_on_secondary'), hosted);
   assert.equal(lastAssignment(outputs, 'runner_class'), 'self-hosted ios-build');
+  assert.match(result.stdout, /An online, idle ios-build runner is available \(richards-mac-queenzone\)/);
 });
 
-test('busy or offline ios-build runners stay on hosted macos-26', () => {
+test('org-only idle ios-build runner is selected when the repo list is empty', () => {
+  const { result, outputs, ghArgs } = runChooser({
+    pages: [{ runners: [] }],
+    orgPages: [{ runners: [runner({ id: 9 })] }],
+  });
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  assert.equal(lastAssignment(outputs, 'runs_on'), selfHosted);
+  assert.match(ghArgs, /\/repos\/example\/queenzone\/actions\/runners/);
+  assert.match(ghArgs, /\/orgs\/example\/actions\/runners/);
+  assert.match(result.stdout, /Probe org GET \/orgs\/example\/actions\/runners\?per_page=100 exit=0/);
+});
+
+test('busy or offline ios-build runners stay on hosted macos-26 and log why', () => {
   for (const overrides of [{ busy: true }, { status: 'offline' }]) {
     const { result, outputs } = runChooser({
       pages: [{ runners: [runner(overrides)] }],
     });
-    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.equal(lastAssignment(outputs, 'runs_on'), hosted, JSON.stringify(overrides));
+    assert.match(result.stdout, /reject=/);
+    assert.match(result.stdout, /none online, idle, and labeled ios-build/);
   }
 });
 
@@ -142,6 +166,6 @@ test('paginated runner lists still see an idle ios-build runner', () => {
   const { result, outputs } = runChooser({
     pages: [{ runners: [] }, { runners: [runner()] }],
   });
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
   assert.equal(lastAssignment(outputs, 'runs_on'), selfHosted);
 });

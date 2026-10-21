@@ -75,8 +75,10 @@ Xcode job at a time. Two processes with different labels do not prevent two
 simultaneous jobs by themselves.
 
 The iOS status probe needs the Bitwarden-mapped `IOS_RUNNER_ADMIN_TOKEN`
-described in `docs/bitwarden-secrets.md`. If the token or API is unavailable,
-it deliberately chooses hosted macOS instead of leaving the PR queued.
+described in `docs/bitwarden-secrets.md`. It lists both repository and
+organization runners and logs why each candidate was rejected. If the token
+or API is unavailable, it deliberately chooses hosted macOS instead of
+leaving the PR queued.
 
 ## Machine Prerequisites
 

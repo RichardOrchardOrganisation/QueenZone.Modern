@@ -336,12 +336,13 @@ describe('device-smoke harness (#1281)', () => {
     assert.match(script, /smoke\|journeys\|release/);
     assert.match(script, /maestro\/release\.yaml/);
     assert.match(workflow, /- release/);
-    assert.equal(workflow.match(/github\.event\.inputs\.suite == 'release'/g)?.length, 2);
+    assert.equal(workflow.match(/github\.event\.inputs\.suite == 'release'/g)?.length, 3);
+    assert.match(workflow, /needs\.choose-ios-runner\.outputs\.runs_on_secondary/);
     assert.match(workflow, /mobile-android-release:[\s\S]*run-mobile-android-release-self-hosted\.sh/);
     assert.match(workflow, /SUITE="release"/);
     assert.match(workflow, /platform:[\s\S]*- both[\s\S]*- android[\s\S]*- ios/);
-    assert.equal(workflow.match(/github\.event\.inputs\.platform == 'android'/g)?.length, 3);
-    assert.equal(workflow.match(/github\.event\.inputs\.platform == 'ios'/g)?.length, 2);
+    assert.equal(workflow.match(/github\.event\.inputs\.platform == 'android'/g)?.length, 4);
+    assert.equal(workflow.match(/github\.event\.inputs\.platform == 'ios'/g)?.length, 3);
   });
 
   it('releases Gradle memory and isolates hosted journeys from P0 Android runners', () => {
