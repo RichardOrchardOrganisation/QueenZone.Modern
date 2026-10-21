@@ -106,8 +106,8 @@ published, and no release/deployment workflow was dispatched.
 - PASS: full `npm run preflight`: feature map, app/test typechecks, lint,
   823 Node tests, 1,351 Jest tests across 162 suites, and Doctor 20/20.
   Watchman emitted a recrawl warning, but the original run finished successfully.
-  A separately started run using the runner's supported `--no-watchman` option
-  is recorded separately; it is not needed to establish the original pass.
+  The separately started equivalent preflight with the runner's supported
+  `--no-watchman` option also passed (same test totals and Doctor 20/20).
 - NOT RUN: native compile/device/store-binary inspection, real legacy database
   probes, production credentials, mutation testing, and broad coverage runs. This
   change is documentation/description metadata only, with no application behavior,
