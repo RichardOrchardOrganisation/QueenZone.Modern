@@ -52,7 +52,7 @@ Richard approved the single `GHSA-vfj7-8cjw-p6xm` exception on 2026-10-03
 and a further 14 days on 2026-10-17. It accepts unresolved `braces@3.0.3`
 build/test-tooling denial-of-service risk; it is not a vulnerability fix.
 The [official advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
-still lists no patched release as of 2026-10-17. [Upstream PR72](https://github.com/micromatch/braces/pull/72)
+still lists no patched release as of 2026-10-21. [Upstream PR72](https://github.com/micromatch/braces/pull/72)
 closed without merging; no release date is assumed.
 
 Metro and Jest independently install braces through micromatch. Both
@@ -71,7 +71,14 @@ all tooling paths, configurations or already published binaries are unaffected.
 Repository/workspace configuration and dependencies remain tooling trust
 boundaries, and vulnerable code remains installed on build machines.
 
-Owner: **QueenZone maintainers**. Review again by **2026-10-21**; expires
+The [SDK 58 review](../../docs/architecture/braces-sdk58-review-2026-10-21.md)
+records fresh caller checks, bundled bytes and Android/iOS source-map evidence at
+main `88b0fe6c49f7c3663b3b9eb57296f6dad9a917f1`. Top-level Jest 30 does not
+remove the Jest 29.7 dependency retained by React Native 0.88.0. The October 17
+SDK 57 checks alone are not evidence for this upgrade. No complete supported
+remediation was found; Doctor 1.21.5 alone leaves every other affected path.
+
+Owner: **QueenZone maintainers**. Review again before **2026-10-31**; expires
 **2026-10-31** (inclusive UTC date). The unchanged validator rejects the row from
 **2026-11-01T00:00:00Z**, or **08:00 Perth**. **No automatic renewal.** Remove
 earlier on a complete published compatible fix, including rebuilt bundled
