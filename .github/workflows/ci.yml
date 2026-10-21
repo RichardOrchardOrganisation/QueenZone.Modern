@@ -220,57 +220,10 @@ jobs:
   # so this cheap hosted probe fails open to macos-26 (issue #893).
   mobile-ios-runner:
     name: Choose iOS runner
-    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.mobile_native == 'true'
-    outputs:
-      runs_on: ${{ steps.pick.outputs.runs_on }}
-      runner_class: ${{ steps.pick.outputs.runner_class }}
-    steps:
-      - name: Fetch runner-list token
-        id: bitwarden-secrets
-        continue-on-error: true
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
-        with:
-          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
-          secrets: ${{ vars.BITWARDEN_IOS_RUNNER_SECRETS }}
-
-      - name: Prefer an idle iOS build runner
-        id: pick
-        env:
-          GH_TOKEN: ${{ steps.bitwarden-secrets.outputs.IOS_RUNNER_ADMIN_TOKEN }}
-        run: |
-          set +e
-          hosted='["macos-26"]'
-          self_hosted='["self-hosted","macOS","ARM64","ios-build"]'
-
-          echo "runs_on=$hosted" >> "$GITHUB_OUTPUT"
-          echo "runner_class=github-hosted macos-26" >> "$GITHUB_OUTPUT"
-
-          if [ -z "$GH_TOKEN" ]; then
-            echo "Runner-list token is unavailable; using GitHub-hosted macos-26."
-            exit 0
-          fi
-
-          response=$(gh api --paginate \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$response" ]; then
-            echo "Runner status could not be read; using GitHub-hosted macos-26."
-            exit 0
-          fi
-
-          available=$(jq -s 'any(.[].runners[]?;
-            .status == "online" and .busy == false and
-            ([.labels[].name] | contains(["self-hosted", "macOS", "ARM64", "ios-build"])))' \
-            <<< "$response" 2>/dev/null)
-          if [ "$available" = "true" ]; then
-            echo "runs_on=$self_hosted" >> "$GITHUB_OUTPUT"
-            echo "runner_class=self-hosted ios-build" >> "$GITHUB_OUTPUT"
-            echo "An online, idle ios-build runner is available."
-          else
-            echo "No online, idle ios-build runner is available; using GitHub-hosted macos-26."
-          fi
+    uses: ./.github/workflows/choose-ios-runner.yml
+    secrets: inherit
 
   # Unsigned iOS Simulator build from CNG-generated native project (issues
   # #794 and #893). No signing identity or Apple credential is needed.

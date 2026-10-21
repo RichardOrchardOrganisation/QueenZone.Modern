@@ -37,9 +37,10 @@ GitHub's built-in `GITHUB_TOKEN` remains GitHub-native because it is minted for 
 
 The Bitwarden project also contains `IOS_RUNNER_ADMIN_TOKEN`, a fine-grained
 GitHub PAT restricted to this repository with **Administration: read-only**.
-`ci.yml` fetches it through the `BITWARDEN_IOS_RUNNER_SECRETS` repository
-variable so the runner probe can distinguish an idle Mac from a busy one. The
-workflow falls back to `macos-26` if the mapping, token, or API is unavailable.
+`.github/workflows/choose-ios-runner.yml` fetches it through the
+`BITWARDEN_IOS_RUNNER_SECRETS` repository variable so `ci.yml` and
+`mobile-device-smoke.yml` can distinguish an idle Mac from a busy one. The
+probe falls back to `macos-26` if the mapping, token, or API is unavailable.
 Rotate the PAT in GitHub, replace its Bitwarden value, and verify a dispatched
 mobile run; never copy it into workflow YAML or logs.
 
@@ -151,7 +152,8 @@ account deletion. Verify delivery and the displayed From address after deploymen
 
 ### `BITWARDEN_IOS_RUNNER_SECRETS`
 
-Used only by `.github/workflows/ci.yml` (`mobile-ios-runner`). Store this mapping
+Used by `.github/workflows/choose-ios-runner.yml` (`ci.yml` `mobile-ios-runner`
+and `mobile-device-smoke.yml` `choose-ios-runner`). Store this mapping
 as a repository variable after creating the Bitwarden secret:
 
 ```yaml
