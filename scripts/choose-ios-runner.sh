@@ -20,6 +20,7 @@ hosted='["macos-26"]'
 self_hosted='["self-hosted","macOS","ARM64","ios-build"]'
 
 echo "runs_on=${hosted}" >> "${GITHUB_OUTPUT}"
+echo "runs_on_secondary=${hosted}" >> "${GITHUB_OUTPUT}"
 echo "runner_class=github-hosted macos-26" >> "${GITHUB_OUTPUT}"
 
 if [[ "${FORCE_HOSTED:-}" == "true" ]]; then

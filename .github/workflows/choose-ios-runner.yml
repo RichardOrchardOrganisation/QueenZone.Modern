@@ -19,6 +19,9 @@ on:
       runs_on:
         description: JSON array for runs-on (hosted macos-26 or self-hosted ios-build)
         value: ${{ jobs.pick.outputs.runs_on }}
+      runs_on_secondary:
+        description: JSON array for a second iOS job in the same run (always hosted when primary took the Mac)
+        value: ${{ jobs.pick.outputs.runs_on_secondary }}
       runner_class:
         description: Human-readable runner class written to the job summary
         value: ${{ jobs.pick.outputs.runner_class }}
@@ -32,6 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       runs_on: ${{ steps.pick.outputs.runs_on }}
+      runs_on_secondary: ${{ steps.pick.outputs.runs_on_secondary }}
       runner_class: ${{ steps.pick.outputs.runner_class }}
     steps:
       - name: Checkout

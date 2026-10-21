@@ -21,25 +21,37 @@ const androidJourneys = job(smoke, 'mobile-android-journeys');
 const choose = job(smoke, 'choose-ios-runner');
 
 test('iOS smoke and journeys use the shared chooser instead of hard-wired macos-26', () => {
+  assert.match(iosSmoke, /fromJSON\(needs\.choose-ios-runner\.outputs\.runs_on\)/);
+  assert.match(iosJourneys, /runs_on_secondary/);
   for (const block of [iosSmoke, iosJourneys]) {
     assert.match(block, /needs: choose-ios-runner/);
-    assert.match(block, /fromJSON\(needs\.choose-ios-runner\.outputs\.runs_on\)/);
     assert.doesNotMatch(block, /^    runs-on: macos-26$/m);
     assert.match(block, /needs\.choose-ios-runner\.result == 'success'/);
+    assert.match(block, /Delete job DerivedData/);
+    assert.match(block, /RUNNER_NAME: \$\{\{ runner\.name \}\}/);
+    assert.doesNotMatch(block, /\$\{\{ runner\.name \}\}.*GITHUB_STEP_SUMMARY|GITHUB_STEP_SUMMARY.*\$\{\{ runner\.name \}\}/);
   }
   assert.match(choose, /uses: \.\/\.github\/workflows\/choose-ios-runner\.yml/);
   assert.match(choose, /mac_claimed_by_sibling:/);
   assert.match(choose, /force_hosted:/);
   assert.match(smoke, /force_hosted_ios:/);
+  assert.match(iosJourneys, /github\.event\.inputs\.suite == 'both' && needs\.choose-ios-runner\.outputs\.runs_on_secondary/);
 });
 
 test('ci.yml reuses the same choose-ios-runner workflow', () => {
   const ciChooser = job(ci, 'mobile-ios-runner');
+  const ciIos = job(ci, 'mobile-ios');
   assert.match(ciChooser, /uses: \.\/\.github\/workflows\/choose-ios-runner\.yml/);
   assert.match(ci, /fromJSON\(needs\.mobile-ios-runner\.outputs\.runs_on\)/);
   assert.match(chooser, /scripts\/choose-ios-runner\.sh/);
   assert.match(chooser, /BITWARDEN_IOS_RUNNER_SECRETS/);
   assert.match(chooser, /IOS_RUNNER_ADMIN_TOKEN/);
+  assert.match(chooser, /runs_on_secondary/);
+  assert.match(ciIos, /scripts\/select-ios-ci-xcode\.sh/);
+  assert.match(ciIos, /derivedDataPath "\$DERIVED"/);
+  assert.match(ciIos, /Delete job DerivedData/);
+  assert.doesNotMatch(ciIos, /^\s+sudo xcode-select/m);
+  assert.doesNotMatch(ciIos, /-derivedDataPath build$/m);
 });
 
 test('chooser treats same-run Android Mac jobs as a sibling claim', () => {

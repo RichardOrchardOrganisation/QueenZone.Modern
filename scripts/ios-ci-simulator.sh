@@ -49,8 +49,10 @@ if [[ -z "${udid}" ]]; then
   exit 1
 fi
 
+# Record the UDID before boot so an always() cleanup can delete this
+# simulator even if bootstatus fails.
+echo "IOS_SIM_UDID=${udid}" >> "${GITHUB_ENV}"
+echo "IOS_SIM_NAME=${name}" >> "${GITHUB_ENV}"
 echo "Booting ${udid} (${name}; ${device_type} / ${runtime})"
 "${xcrun_cmd}" simctl boot "${udid}" || true
 "${xcrun_cmd}" simctl bootstatus "${udid}" -b
-echo "IOS_SIM_UDID=${udid}" >> "${GITHUB_ENV}"
-echo "IOS_SIM_NAME=${name}" >> "${GITHUB_ENV}"

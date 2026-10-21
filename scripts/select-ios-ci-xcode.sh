@@ -40,4 +40,23 @@ else
   "${sudo_cmd}" xcode-select -s "${expected}"
 fi
 
-"${xcodebuild_cmd}" -version
+xcode_out="$("${xcodebuild_cmd}" -version)"
+printf '%s\n' "${xcode_out}"
+if [[ -n "${IOS_CI_XCODE_MIN:-}" ]]; then
+  xcode_ver="$(awk '/^Xcode / { print $2 }' <<< "${xcode_out}")"
+  if [[ -z "${xcode_ver}" ]]; then
+    echo "::error::Could not read Xcode version (need ${IOS_CI_XCODE_MIN}+)."
+    exit 1
+  fi
+  min_major="${IOS_CI_XCODE_MIN%%.*}"
+  min_rest="${IOS_CI_XCODE_MIN#*.}"
+  min_minor="${min_rest%%.*}"
+  xcode_major="${xcode_ver%%.*}"
+  xcode_rest="${xcode_ver#*.}"
+  xcode_minor="${xcode_rest%%.*}"
+  if [[ "${xcode_major}" -lt "${min_major}" ]] || { [[ "${xcode_major}" -eq "${min_major}" ]] && [[ "${xcode_minor:-0}" -lt "${min_minor:-0}" ]]; }; then
+    echo "::error::Xcode ${xcode_ver} is below ${IOS_CI_XCODE_MIN}."
+    exit 1
+  fi
+  echo "Xcode ${xcode_ver} meets the floor ${IOS_CI_XCODE_MIN}."
+fi

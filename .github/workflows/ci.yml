@@ -247,46 +247,14 @@ jobs:
           echo "/usr/local/bin" >> "$GITHUB_PATH"
 
       # Expo SDK 58 requires Xcode 26.4+ (docs/mobile-development-environment.md);
-      # the runner's default DEVELOPER_DIR can be an older Xcode also installed
-      # on the image. Select the newest one actually present rather than
-      # hardcoding a version that may not match what GitHub ships on this
-      # runner generation.
+      # Sentry 8 still floors the compiler at 16.4. Select via DEVELOPER_DIR
+      # so self-hosted jobs never sudo xcode-select.
       - name: Select latest available Xcode
-        run: |
-          ls /Applications | grep -i Xcode
-          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -z "$LATEST" ] && [ -d /Applications/Xcode.app ]; then
-            LATEST=/Applications/Xcode.app
-          fi
-          if [ -z "$LATEST" ]; then
-            echo "::error::No Xcode application found on this runner."
-            exit 1
-          fi
-          EXPECTED="$LATEST/Contents/Developer"
-          CURRENT=$(xcode-select -p)
-          if [ "$CURRENT" = "$EXPECTED" ]; then
-            echo "Xcode is already selected: $LATEST"
-          elif [[ "${{ runner.environment }}" = "self-hosted" ]]; then
-            echo "::error::Self-hosted runner selects $CURRENT; configure xcode-select as an administrator to use $EXPECTED."
-            exit 1
-          else
-            echo "Selecting $LATEST"
-            sudo xcode-select -s "$EXPECTED"
-          fi
-          xcodebuild -version
-          xcode_ver="$(xcodebuild -version | awk '/^Xcode / { print $2 }')"
-          if [ -z "$xcode_ver" ]; then
-            echo "::error::Could not read Xcode version (Sentry 8 requires 16.4+)."
-            exit 1
-          fi
-          xcode_major="${xcode_ver%%.*}"
-          xcode_rest="${xcode_ver#*.}"
-          xcode_minor="${xcode_rest%%.*}"
-          if [ "$xcode_major" -lt 16 ] || { [ "$xcode_major" -eq 16 ] && [ "${xcode_minor:-0}" -lt 4 ]; }; then
-            echo "::error::Xcode ${xcode_ver} is below 16.4 required by Sentry 8 (#1782)."
-            exit 1
-          fi
-          echo "Xcode ${xcode_ver} meets the Sentry 8 floor 16.4."
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          IOS_CI_XCODE_MIN: "16.4"
+        run: bash ./scripts/select-ios-ci-xcode.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -398,6 +366,8 @@ jobs:
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: |
+          DERIVED="build-${GITHUB_JOB}-${GITHUB_RUN_ID}"
+          echo "IOS_DERIVED_DATA=${PWD}/${DERIVED}" >> "$GITHUB_ENV"
           WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           # Expo CNG names the app scheme after the workspace itself
           # (QueenZone.xcworkspace -> scheme QueenZone). Do not pick from
@@ -412,14 +382,14 @@ jobs:
             -scheme "$SCHEME" \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build \
+            -derivedDataPath "$DERIVED" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Zip Simulator app bundle
         working-directory: src/QueenZone.Mobile/ios
         run: |
-          cd build/Build/Products/Debug-iphonesimulator
+          cd "$IOS_DERIVED_DATA/Build/Products/Debug-iphonesimulator"
           APP=$(ls -d ./*.app | head -n 1)
           zip -r -y "$GITHUB_WORKSPACE/mobile-ios-simulator.zip" "$APP"
 
@@ -431,13 +401,26 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Record selected runner
+      - name: Delete job DerivedData
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
+          if [ -n "${IOS_DERIVED_DATA:-}" ] && [ -d "$IOS_DERIVED_DATA" ]; then
+            rm -rf "$IOS_DERIVED_DATA"
+          fi
+
+      - name: Record selected runner
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
+          RUNNER_CLASS: ${{ needs.mobile-ios-runner.outputs.runner_class }}
+        run: |
           echo "### Mobile iOS runner" >> "$GITHUB_STEP_SUMMARY"
-          echo "Selected: **${{ needs.mobile-ios-runner.outputs.runner_class }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "Runner: \`${{ runner.name }}\` (\`${{ runner.os }}\` / \`${{ runner.arch }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected: **${RUNNER_CLASS}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runner: \`${RUNNER_NAME}\` (\`${RUNNER_OS_NAME}\` / \`${RUNNER_ARCH_NAME}\`)" >> "$GITHUB_STEP_SUMMARY"
 
   # Required on main after #870. Non-mobile PRs must still report these exact
   # check names as success; otherwise GitHub leaves the required checks pending.

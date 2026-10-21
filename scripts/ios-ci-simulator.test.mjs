@@ -75,6 +75,60 @@ test('create boots a job-owned simulator and records its UDID', () => {
   }
 });
 
+test('create writes IOS_SIM_UDID before bootstatus so always() cleanup can delete after a boot failure', () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
+  try {
+    const envFile = path.join(tmp, 'github-env');
+    writeFileSync(envFile, '');
+    const bin = path.join(tmp, 'xcrun');
+    writeFileSync(
+      bin,
+      `#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "$FAKE_STATE/xcrun-args"
+case "$*" in
+  "simctl list devicetypes available")
+    echo "iPhone 16 (com.apple.CoreSimulator.SimDeviceType.iPhone-16)"
+    ;;
+  "simctl list runtimes available")
+    echo "iOS 26.1 (26.1 - 23B77) - com.apple.CoreSimulator.SimRuntime.iOS-26-1"
+    ;;
+  simctl\\ create\\ *)
+    echo "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+    ;;
+  "simctl boot AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+    ;;
+  "simctl bootstatus AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE -b")
+    echo "bootstatus failed" >&2
+    exit 1
+    ;;
+  *)
+    echo "unexpected xcrun $*" >&2
+    exit 3
+    ;;
+esac
+`,
+    );
+    chmodSync(bin, 0o755);
+    const result = spawnSync('bash', [script, 'create'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ENV: envFile,
+        GITHUB_RUN_ID: '99',
+        GITHUB_JOB: 'mobile-ios-smoke',
+        IOS_CI_XCRUN: bin,
+        FAKE_STATE: tmp,
+      },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(readFileSync(envFile, 'utf8'), /IOS_SIM_UDID=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
+    assert.match(source, /echo "IOS_SIM_UDID=\$\{udid\}" >> "\$\{GITHUB_ENV\}"[\s\S]*simctl bootstatus/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('cleanup only deletes the job UDID', () => {
   const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
   try {

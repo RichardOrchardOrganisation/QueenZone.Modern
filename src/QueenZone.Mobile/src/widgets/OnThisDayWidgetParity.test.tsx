@@ -6,7 +6,9 @@ import type { WidgetProps } from './widgetCopy';
 import { widgetFaceDeepLinkUrl } from './widgetDeepLink';
 
 jest.mock('@expo/ui/swift-ui', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- Jest CJS mock factory.
   const React = require('react');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports -- Jest CJS mock factory.
   const { Text, View } = require('react-native');
   return {
     Text: ({ children }: { children: React.ReactNode }) => React.createElement(Text, null, children),

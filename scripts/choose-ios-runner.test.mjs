@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -69,8 +69,10 @@ function runChooser({ token = 'token', env = {}, pages = [] } = {}) {
         return [line.slice(0, index), line.slice(index + 1)];
       }),
   );
+  const ghArgsPath = path.join(tmp, 'gh-args');
+  const ghArgs = existsSync(ghArgsPath) ? readFileSync(ghArgsPath, 'utf8') : '';
   rmSync(tmp, { recursive: true, force: true });
-  return { result, outputs };
+  return { result, outputs, ghArgs };
 }
 
 function lastAssignment(outputs, key) {
@@ -86,23 +88,27 @@ test('fails closed to hosted macos-26 when the runner-list token is missing', ()
 });
 
 test('FORCE_HOSTED skips an idle Mac', () => {
-  const { result, outputs } = runChooser({
+  const { result, outputs, ghArgs } = runChooser({
     env: { FORCE_HOSTED: 'true' },
     pages: [{ runners: [runner()] }],
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(lastAssignment(outputs, 'runs_on'), hosted);
+  assert.equal(lastAssignment(outputs, 'runs_on_secondary'), hosted);
   assert.match(result.stdout, /FORCE_HOSTED=true/);
+  assert.equal(ghArgs, '');
 });
 
 test('sibling Android claim skips an idle Mac', () => {
-  const { result, outputs } = runChooser({
+  const { result, outputs, ghArgs } = runChooser({
     env: { MAC_CLAIMED_BY_SIBLING: 'true' },
     pages: [{ runners: [runner()] }],
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(lastAssignment(outputs, 'runs_on'), hosted);
+  assert.equal(lastAssignment(outputs, 'runs_on_secondary'), hosted);
   assert.match(result.stdout, /sibling Android job/);
+  assert.equal(ghArgs, '');
 });
 
 test('API failure fails open to hosted macos-26', () => {
@@ -118,6 +124,7 @@ test('online idle ios-build runner is selected', () => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(lastAssignment(outputs, 'runs_on'), selfHosted);
+  assert.equal(lastAssignment(outputs, 'runs_on_secondary'), hosted);
   assert.equal(lastAssignment(outputs, 'runner_class'), 'self-hosted ios-build');
 });
 

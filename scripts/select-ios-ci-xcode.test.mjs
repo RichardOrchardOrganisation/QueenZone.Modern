@@ -28,7 +28,7 @@ function setup() {
   return { tmp, apps, bin, cleanup: () => rmSync(tmp, { recursive: true, force: true }) };
 }
 
-function runSelect({ runnerEnvironment, apps, bin, tmp }) {
+function runSelect({ runnerEnvironment, apps, bin, tmp, extraEnv = {} }) {
   const envFile = path.join(tmp, 'github-env');
   writeFileSync(envFile, '');
   const result = spawnSync('bash', [script], {
@@ -42,6 +42,7 @@ function runSelect({ runnerEnvironment, apps, bin, tmp }) {
       IOS_CI_SUDO: path.join(bin, 'sudo'),
       RUNNER_ENVIRONMENT: runnerEnvironment,
       FAKE_STATE: tmp,
+      ...extraEnv,
     },
   });
   return { result, envFile };
@@ -83,6 +84,44 @@ test('hosted jobs may sudo xcode-select after setting DEVELOPER_DIR', () => {
     assert.equal(result.status, 0, result.stderr + result.stdout);
     assert.match(readFileSync(envFile, 'utf8'), /DEVELOPER_DIR=.*Xcode_26\.4\.app/);
     assert.match(readFileSync(path.join(s.tmp, 'sudo-args'), 'utf8'), /xcode-select -s /);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('IOS_CI_XCODE_MIN rejects a compiler below the floor', () => {
+  const s = setup();
+  try {
+    writeFileSync(path.join(s.bin, 'xcodebuild'), '#!/usr/bin/env bash\necho Xcode 16.3\n');
+    chmodSync(path.join(s.bin, 'xcodebuild'), 0o755);
+    const { result } = runSelect({
+      runnerEnvironment: 'self-hosted',
+      apps: s.apps,
+      bin: s.bin,
+      tmp: s.tmp,
+      extraEnv: { IOS_CI_XCODE_MIN: '16.4' },
+    });
+    assert.equal(result.status, 1, result.stderr + result.stdout);
+    assert.match(result.stdout + result.stderr, /below 16\.4/);
+  } finally {
+    s.cleanup();
+  }
+});
+
+test('IOS_CI_XCODE_MIN accepts a compiler at the floor', () => {
+  const s = setup();
+  try {
+    writeFileSync(path.join(s.bin, 'xcodebuild'), '#!/usr/bin/env bash\necho Xcode 16.4\n');
+    chmodSync(path.join(s.bin, 'xcodebuild'), 0o755);
+    const { result } = runSelect({
+      runnerEnvironment: 'self-hosted',
+      apps: s.apps,
+      bin: s.bin,
+      tmp: s.tmp,
+      extraEnv: { IOS_CI_XCODE_MIN: '16.4' },
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.match(result.stdout, /meets the floor 16\.4/);
   } finally {
     s.cleanup();
   }

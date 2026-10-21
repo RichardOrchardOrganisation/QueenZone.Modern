@@ -66,7 +66,7 @@ Keep the three Mac workloads distinct:
 | --- | --- | --- |
 | `e2e` | Playwright browser suite | Can run on the Windows or Mac runner; queues if both are unavailable |
 | `ios-signing` | Signed TestFlight archive | Mac-only; Apple credentials remain isolated to the release workflow |
-| `ios-build` | Unsigned PR Simulator compile and device-smoke iOS jobs | Uses the Mac only when the status probe sees it online and idle (and no sibling Android job in the same smoke run is scheduled on it); otherwise uses hosted `macos-26` |
+| `ios-build` | Unsigned PR Simulator compile and device-smoke iOS jobs | Uses the Mac only when the status probe sees it online and idle (and no sibling Android job in the same smoke run is scheduled on it); otherwise uses hosted `macos-26`. Dispatch `suite=both` gives the Mac to at most one iOS job; the other stays hosted. |
 
 Add `ios-build` to the Apple Silicon runner in **Settings > Actions >
 Runners**. If separate runner processes are used for label isolation, serialize
