@@ -86,15 +86,13 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             Assert.True(repairedPlan.Accesses.Any(access =>
                 access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange),
                 Describe(repairedPlan));
-            var oldSeek = Assert.Single(originalPlan.Accesses.Where(access =>
-                access.Operation == "Index Seek" && access.Index == VisibleIndex));
-            if (!originalPlan.HasDynamicSeek)
+            // The old datetime2(7) boundary never becomes a PostedAt range seek. Cold, it seeks
+            // only PostedAt IS NOT NULL (prod plan 1029); a plan warmed on an old boundary scans.
+            Assert.DoesNotContain(originalPlan.Accesses, access => access.HasPostedAtParameterRange);
+            foreach (var oldSeek in originalPlan.Accesses.Where(access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex && !originalPlan.HasDynamicSeek))
             {
-                Assert.False(oldSeek.HasPostedAtParameterRange);
-                Assert.True(oldSeek.HasPostedAtNotNullRange,
-                    "The old seek must only exclude NULL PostedAt values.");
-                Assert.True(oldSeek.HasPostedAtParameterResidual,
-                    "The old datetime2(7) comparison must be a residual predicate, not a date range seek.");
+                Assert.True(oldSeek.HasPostedAtNotNullRange && oldSeek.HasPostedAtParameterResidual, Describe(originalPlan));
             }
 
             Assert.True(repairedPlan.LogicalReads < originalPlan.LogicalReads,
