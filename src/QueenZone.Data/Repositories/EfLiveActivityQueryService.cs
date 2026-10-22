@@ -1,3 +1,5 @@
+using System.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace QueenZone.Data;
@@ -16,17 +18,20 @@ public sealed class EfLiveActivityQueryService(QueenZoneDbContext dbContext, Tim
         var todayStartUtc = timeProvider.GetUtcNow().UtcDateTime.Date;
         if (dbContext.Database.IsSqlServer())
         {
-            // Keep visibility literal for IX_ModernForumPost_PostedAt_Visible. Compile
-            // for this boundary instead of reusing a plan for a much older date.
-            // The SQL Server regression checks filtered-index eligibility in both
-            // SIMPLE and FORCED parameterization modes (#2372).
-            var counts = await dbContext.Database.SqlQuery<int>($"""
+            // Production PostedAt is datetime2(0), despite the model's datetime2(7)
+            // mapping. Match the parameter to the column for a real date range seek,
+            // and keep visibility literal for the filtered index (#2372).
+            var parameter = new SqlParameter("@todayStartUtc", SqlDbType.DateTime2)
+            {
+                Precision = 0,
+                Scale = 0,
+                Value = todayStartUtc,
+            };
+            var counts = await dbContext.Database.SqlQueryRaw<int>("""
                 SELECT COUNT(*) AS [Value]
                 FROM dbo.ModernForumPost
-                WHERE PostedAt IS NOT NULL AND PostedAt >= {todayStartUtc} AND IsHidden = 0
-                OPTION (RECOMPILE)
-                """).ToListAsync(cancellationToken);
-            // Materialize before Single: server-side composition would wrap the hint.
+                WHERE PostedAt IS NOT NULL AND PostedAt >= @todayStartUtc AND IsHidden = 0
+                """, parameter).ToListAsync(cancellationToken);
             return counts.Single();
         }
 

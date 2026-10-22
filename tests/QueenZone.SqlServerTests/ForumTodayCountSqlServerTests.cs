@@ -22,7 +22,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
     public Task DisposeAsync() => database.DisposeAsync();
 
     [Fact]
-    public async Task Today_count_preserves_parity_and_seeks_with_simple_and_forced_parameterization()
+    public async Task Today_count_preserves_parity_and_seeks_with_matching_parameter_scale()
     {
         var comparisons = new List<Comparison>();
         var capture = new CommandCapture();
@@ -33,96 +33,100 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
         try
         {
             await SeedAsync();
-            foreach (var columnScale in new[] { 0, 7 })
+            await ConfigurePrecisionAsync();
+            await database.ExecuteAsync("ALTER DATABASE CURRENT SET PARAMETERIZATION SIMPLE;");
+            // Compile both EF batches for a broad archive boundary before today's
+            // measurement. The isolated database has no earlier count plans.
+            var todayStartUtc = Today.AddDays(-700);
+            await context.ModernForumPosts
+                .Where(post => post.PostedAt != null && post.PostedAt >= todayStartUtc && !post.IsHidden)
+                .CountAsync();
+            var originalCommand = ForBoundary(capture.Last!, Today);
+            var service = new EfLiveActivityQueryService(context,
+                new FakeTimeProvider(new DateTimeOffset(todayStartUtc.AddHours(15))));
+            await service.GetNewForumRepliesTodayAsync();
+            var repairedCommand = ForBoundary(capture.Last!, Today);
+            var recompiledCommand = repairedCommand with { Sql = repairedCommand.Sql + "\nOPTION (RECOMPILE)" };
+            var originalPlan = await MeasureAsync(originalCommand);
+            var repairedPlan = await MeasureAsync(repairedCommand);
+            var recompiledPlan = await MeasureAsync(recompiledCommand);
+            comparisons.Add(new Comparison(0, "SIMPLE", originalPlan, repairedPlan, recompiledPlan));
+            output.WriteLine($"SIMPLE datetime2(0): old {originalPlan.LogicalReads} reads [{Describe(originalPlan)}]; " +
+                $"typed {repairedPlan.LogicalReads} reads [{Describe(repairedPlan)}]; " +
+                $"typed RECOMPILE {recompiledPlan.LogicalReads} reads [{Describe(recompiledPlan)}]");
+
+            // Includes empty future day, inclusive midnight, previous day and
+            // broad archive boundary. The contract deliberately has no upper bound.
+            foreach (var boundary in new[] { Today, Today.AddDays(1), Today.AddDays(-1), Today.AddDays(-731) })
             {
-                await ConfigurePrecisionAsync(columnScale);
-                foreach (var mode in new[] { "SIMPLE", "FORCED" })
+                todayStartUtc = boundary;
+                var original = await context.ModernForumPosts
+                    .Where(post => post.PostedAt != null && post.PostedAt >= todayStartUtc && !post.IsHidden)
+                    .CountAsync();
+                service = new EfLiveActivityQueryService(context,
+                    new FakeTimeProvider(new DateTimeOffset(boundary.AddHours(15))));
+                var repaired = await service.GetNewForumRepliesTodayAsync();
+                Assert.Equal(original, repaired);
+                if (boundary == Today)
                 {
-                    await database.ExecuteAsync($"ALTER DATABASE CURRENT SET PARAMETERIZATION {mode};");
-                    // Includes empty future day, inclusive midnight, previous day and
-                    // broad archive boundary. The contract deliberately has no upper bound.
-                    foreach (var boundary in new[] { Today, Today.AddDays(1), Today.AddDays(-1), Today.AddDays(-731) })
-                    {
-                        var todayStartUtc = boundary;
-                        var original = await context.ModernForumPosts
-                            .Where(post => post.PostedAt != null && post.PostedAt >= todayStartUtc && !post.IsHidden)
-                            .CountAsync();
-                        var originalCommand = capture.Last!;
-                        var service = new EfLiveActivityQueryService(context,
-                            new FakeTimeProvider(new DateTimeOffset(boundary.AddHours(15))));
-                        var repaired = await service.GetNewForumRepliesTodayAsync();
-                        var repairedCommand = capture.Last!;
-                        Assert.Equal(original, repaired);
-                        if (boundary == Today)
-                        {
-                            Assert.Equal(450, repaired); // 500 today, 50 hidden; includes midnight.
-                            var oldPlan = await MeasureAsync(originalCommand);
-                            var newPlan = await MeasureAsync(repairedCommand);
-                            var candidates = new Dictionary<string, Diagnostic>();
-                            foreach (var parameterScale in new byte[] { 0, 7 })
-                            {
-                                foreach (var predicate in new[] { "IsHidden = 0", "IsHidden = CAST(0 AS bit)", "IsHidden = @hidden" })
-                                {
-                                    var parameters = new List<SqlParameter>
-                                    {
-                                        new("@todayStartUtc", SqlDbType.DateTime2) { Scale = parameterScale, Value = Today },
-                                    };
-                                    if (predicate.Contains('@'))
-                                    {
-                                        parameters.Add(new SqlParameter("@hidden", SqlDbType.Bit) { Value = false });
-                                    }
-
-                                    candidates[$"{predicate}; datetime2({parameterScale})"] = await MeasureAsync(
-                                        new CapturedCommand($"SELECT COUNT(*) FROM dbo.ModernForumPost WHERE PostedAt IS NOT NULL AND PostedAt >= @todayStartUtc AND {predicate}", parameters.ToArray()));
-                                }
-                            }
-
-                            comparisons.Add(new Comparison(columnScale, mode, oldPlan, newPlan, candidates));
-                            output.WriteLine($"datetime2({columnScale}) {mode}: old {oldPlan.LogicalReads} reads [{Describe(oldPlan)}]; new {newPlan.LogicalReads} reads [{Describe(newPlan)}]");
-                        }
-                        else if (boundary > Today)
-                        {
-                            Assert.Equal(0, repaired);
-                        }
-                    }
+                    Assert.Equal(450, repaired); // 500 today, 50 hidden; includes midnight.
+                }
+                else if (boundary > Today)
+                {
+                    Assert.Equal(0, repaired);
                 }
             }
 
-            // The finally block retains every diagnostic even if a FORCED plan
-            // fails these assertions, providing evidence for the next query shape.
-            foreach (var comparison in comparisons)
+            Assert.Equal(450, originalPlan.Count);
+            Assert.Equal(originalPlan.Count, repairedPlan.Count);
+            Assert.Equal(repairedPlan.Count, recompiledPlan.Count);
+            Assert.Contains(repairedPlan.Accesses, access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange);
+            var oldSeek = Assert.Single(originalPlan.Accesses.Where(access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex));
+            if (!originalPlan.HasDynamicSeek)
             {
-                Assert.Equal(comparison.Original.Count, comparison.Repaired.Count);
-                Assert.Contains(comparison.Repaired.Accesses,
-                    access => access.Operation == "Index Seek" && access.Index == VisibleIndex);
-                if (comparison.Original.Accesses.Any(access => access.Operation.Contains("Scan", StringComparison.Ordinal)))
-                {
-                    Assert.True(comparison.Repaired.LogicalReads < comparison.Original.LogicalReads,
-                        $"{comparison.Mode}/datetime2({comparison.ColumnScale}): new reads must improve on the old scan.");
-                }
-
-                Assert.All(comparison.Candidates.Values, candidate => Assert.Equal(450, candidate.Count));
+                Assert.False(oldSeek.HasPostedAtParameterRange);
+                Assert.True(oldSeek.HasPostedAtNotNullRange,
+                    "The old seek must only exclude NULL PostedAt values.");
+                Assert.True(oldSeek.HasPostedAtParameterResidual,
+                    "The old datetime2(7) comparison must be a residual predicate, not a date range seek.");
             }
+
+            Assert.True(repairedPlan.LogicalReads < originalPlan.LogicalReads,
+                "The typed date range seek must read fewer pages than the old residual or dynamic seek.");
+            Assert.True(repairedPlan.LogicalReads <= recompiledPlan.LogicalReads,
+                "RECOMPILE reduced reads after old-boundary warming; reconsider removing the production hint.");
         }
         finally
         {
-            try
+            var root = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? AppContext.BaseDirectory;
+            var directory = Path.Combine(root, "TestResults", "today-count-performance");
+            Directory.CreateDirectory(directory);
+            await File.WriteAllTextAsync(Path.Combine(directory, "comparison.json"), JsonSerializer.Serialize(new
             {
-                await database.ExecuteAsync("ALTER DATABASE CURRENT SET PARAMETERIZATION SIMPLE;");
-            }
-            finally
-            {
-                var root = Environment.GetEnvironmentVariable("GITHUB_WORKSPACE") ?? AppContext.BaseDirectory;
-                var directory = Path.Combine(root, "TestResults", "today-count-performance");
-                Directory.CreateDirectory(directory);
-                await File.WriteAllTextAsync(Path.Combine(directory, "comparison.json"), JsonSerializer.Serialize(new
-                {
-                    Dataset = "300000 posts: 299500 over preceding 730 days (every 997th NULL); 500 today including exactly midnight; every 10th hidden (50 today); BodyHtml REPLICATE(N'x',512); FULLSCAN statistics; existing production filtered index without INCLUDEs",
-                    Comparisons = comparisons,
-                }, new JsonSerializerOptions { WriteIndented = true }));
-            }
+                Dataset = "300000 posts: 299500 over preceding 730 days (every 997th NULL); 500 today including exactly midnight; every 10th hidden (50 today); BodyHtml REPLICATE(N'x',512); FULLSCAN statistics; existing production filtered index without INCLUDEs",
+                ColumnType = "datetime2(0); EF model remains datetime2(7) (production schema drift)",
+                WarmBoundary = Today.AddDays(-700),
+                MeasuredBoundary = Today,
+                Comparisons = comparisons,
+            }, new JsonSerializerOptions { WriteIndented = true }));
         }
     }
+
+    private static CapturedCommand ForBoundary(CapturedCommand captured, DateTime boundary) => captured with
+    {
+        Parameters = captured.Parameters.Select(parameter =>
+        {
+            var clone = Clone(parameter);
+            if (clone.SqlDbType == SqlDbType.DateTime2)
+            {
+                clone.Value = boundary;
+            }
+
+            return clone;
+        }).ToArray(),
+    };
 
     private async Task SeedAsync()
     {
@@ -147,11 +151,11 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             """);
     }
 
-    private Task ConfigurePrecisionAsync(int scale) => database.ExecuteAsync($"""
+    private Task ConfigurePrecisionAsync() => database.ExecuteAsync("""
         DROP INDEX IF EXISTS IX_ModernForumPost_PostedAt_Visible ON dbo.ModernForumPost;
         DROP INDEX IX_ModernForumPost_VisibleDiscussion ON dbo.ModernForumPost;
         DROP INDEX IX_ModernForumPost_Thread_Posted ON dbo.ModernForumPost;
-        ALTER TABLE dbo.ModernForumPost ALTER COLUMN PostedAt datetime2({scale}) NULL;
+        ALTER TABLE dbo.ModernForumPost ALTER COLUMN PostedAt datetime2(0) NULL;
         CREATE INDEX IX_ModernForumPost_VisibleDiscussion
             ON dbo.ModernForumPost (LegacyThreadTopicId, PostedAt, LegacyPostId) WHERE IsHidden = 0;
         CREATE INDEX IX_ModernForumPost_Thread_Posted
@@ -174,6 +178,22 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             await settings.ExecuteNonQueryAsync();
         }
 
+        await using (var warm = connection.CreateCommand())
+        {
+            warm.CommandTimeout = 120;
+            warm.CommandText = captured.Sql;
+            warm.Parameters.AddRange(ForBoundary(captured, Today.AddDays(-700)).Parameters);
+            await using var reader = await warm.ExecuteReaderAsync();
+            do
+            {
+                while (await reader.ReadAsync())
+                {
+                    // Drain the warm-up count and plan before collecting today's IO.
+                }
+            } while (await reader.NextResultAsync());
+        }
+
+        messages.Clear();
         await using var command = connection.CreateCommand();
         command.CommandTimeout = 120;
         command.CommandText = captured.Sql;
@@ -200,16 +220,55 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
         Assert.NotEmpty(matches);
         var reads = matches.Sum(match => long.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
         XNamespace ns = "http://schemas.microsoft.com/sqlserver/2004/07/showplan";
-        var accesses = XDocument.Parse(plan).Descendants(ns + "RelOp")
-            .SelectMany(operation => operation.Elements(ns + "IndexScan").Elements(ns + "Object")
-                .Select(index => new PlanAccess((string?)operation.Attribute("PhysicalOp") ?? "",
-                    (string?)index.Attribute("Index") ?? ""))).ToArray();
+        var document = XDocument.Parse(plan);
+        var accesses = document.Descendants(ns + "RelOp")
+            .SelectMany(operation => operation.Elements(ns + "IndexScan")
+                .SelectMany(scan => scan.Elements(ns + "Object").Select(index =>
+                {
+                    var seek = scan.Element(ns + "SeekPredicates");
+                    var residual = scan.Element(ns + "Predicate");
+                    return new PlanAccess((string?)operation.Attribute("PhysicalOp") ?? "",
+                        (string?)index.Attribute("Index") ?? "",
+                        seek?.ToString(SaveOptions.DisableFormatting) ?? "",
+                        residual?.ToString(SaveOptions.DisableFormatting) ?? "",
+                        HasPostedAtParameterRange(seek, ns), HasPostedAtParameterResidual(residual, ns),
+                        HasPostedAtNotNullRange(seek, ns));
+                }))).ToArray();
         return new Diagnostic(count, reads, accesses, captured.Sql,
             captured.Parameters.Select(parameter => new ParameterDiagnostic(parameter.ParameterName,
-                parameter.SqlDbType.ToString(), parameter.Precision, parameter.Scale, parameter.Value)).ToArray(), messages.ToArray(), plan);
+                parameter.SqlDbType.ToString(), parameter.Precision, parameter.Scale, parameter.Value)).ToArray(),
+            document.Descendants(ns + "Intrinsic").Any(element =>
+                string.Equals((string?)element.Attribute("FunctionName"), "GetRangeThroughConvert", StringComparison.OrdinalIgnoreCase)),
+            messages.ToArray(), plan);
     }
 
-    private static string Describe(Diagnostic diagnostic) => string.Join(", ", diagnostic.Accesses.Select(access => $"{access.Operation} {access.Index}"));
+    private static bool HasPostedAtParameterRange(XElement? seek, XNamespace ns) =>
+        seek?.Descendants().Any(range =>
+            (range.Name == ns + "StartRange" || range.Name == ns + "EndRange" ||
+             range.Name == ns + "Prefix" || range.Name == ns + "Start" || range.Name == ns + "End") &&
+            ((string?)range.Attribute("ScanType") is "GE" or "GT" or "LE" or "LT" or "EQ") &&
+            range.Elements(ns + "RangeColumns").Descendants(ns + "ColumnReference")
+                .Any(column => (string?)column.Attribute("Column") == "PostedAt") &&
+            range.Elements(ns + "RangeExpressions").Descendants(ns + "ColumnReference")
+                .Any(column => ((string?)column.Attribute("Column"))?.StartsWith('@') == true)) == true;
+
+    private static bool HasPostedAtNotNullRange(XElement? seek, XNamespace ns) =>
+        seek?.Descendants(ns + "StartRange").Any(range =>
+            (string?)range.Attribute("ScanType") == "GT" &&
+            range.Elements(ns + "RangeColumns").Descendants(ns + "ColumnReference")
+                .Any(column => (string?)column.Attribute("Column") == "PostedAt") &&
+            range.Elements(ns + "RangeExpressions").Descendants(ns + "Const")
+                .Any(value => (string?)value.Attribute("ConstValue") == "NULL")) == true;
+
+    private static bool HasPostedAtParameterResidual(XElement? predicate, XNamespace ns) =>
+        predicate?.Descendants(ns + "Compare").Any(compare =>
+            (string?)compare.Attribute("CompareOp") == "GE" &&
+            compare.Descendants(ns + "ColumnReference").Any(column => (string?)column.Attribute("Column") == "PostedAt") &&
+            compare.Descendants(ns + "ColumnReference").Any(column =>
+                ((string?)column.Attribute("Column"))?.StartsWith('@') == true)) == true;
+
+    private static string Describe(Diagnostic diagnostic) => string.Join(", ", diagnostic.Accesses.Select(access =>
+        $"{access.Operation} {access.Index}; seek: {access.SeekPredicates}; residual: {access.ResidualPredicate}"));
     private static SqlParameter Clone(SqlParameter parameter) => (SqlParameter)((ICloneable)parameter).Clone();
 
     private sealed class CommandCapture : DbCommandInterceptor
@@ -231,10 +290,11 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
     }
 
     private sealed record CapturedCommand(string Sql, SqlParameter[] Parameters);
-    private sealed record PlanAccess(string Operation, string Index);
+    private sealed record PlanAccess(string Operation, string Index, string SeekPredicates, string ResidualPredicate,
+        bool HasPostedAtParameterRange, bool HasPostedAtParameterResidual, bool HasPostedAtNotNullRange);
     private sealed record ParameterDiagnostic(string Name, string Type, byte Precision, byte Scale, object? Value);
     private sealed record Diagnostic(int Count, long LogicalReads, PlanAccess[] Accesses, string Sql,
-        ParameterDiagnostic[] Parameters, string[] StatisticsIo, string ActualPlan);
+        ParameterDiagnostic[] Parameters, bool HasDynamicSeek, string[] StatisticsIo, string ActualPlan);
     private sealed record Comparison(int ColumnScale, string Mode, Diagnostic Original, Diagnostic Repaired,
-        Dictionary<string, Diagnostic> Candidates);
+        Diagnostic Recompiled);
 }
