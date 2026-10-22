@@ -1,0 +1,13 @@
+# Path labels for automatically generated release notes (issue #2379).
+# Feature vs Fix come from the pull-request title; see docs/release/labels.md.
+mobile:
+- changed-files:
+  - any-glob-to-any-file:
+    - src/QueenZone.Mobile/**
+    - mobile/**
+
+infra:
+- changed-files:
+  - any-glob-to-any-file:
+    - .github/**
+    - infra/**
