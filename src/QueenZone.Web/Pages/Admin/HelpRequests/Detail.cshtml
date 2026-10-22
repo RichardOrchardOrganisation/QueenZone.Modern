@@ -49,6 +49,54 @@
     <dd style="white-space: pre-wrap;">@request.Message</dd>
   </dl>
 
+  <section data-testid="admin-help-reply-log">
+    <h2>Replies sent</h2>
+    @if (Model.Replies.Count == 0)
+    {
+      <p>No reply has been emailed for this request yet.</p>
+    }
+    else
+    {
+      @foreach (var reply in Model.Replies)
+      {
+        <article class="admin-detail-list">
+          <p><strong>@reply.Subject</strong></p>
+          <p>
+            Sent @reply.SentAt.ToString("u") by @reply.SentByEmail to @reply.ToEmail
+          </p>
+          <p style="white-space: pre-wrap;">@reply.Body</p>
+        </article>
+      }
+    }
+  </section>
+
+  <section>
+    <h2>Reply by email</h2>
+    <p>Sends to <strong>@request.Email</strong> from Queenzone Support and adds the message to the log above.</p>
+    <form method="post" action="/admin/help/@request.Id/reply" data-testid="admin-help-reply-form">
+      <input type="hidden" name="@AdminHelpRequestsPageModel.AntiforgeryTokenFieldName" value="@token" />
+      <p>
+        <label>
+          Subject
+          <input name="replySubject" maxlength="@HelpRequestReply.MaxSubjectLength" value="@Model.ReplySubject" required />
+        </label>
+      </p>
+      <p>
+        <label>
+          Message
+          <textarea name="replyBody" rows="10" maxlength="@HelpRequestReply.MaxBodyLength" required>@Model.ReplyBody</textarea>
+        </label>
+      </p>
+      <p>
+        <label>
+          <input type="checkbox" name="markResolved" value="true" checked />
+          Mark as resolved after sending
+        </label>
+      </p>
+      <button type="submit">Send reply</button>
+    </form>
+  </section>
+
   <section>
     <h2>Update status</h2>
     <form method="post" action="/admin/help/@request.Id/status" class="admin-inline-form">

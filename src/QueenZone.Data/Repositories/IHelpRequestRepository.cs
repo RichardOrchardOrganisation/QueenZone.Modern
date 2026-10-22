@@ -19,6 +19,14 @@ public interface IHelpRequestRepository
         string? notes,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Logs a reply sent to the requester; null when the request no longer exists.</summary>
+    Task<HelpRequestReply?> AddReplyAsync(HelpRequestReply reply, CancellationToken cancellationToken = default);
+
+    /// <summary>Replies for a request, oldest first.</summary>
+    Task<IReadOnlyList<HelpRequestReply>> ListRepliesAsync(
+        Guid helpRequestId,
+        CancellationToken cancellationToken = default);
+
     Task<int> CountByEmailSinceAsync(
         string normalizedEmail,
         DateTimeOffset sinceUtc,

@@ -113,6 +113,8 @@ public sealed class QueenZoneDbContext : DbContext
 
     public DbSet<HelpRequestEntity> HelpRequests => Set<HelpRequestEntity>();
 
+    public DbSet<HelpRequestReplyEntity> HelpRequestReplies => Set<HelpRequestReplyEntity>();
+
     public DbSet<QueenLinkCheckEntity> QueenLinkChecks => Set<QueenLinkCheckEntity>();
 
     public DbSet<DiscographyStreamingLinkEntity> DiscographyStreamingLinks => Set<DiscographyStreamingLinkEntity>();

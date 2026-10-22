@@ -31,6 +31,28 @@ internal static class HelpRequestRecords
         entity.ReviewNotes = SubmissionInput.NormalizeOptional(notes, 500);
     }
 
+    internal static HelpRequestReplyEntity NewReplyEntity(HelpRequestReply reply) =>
+        new()
+        {
+            Id = reply.Id == Guid.Empty ? Guid.NewGuid() : reply.Id,
+            HelpRequestId = reply.HelpRequestId,
+            ToEmail = RequireTrimmed(reply.ToEmail, 256),
+            Subject = RequireTrimmed(reply.Subject, HelpRequestReply.MaxSubjectLength),
+            Body = RequireTrimmed(reply.Body, HelpRequestReply.MaxBodyLength),
+            SentByEmail = RequireTrimmed(reply.SentByEmail, 256),
+            SentAt = reply.SentAt == default ? DateTimeOffset.UtcNow : reply.SentAt,
+        };
+
+    internal static HelpRequestReply MapReply(HelpRequestReplyEntity entity) =>
+        new(
+            entity.Id,
+            entity.HelpRequestId,
+            entity.ToEmail,
+            entity.Subject,
+            entity.Body,
+            entity.SentByEmail,
+            entity.SentAt);
+
     internal static string NormalizeEmail(string? normalizedEmail, string email)
     {
         var source = string.IsNullOrWhiteSpace(normalizedEmail) ? email : normalizedEmail;

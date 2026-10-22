@@ -192,12 +192,15 @@
       "entry": "Create a uniquely prefixed fixture through the UI on the local Testing host; find it in the admin queue and open its detail as admin@test.local.",
       "admin": {
         "actions": [
-          "Status"
+          "Status",
+          "Reply"
         ],
         "verification": "fixture-record",
-        "externalEffects": [],
+        "externalEffects": [
+          "email"
+        ],
         "getWrites": false,
-        "notes": "POST-only handlers at /admin/help/{id:guid}/{handler}. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
+        "notes": "POST-only handlers at /admin/help/{id:guid}/{handler}. Reply emails the requester through the shared SMTP sender and logs it; the proof spec does not submit it, so no email is sent from CI. The url is the real detail/confirmation surface captured by the spec, not a fabricated handler screenshot. Authentication is checked on each POST route; admin actions are submitted only for spec-created fixture records on the local Testing host."
       },
       "kind": "handler",
       "selectorsReason": "POST-only handler; exercise its controls on the detail page of a record created by this spec.",
