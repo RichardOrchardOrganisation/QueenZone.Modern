@@ -35,7 +35,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             await SeedAsync();
             await ConfigurePrecisionAsync();
             await database.ExecuteAsync("ALTER DATABASE CURRENT SET PARAMETERIZATION SIMPLE;");
-            // Compile both EF batches for a broad archive boundary before today's
+            // Execute both EF batches for a broad archive boundary before today's
             // measurement. The isolated database has no earlier count plans.
             var todayStartUtc = Today.AddDays(-700);
             await context.ModernForumPosts
@@ -46,14 +46,17 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
                 new FakeTimeProvider(new DateTimeOffset(todayStartUtc.AddHours(15))));
             await service.GetNewForumRepliesTodayAsync();
             var repairedCommand = ForBoundary(capture.Last!, Today);
-            var recompiledCommand = repairedCommand with { Sql = repairedCommand.Sql + "\nOPTION (RECOMPILE)" };
+            var typedWithoutHintCommand = repairedCommand with
+            {
+                Sql = repairedCommand.Sql.Replace("OPTION (RECOMPILE)", "", StringComparison.Ordinal).TrimEnd(),
+            };
             var originalPlan = await MeasureAsync(originalCommand);
             var repairedPlan = await MeasureAsync(repairedCommand);
-            var recompiledPlan = await MeasureAsync(recompiledCommand);
-            comparisons.Add(new Comparison(0, "SIMPLE", originalPlan, repairedPlan, recompiledPlan));
-            output.WriteLine($"SIMPLE datetime2(0): old {originalPlan.LogicalReads} reads [{Describe(originalPlan)}]; " +
-                $"typed {repairedPlan.LogicalReads} reads [{Describe(repairedPlan)}]; " +
-                $"typed RECOMPILE {recompiledPlan.LogicalReads} reads [{Describe(recompiledPlan)}]");
+            var typedWithoutHintPlan = await MeasureAsync(typedWithoutHintCommand);
+            comparisons.Add(new Comparison(0, "SIMPLE", originalPlan, repairedPlan, typedWithoutHintPlan));
+            output.WriteLine($"SIMPLE datetime2(0): Original {originalPlan.LogicalReads} reads [{Describe(originalPlan)}]; " +
+                $"Repaired (typed+RECOMPILE) {repairedPlan.LogicalReads} reads [{Describe(repairedPlan)}]; " +
+                $"TypedWithoutHint (warmed) {typedWithoutHintPlan.LogicalReads} reads [{Describe(typedWithoutHintPlan)}]");
 
             // Includes empty future day, inclusive midnight, previous day and
             // broad archive boundary. The contract deliberately has no upper bound.
@@ -79,7 +82,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
 
             Assert.Equal(450, originalPlan.Count);
             Assert.Equal(originalPlan.Count, repairedPlan.Count);
-            Assert.Equal(repairedPlan.Count, recompiledPlan.Count);
+            Assert.Equal(repairedPlan.Count, typedWithoutHintPlan.Count);
             Assert.True(repairedPlan.Accesses.Any(access =>
                 access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange),
                 Describe(repairedPlan));
@@ -96,8 +99,8 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
 
             Assert.True(repairedPlan.LogicalReads < originalPlan.LogicalReads,
                 "The typed date range seek must read fewer pages than the old residual or dynamic seek.");
-            Assert.True(repairedPlan.LogicalReads <= recompiledPlan.LogicalReads,
-                "RECOMPILE reduced reads after old-boundary warming; reconsider removing the production hint.");
+            Assert.True(repairedPlan.LogicalReads <= typedWithoutHintPlan.LogicalReads,
+                "The typed RECOMPILE query must not read more pages than the warmed typed query without a hint.");
         }
         finally
         {
@@ -297,5 +300,5 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
     private sealed record Diagnostic(int Count, long LogicalReads, PlanAccess[] Accesses, string Sql,
         ParameterDiagnostic[] Parameters, bool HasDynamicSeek, string[] StatisticsIo, string ActualPlan);
     private sealed record Comparison(int ColumnScale, string Mode, Diagnostic Original, Diagnostic Repaired,
-        Diagnostic Recompiled);
+        Diagnostic TypedWithoutHint);
 }

@@ -18,9 +18,8 @@ public sealed class EfLiveActivityQueryService(QueenZoneDbContext dbContext, Tim
         var todayStartUtc = timeProvider.GetUtcNow().UtcDateTime.Date;
         if (dbContext.Database.IsSqlServer())
         {
-            // Production PostedAt is datetime2(0), despite the model's datetime2(7)
-            // mapping. Match the parameter to the column for a real date range seek,
-            // and keep visibility literal for the filtered index (#2372).
+            // Type the parameter to the production datetime2(0) column so PostedAt is a seek range.
+            // RECOMPILE because a plan sniffed for an old boundary scans (#2372).
             var parameter = new SqlParameter("@todayStartUtc", SqlDbType.DateTime2)
             {
                 Precision = 0,
@@ -31,6 +30,7 @@ public sealed class EfLiveActivityQueryService(QueenZoneDbContext dbContext, Tim
                 SELECT COUNT(*) AS [Value]
                 FROM dbo.ModernForumPost
                 WHERE PostedAt IS NOT NULL AND PostedAt >= @todayStartUtc AND IsHidden = 0
+                OPTION (RECOMPILE)
                 """, parameter).ToListAsync(cancellationToken);
             return counts.Single();
         }
