@@ -79,6 +79,22 @@ git push origin vYYYY.MM.DD.N
 
 Cherry-picked or older commits still need all three gates on that exact SHA.
 
+## Release notes
+
+Pushing a `v*` tag publishes a GitHub Release for that tag. Every merge to `main` refreshes one draft release named **Unreleased** (placeholder tag `unreleased`, `target_commitish: main`) covering main since the last prod tag. Notes are grouped by pull-request label; see [labels.md](labels.md). After generation, each pull-request line gets `(closes #N)` from GitHub's closing-issue links.
+
+`.github/workflows/release-notes.yml` is non-blocking. It is not a required check and is not in any `needs` of `deploy.yml` or the tip gates. A red notes run does not delay production.
+
+Link the release from the #2222 deploy log using the tag. The URL does not wait for the notes job:
+
+`https://github.com/<repo>/releases/tag/<tag>`
+
+Backfill a missing tag (acceptance: `v2026.10.22.1` since `v2026.10.15.1`):
+
+```bash
+gh workflow run release-notes.yml --ref main -f tag=v2026.10.22.1
+```
+
 ## Deploy
 
 The `v*` tag starts `.github/workflows/deploy.yml`. Watch that run to completion. The brief outage on in-place deploys is accepted.
@@ -105,7 +121,7 @@ After `post-deploy-smoke` is green:
 
 ## Log it
 
-Add a comment to #2222 with environment, tag, commit, PRs, who shipped it, and the health result. DEV deploys get logged too.
+Add a comment to #2222 with environment, tag, commit, PRs, who shipped it, the GitHub Release (`https://github.com/<repo>/releases/tag/<tag>`), and the health result. DEV deploys get logged too. The release URL is built from the tag, so it does not depend on the notes workflow having finished.
 
 A gate override posts its own comment on #2222 **before** migrate. That job needs `issues: write`. If the comment fails, the deploy fails.
 

@@ -131,13 +131,26 @@ export function validateOverride({ reason, ref, eventName }) {
   return text;
 }
 
-export function buildOverrideComment({ reason, sha, ref, runUrl, actor }) {
+export function releaseUrl(repo, refOrTag) {
+  const tag = String(refOrTag || '').replace(/^refs\/tags\//, '');
+  return `https://github.com/${repo}/releases/tag/${tag}`;
+}
+
+export function buildOverrideComment({
+  reason,
+  sha,
+  ref,
+  runUrl,
+  actor,
+  repo = 'OWNER/REPO',
+}) {
   return [
     'Production tip-gate override',
     '',
     `- Env: production`,
     `- Ref: ${ref}`,
     `- Commit: ${sha}`,
+    `- Release: ${releaseUrl(repo, ref)}`,
     `- Actor: ${actor}`,
     `- Run: ${runUrl}`,
     '',
@@ -463,6 +476,7 @@ export async function runOverrideComment(input, github) {
     ref: input.ref,
     runUrl: input.runUrl,
     actor: input.actor,
+    repo: input.repo,
   });
   await github.commentOnReleaseLog(body);
   return { ok: true, body };
@@ -487,6 +501,7 @@ export async function main(argv = process.argv.slice(2), env = process.env, fetc
     summaryPath: env.GITHUB_STEP_SUMMARY,
     runUrl: `${env.GITHUB_SERVER_URL || 'https://github.com'}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID || ''}`,
     actor: env.GITHUB_ACTOR || '',
+    repo: env.GITHUB_REPOSITORY || 'OWNER/REPO',
   };
   if (options.validateOverride) {
     validateOverride(input);
