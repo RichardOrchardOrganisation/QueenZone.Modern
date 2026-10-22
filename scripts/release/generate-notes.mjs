@@ -275,7 +275,7 @@ export function createGithubClient({ token, repo, fetchImpl = fetch }) {
   };
 }
 
-export async function generateReleaseBody(github, { tagName, previousTag, targetCommitish }) {
+export async function generateReleaseBody(github, { tagName, previousTag, targetCommitish }, log = console) {
   const payload = { tag_name: tagName };
   if (previousTag) {
     payload.previous_tag_name = previousTag;
@@ -284,11 +284,20 @@ export async function generateReleaseBody(github, { tagName, previousTag, target
     payload.target_commitish = targetCommitish;
   }
   const generated = await github.generateNotes(payload);
-  const closes = await github.closingIssuesForPulls(extractPullNumbers(generated.body || ''));
-  return {
-    name: generated.name,
-    body: appendCloses(generated.body || '', closes),
-  };
+  const body = generated.body || '';
+  try {
+    const closes = await github.closingIssuesForPulls(extractPullNumbers(body));
+    return {
+      name: generated.name,
+      body: appendCloses(body, closes),
+    };
+  } catch (error) {
+    log.warn(`Skipping closes append: ${error.message || error}`);
+    return {
+      name: generated.name,
+      body,
+    };
+  }
 }
 
 export async function publishTagRelease(github, { tag, deleteUnreleased }) {

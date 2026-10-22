@@ -12,6 +12,7 @@ import {
   compareProdTags,
   dryRunNotes,
   extractPullNumbers,
+  generateReleaseBody,
   formatCloses,
   isLatestProdTag,
   isProdTag,
@@ -194,6 +195,22 @@ test('draft upserts one Unreleased release from the latest prod tag', async () =
   assert.deepEqual(github.deleted, [9]);
 });
 
+test('closes append is best-effort when GraphQL fails', async () => {
+  const warnings = [];
+  const github = fakeGithub();
+  github.closingIssuesForPulls = async () => {
+    throw new Error('GraphQL 403');
+  };
+  const result = await generateReleaseBody(
+    github,
+    { tagName: 'v2026.10.22.1', previousTag: 'v2026.10.15.1' },
+    { warn: (message) => warnings.push(message) },
+  );
+  assert.match(result.body, /pull\/10/);
+  assert.doesNotMatch(result.body, /closes/);
+  assert.match(warnings.join('\n'), /GraphQL 403/);
+});
+
 test('dry-run does not create a release', async () => {
   const github = fakeGithub();
   const result = await dryRunNotes(github, { tag: 'v2026.10.22.1' });
@@ -228,7 +245,9 @@ test('release notes stay off deploy and CI gates', () => {
 
   assert.match(notes, /^name: Release notes\r?$/m);
   assert.match(notes, /permissions:\r?\n {2}contents: write/);
-  assert.doesNotMatch(notes, /pull-requests:|issues:|id-token:/);
+  assert.match(notes, / {4}permissions:\r?\n {6}contents: write\r?\n {6}pull-requests: read\r?\n {6}issues: read/);
+  assert.doesNotMatch(notes, /id-token:/);
+  assert.doesNotMatch(notes, /pull-requests: write|issues: write/);
   assert.match(notes, /group: \$\{\{ github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
   assert.match(notes, /cancel-in-progress: \$\{\{ github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' \}\}/);
   assert.match(notes, /default: v2026\.10\.22\.1/);
