@@ -80,8 +80,9 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             Assert.Equal(450, originalPlan.Count);
             Assert.Equal(originalPlan.Count, repairedPlan.Count);
             Assert.Equal(repairedPlan.Count, recompiledPlan.Count);
-            Assert.Contains(repairedPlan.Accesses, access =>
-                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange);
+            Assert.True(repairedPlan.Accesses.Any(access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange),
+                Describe(repairedPlan));
             var oldSeek = Assert.Single(originalPlan.Accesses.Where(access =>
                 access.Operation == "Index Seek" && access.Index == VisibleIndex));
             if (!originalPlan.HasDynamicSeek)
