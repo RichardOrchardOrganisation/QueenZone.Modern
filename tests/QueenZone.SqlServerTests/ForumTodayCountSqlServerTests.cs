@@ -8,6 +8,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using QueenZone.Data;
+using QueenZone.Data.Entities;
 using Xunit.Abstractions;
 
 namespace QueenZone.SqlServerTests;
@@ -22,7 +23,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
     public Task DisposeAsync() => database.DisposeAsync();
 
     [Fact]
-    public async Task Today_count_preserves_parity_and_seeks_with_matching_parameter_scale()
+    public async Task Today_count_preserves_parity_and_seeks_regardless_of_parameter_scale()
     {
         var comparisons = new List<Comparison>();
         var capture = new CommandCapture();
@@ -32,6 +33,11 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
                 .AddInterceptors(capture).Options);
         try
         {
+            var entity = context.Model.FindEntityType(typeof(ModernForumPostEntity));
+            Assert.NotNull(entity);
+            Assert.Equal("ModernForumPost", entity.GetTableName());
+            Assert.Equal("dbo", entity.GetSchema() ?? "dbo");
+
             await SeedAsync();
             await ConfigurePrecisionAsync();
             await database.ExecuteAsync("ALTER DATABASE CURRENT SET PARAMETERIZATION SIMPLE;");
@@ -53,28 +59,50 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             var originalPlan = await MeasureAsync(originalCommand);
             var repairedPlan = await MeasureAsync(repairedCommand);
             var typedWithoutHintPlan = await MeasureAsync(typedWithoutHintCommand);
-            comparisons.Add(new Comparison(0, "SIMPLE", originalPlan, repairedPlan, typedWithoutHintPlan));
-            output.WriteLine($"SIMPLE datetime2(0): Original {originalPlan.LogicalReads} reads [{Describe(originalPlan)}]; " +
-                $"Repaired (typed+RECOMPILE) {repairedPlan.LogicalReads} reads [{Describe(repairedPlan)}]; " +
-                $"TypedWithoutHint (warmed) {typedWithoutHintPlan.LogicalReads} reads [{Describe(typedWithoutHintPlan)}]");
+            var coldWithoutHintPlan = await MeasureAsync(typedWithoutHintCommand, warmCache: false);
+            var originalColdPlan = await MeasureAsync(originalCommand, warmCache: false);
+            comparisons.Add(new Comparison(0, "SIMPLE", originalPlan, repairedPlan, typedWithoutHintPlan,
+                coldWithoutHintPlan, originalColdPlan));
+            foreach (var (name, diagnostic) in new[]
+            {
+                ("Old EF warmed", originalPlan),
+                ("Old EF cold", originalColdPlan),
+                ("Without hint warmed", typedWithoutHintPlan),
+                ("Without hint cold", coldWithoutHintPlan),
+                ("With RECOMPILE", repairedPlan),
+            })
+            {
+                output.WriteLine($"SIMPLE datetime2(0): {name}: {diagnostic.LogicalReads} reads [{Describe(diagnostic)}]; " +
+                    $"plan parameters: {JsonSerializer.Serialize(diagnostic.PlanParameters)}");
+            }
 
             // Includes empty future day, inclusive midnight, previous day and
             // broad archive boundary. The contract deliberately has no upper bound.
-            foreach (var boundary in new[] { Today, Today.AddDays(1), Today.AddDays(-1), Today.AddDays(-731) })
+            var clockCases = new[]
             {
-                todayStartUtc = boundary;
+                new DateTimeOffset(Today),
+                new DateTimeOffset(Today.AddHours(23).AddMinutes(59).AddSeconds(59)),
+                new DateTimeOffset(2026, 10, 22, 7, 30, 0, TimeSpan.FromHours(8)),
+                new DateTimeOffset(2026, 10, 22, 0, 30, 0, TimeSpan.FromHours(-5)),
+                new DateTimeOffset(Today.AddDays(1)),
+                new DateTimeOffset(Today.AddDays(-1)),
+                new DateTimeOffset(Today.AddDays(-731)),
+            };
+            foreach (var now in clockCases)
+            {
+                var clock = new FakeTimeProvider(now);
+                todayStartUtc = clock.GetUtcNow().UtcDateTime.Date;
                 var original = await context.ModernForumPosts
                     .Where(post => post.PostedAt != null && post.PostedAt >= todayStartUtc && !post.IsHidden)
                     .CountAsync();
-                service = new EfLiveActivityQueryService(context,
-                    new FakeTimeProvider(new DateTimeOffset(boundary.AddHours(15))));
+                service = new EfLiveActivityQueryService(context, clock);
                 var repaired = await service.GetNewForumRepliesTodayAsync();
                 Assert.Equal(original, repaired);
-                if (boundary == Today)
+                if (todayStartUtc == Today)
                 {
                     Assert.Equal(450, repaired); // 500 today, 50 hidden; includes midnight.
                 }
-                else if (boundary > Today)
+                else if (todayStartUtc > Today)
                 {
                     Assert.Equal(0, repaired);
                 }
@@ -83,22 +111,15 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             Assert.Equal(450, originalPlan.Count);
             Assert.Equal(originalPlan.Count, repairedPlan.Count);
             Assert.Equal(repairedPlan.Count, typedWithoutHintPlan.Count);
-            Assert.True(repairedPlan.Accesses.Any(access =>
-                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange),
-                Describe(repairedPlan));
-            // The old datetime2(7) boundary never becomes a PostedAt range seek. Cold, it seeks
-            // only PostedAt IS NOT NULL (prod plan 1029); a plan warmed on an old boundary scans.
-            Assert.DoesNotContain(originalPlan.Accesses, access => access.HasPostedAtParameterRange);
-            foreach (var oldSeek in originalPlan.Accesses.Where(access =>
-                access.Operation == "Index Seek" && access.Index == VisibleIndex && !originalPlan.HasDynamicSeek))
-            {
-                Assert.True(oldSeek.HasPostedAtNotNullRange && oldSeek.HasPostedAtParameterResidual, Describe(originalPlan));
-            }
-
-            Assert.True(repairedPlan.LogicalReads < originalPlan.LogicalReads,
-                "The typed date range seek must read fewer pages than the old residual or dynamic seek.");
-            Assert.True(repairedPlan.LogicalReads <= typedWithoutHintPlan.LogicalReads,
-                "The typed RECOMPILE query must not read more pages than the warmed typed query without a hint.");
+            Assert.Equal(repairedPlan.Count, coldWithoutHintPlan.Count);
+            Assert.Equal(repairedPlan.Count, originalColdPlan.Count);
+            Assert.Contains(repairedPlan.Accesses, access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtRange);
+            var planParameter = Assert.Single(coldWithoutHintPlan.PlanParameters,
+                parameter => parameter.Name == "@todayStartUtc");
+            Assert.False(string.IsNullOrWhiteSpace(planParameter.ParameterDataType));
+            Assert.Contains(coldWithoutHintPlan.Accesses, access =>
+                access.Operation == "Index Seek" && access.Index == VisibleIndex && access.HasPostedAtParameterRange);
         }
         finally
         {
@@ -107,7 +128,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             Directory.CreateDirectory(directory);
             await File.WriteAllTextAsync(Path.Combine(directory, "comparison.json"), JsonSerializer.Serialize(new
             {
-                Dataset = "300000 posts: 299500 over preceding 730 days (every 997th NULL); 500 today including exactly midnight; every 10th hidden (50 today); BodyHtml REPLICATE(N'x',512); FULLSCAN statistics; existing production filtered index without INCLUDEs",
+                Dataset = "300000 posts: 299500 over preceding 730 days (every 997th NULL; one at previous day 23:59:59); 500 today including exactly midnight; every 10th hidden (50 today); BodyHtml REPLICATE(N'x',512); FULLSCAN statistics; existing production filtered index without INCLUDEs",
                 ColumnType = "datetime2(0); EF model remains datetime2(7) (production schema drift)",
                 WarmBoundary = Today.AddDays(-700),
                 MeasuredBoundary = Today,
@@ -146,6 +167,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
                  AuthorDisplayName, BodyHtml, PostedAt, IsHidden, LegacyDiscography, AttachCount)
             SELECT CONVERT(int, n), 10, 10, 1, N'Tester', REPLICATE(N'x', 512),
                 CASE WHEN n > 299500 THEN DATEADD(second, CONVERT(int, n - 299501), CONVERT(datetime2, '2026-10-22T00:00:00'))
+                     WHEN n = 1 THEN CONVERT(datetime2, '2026-10-21T23:59:59')
                      WHEN n % 997 = 0 THEN NULL
                      ELSE DATEADD(day, -CONVERT(int, 1 + n % 730), CONVERT(datetime2, '2026-10-22T00:00:00')) END,
                 CASE WHEN n % 10 = 0 THEN 1 ELSE 0 END, 0, 0
@@ -167,7 +189,7 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
         UPDATE STATISTICS dbo.ModernForumPost WITH FULLSCAN;
         """);
 
-    private async Task<Diagnostic> MeasureAsync(CapturedCommand captured)
+    private async Task<Diagnostic> MeasureAsync(CapturedCommand captured, bool warmCache = true)
     {
         await using var connection = new SqlConnection(database.ConnectionString);
         await connection.OpenAsync();
@@ -180,8 +202,16 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             await settings.ExecuteNonQueryAsync();
         }
 
-        await using (var warm = connection.CreateCommand())
+        // Clear only this test's isolated database cache before measuring a fresh plan.
+        if (!warmCache)
         {
+            await using var clear = connection.CreateCommand();
+            clear.CommandText = "ALTER DATABASE SCOPED CONFIGURATION CLEAR PROCEDURE_CACHE;";
+            await clear.ExecuteNonQueryAsync();
+        }
+        else
+        {
+            await using var warm = connection.CreateCommand();
             warm.CommandTimeout = 120;
             warm.CommandText = captured.Sql;
             warm.Parameters.AddRange(ForBoundary(captured, Today.AddDays(-700)).Parameters);
@@ -233,7 +263,8 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
                         (string?)index.Attribute("Index") ?? "",
                         seek?.ToString(SaveOptions.DisableFormatting) ?? "",
                         residual?.ToString(SaveOptions.DisableFormatting) ?? "",
-                        HasPostedAtParameterRange(seek, ns), HasPostedAtParameterResidual(residual, ns),
+                        HasPostedAtRange(seek, ns, allowConstant: true),
+                        HasPostedAtRange(seek, ns, allowConstant: false), HasPostedAtParameterResidual(residual, ns),
                         HasPostedAtNotNullRange(seek, ns));
                 }))).ToArray();
         return new Diagnostic(count, reads, accesses, captured.Sql,
@@ -241,20 +272,22 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
                 parameter.SqlDbType.ToString(), parameter.Precision, parameter.Scale, parameter.Value)).ToArray(),
             document.Descendants(ns + "Intrinsic").Any(element =>
                 string.Equals((string?)element.Attribute("FunctionName"), "GetRangeThroughConvert", StringComparison.OrdinalIgnoreCase)),
+            document.Descendants(ns + "ParameterList").Elements(ns + "ColumnReference")
+                .Select(parameter => new PlanParameterDiagnostic((string?)parameter.Attribute("Column") ?? "",
+                    (string?)parameter.Attribute("ParameterDataType"))).ToArray(),
             messages.ToArray(), plan);
     }
 
-    private static bool HasPostedAtParameterRange(XElement? seek, XNamespace ns) =>
+    private static bool HasPostedAtRange(XElement? seek, XNamespace ns, bool allowConstant) =>
         seek?.Descendants().Any(range =>
-            (range.Name == ns + "StartRange" || range.Name == ns + "EndRange" ||
-             range.Name == ns + "Prefix" || range.Name == ns + "Start" || range.Name == ns + "End") &&
-            ((string?)range.Attribute("ScanType") is "GE" or "GT" or "LE" or "LT" or "EQ") &&
+            (range.Name == ns + "StartRange" || range.Name == ns + "Start") &&
+            ((string?)range.Attribute("ScanType") is "GE" or "GT") &&
             range.Elements(ns + "RangeColumns").Descendants(ns + "ColumnReference")
                 .Any(column => (string?)column.Attribute("Column") == "PostedAt") &&
             // RECOMPILE embeds the parameter value, so the range bound may be a Const.
             (range.Elements(ns + "RangeExpressions").Descendants(ns + "ColumnReference")
-                .Any(column => ((string?)column.Attribute("Column"))?.StartsWith('@') == true)
-             || range.Elements(ns + "RangeExpressions").Descendants(ns + "Const")
+                .Any(column => (string?)column.Attribute("Column") == "@todayStartUtc")
+             || allowConstant && range.Elements(ns + "RangeExpressions").Descendants(ns + "Const")
                 .Any(value => (string?)value.Attribute("ConstValue") != "NULL"))) == true;
 
     private static bool HasPostedAtNotNullRange(XElement? seek, XNamespace ns) =>
@@ -296,10 +329,11 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
 
     private sealed record CapturedCommand(string Sql, SqlParameter[] Parameters);
     private sealed record PlanAccess(string Operation, string Index, string SeekPredicates, string ResidualPredicate,
-        bool HasPostedAtParameterRange, bool HasPostedAtParameterResidual, bool HasPostedAtNotNullRange);
+        bool HasPostedAtRange, bool HasPostedAtParameterRange, bool HasPostedAtParameterResidual, bool HasPostedAtNotNullRange);
     private sealed record ParameterDiagnostic(string Name, string Type, byte Precision, byte Scale, object? Value);
+    private sealed record PlanParameterDiagnostic(string Name, string? ParameterDataType);
     private sealed record Diagnostic(int Count, long LogicalReads, PlanAccess[] Accesses, string Sql,
-        ParameterDiagnostic[] Parameters, bool HasDynamicSeek, string[] StatisticsIo, string ActualPlan);
+        ParameterDiagnostic[] Parameters, bool HasDynamicSeek, PlanParameterDiagnostic[] PlanParameters, string[] StatisticsIo, string ActualPlan);
     private sealed record Comparison(int ColumnScale, string Mode, Diagnostic Original, Diagnostic Repaired,
-        Diagnostic TypedWithoutHint);
+        Diagnostic TypedWithoutHintWarmed, Diagnostic TypedWithoutHintCold, Diagnostic OriginalCold);
 }

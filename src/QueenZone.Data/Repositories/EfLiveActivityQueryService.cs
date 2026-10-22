@@ -18,18 +18,17 @@ public sealed class EfLiveActivityQueryService(QueenZoneDbContext dbContext, Tim
         var todayStartUtc = timeProvider.GetUtcNow().UtcDateTime.Date;
         if (dbContext.Database.IsSqlServer())
         {
-            // Type the parameter to the production datetime2(0) column so PostedAt is a seek range.
-            // RECOMPILE because a plan sniffed for an old boundary scans (#2372).
+            // CONVERT keeps the comparison in the column's datetime2(0) type so PostedAt can be
+            // a seek range regardless of client parameter scale. RECOMPILE avoids reusing
+            // a plan sniffed for an old boundary, which scanned in the #2372 SQL Server test.
             var parameter = new SqlParameter("@todayStartUtc", SqlDbType.DateTime2)
             {
-                Precision = 0,
-                Scale = 0,
                 Value = todayStartUtc,
             };
             var counts = await dbContext.Database.SqlQueryRaw<int>("""
                 SELECT COUNT(*) AS [Value]
                 FROM dbo.ModernForumPost
-                WHERE PostedAt IS NOT NULL AND PostedAt >= @todayStartUtc AND IsHidden = 0
+                WHERE PostedAt IS NOT NULL AND PostedAt >= CONVERT(datetime2(0), @todayStartUtc) AND IsHidden = 0
                 OPTION (RECOMPILE)
                 """, parameter).ToListAsync(cancellationToken);
             return counts.Single();
