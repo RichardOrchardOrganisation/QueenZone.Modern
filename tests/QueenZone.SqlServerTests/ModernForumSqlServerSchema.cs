@@ -194,6 +194,22 @@ public static class ModernForumSqlServerSchema
         INCLUDE (Title, StartedByLegacyUserId, StartedByDisplayName, ReplyCount);
         """,
         """
+        IF NOT EXISTS (
+            SELECT 1 FROM sys.indexes
+            WHERE object_id = OBJECT_ID(N'dbo.ModernForumThread')
+              AND name = N'IX_ModernForumThread_PublicCategoryPageVisible'
+        )
+        BEGIN
+            -- ONLINE must use dynamic SQL because SQL Express parses every CREATE INDEX (#1628).
+            DECLARE @sql nvarchar(max);
+            IF SERVERPROPERTY('EngineEdition') = 5
+                SET @sql = N'CREATE INDEX IX_ModernForumThread_PublicCategoryPageVisible ON dbo.ModernForumThread (CategoryId, IsLegacyTopicStarter, StartedByUserValidated, IsSticky DESC, LastActivityAt DESC, LegacyTopicId ASC) INCLUDE (Title, StartedByLegacyUserId, StartedByDisplayName, ReplyCount) WHERE IsHidden = 0 WITH (ONLINE = ON);';
+            ELSE
+                SET @sql = N'CREATE INDEX IX_ModernForumThread_PublicCategoryPageVisible ON dbo.ModernForumThread (CategoryId, IsLegacyTopicStarter, StartedByUserValidated, IsSticky DESC, LastActivityAt DESC, LegacyTopicId ASC) INCLUDE (Title, StartedByLegacyUserId, StartedByDisplayName, ReplyCount) WHERE IsHidden = 0;';
+            EXEC sys.sp_executesql @sql;
+        END;
+        """,
+        """
         CREATE INDEX IX_ModernForumThread_Sitemap
         ON dbo.ModernForumThread (LegacyTopicId ASC)
         INCLUDE (Title, LastActivityAt);
@@ -232,7 +248,9 @@ public static class ModernForumSqlServerSchema
     public static string GetProcedureSql(string name) =>
         name == "ModernForum_GetTopicPostsPage"
             ? OptimizePublicReadQueries.TopicPostsProcedureSql
-            : (name is "ModernForum_GetTopicSitemapCount" or "ModernForum_GetTopicSitemapPage"
+            : (name == "ModernForum_GetCategoryThreadsPage"
+                ? new CategoryThreadsKeysetPaging().UpOperations
+                : name is "ModernForum_GetTopicSitemapCount" or "ModernForum_GetTopicSitemapPage"
                 ? new AlignForumSitemapVisibility().UpOperations
                 : new HideSuspendedMemberTopics().UpOperations)
             .OfType<SqlOperation>()
