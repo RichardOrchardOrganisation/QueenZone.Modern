@@ -6,6 +6,7 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
 {
     private readonly object sync = new();
     private readonly List<HelpRequestEntity> requests = [];
+    private readonly List<HelpRequestReplyEntity> replies = [];
 
     public Task<HelpRequest> CreateAsync(
         HelpRequest request,
@@ -84,6 +85,41 @@ public sealed class InMemoryHelpRequestRepository : IHelpRequestRepository
             HelpRequestRecords.ApplyStatus(entity, status, reviewerEmail, notes);
 
             return Task.FromResult<HelpRequest?>(HelpRequestRecords.Map(entity));
+        }
+    }
+
+    public Task<HelpRequestReply?> AddReplyAsync(
+        HelpRequestReply reply,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+
+        lock (sync)
+        {
+            if (requests.All(row => row.Id != reply.HelpRequestId))
+            {
+                return Task.FromResult<HelpRequestReply?>(null);
+            }
+
+            var entity = HelpRequestRecords.NewReplyEntity(reply);
+            replies.Add(entity);
+            return Task.FromResult<HelpRequestReply?>(HelpRequestRecords.MapReply(entity));
+        }
+    }
+
+    public Task<IReadOnlyList<HelpRequestReply>> ListRepliesAsync(
+        Guid helpRequestId,
+        CancellationToken cancellationToken = default)
+    {
+        lock (sync)
+        {
+            IReadOnlyList<HelpRequestReply> result = replies
+                .Where(row => row.HelpRequestId == helpRequestId)
+                .OrderBy(row => row.SentAt)
+                .ThenBy(row => row.Id)
+                .Select(HelpRequestRecords.MapReply)
+                .ToList();
+            return Task.FromResult(result);
         }
     }
 

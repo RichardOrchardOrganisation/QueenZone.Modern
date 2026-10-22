@@ -3,7 +3,9 @@ using QueenZone.Data;
 
 namespace QueenZone.Web.Pages.Admin.HelpRequests;
 
-public sealed class ActionModel(IHelpRequestRepository helpRequestRepository) : AdminHelpRequestsPageModel
+public sealed class ActionModel(
+    IHelpRequestRepository helpRequestRepository,
+    HelpRequestReplyService replyService) : AdminHelpRequestsPageModel
 {
     [BindProperty]
     public string? Status { get; set; }
@@ -41,6 +43,39 @@ public sealed class ActionModel(IHelpRequestRepository helpRequestRepository) : 
         }
 
         return Redirect($"/admin/help/{id}");
+    }
+
+    [BindProperty]
+    public string? ReplySubject { get; set; }
+
+    [BindProperty]
+    public string? ReplyBody { get; set; }
+
+    [BindProperty]
+    public bool MarkResolved { get; set; }
+
+    public async Task<IActionResult> OnPostReplyAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await replyService.ReplyAsync(
+            id,
+            ReplySubject,
+            ReplyBody,
+            EditorEmail,
+            MarkResolved,
+            cancellationToken);
+
+        switch (result.Outcome)
+        {
+            case HelpRequestReplyService.ReplyOutcome.NotFound:
+                return NotFound();
+            case HelpRequestReplyService.ReplyOutcome.Sent:
+                return RedirectWithMessage(id, $"Reply emailed to {result.Request!.Email}.", "success");
+            default:
+                // Keep what was typed so a failed send does not lose the draft.
+                TempData["HelpRequestReplyDraftSubject"] = ReplySubject;
+                TempData["HelpRequestReplyDraftBody"] = ReplyBody;
+                return RedirectWithMessage(id, result.Error ?? "The reply could not be sent.", "error");
+        }
     }
 
     private IActionResult RedirectWithMessage(Guid id, string message, string kind)

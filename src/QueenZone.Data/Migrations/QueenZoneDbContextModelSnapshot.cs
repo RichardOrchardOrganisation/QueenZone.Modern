@@ -17,7 +17,7 @@ namespace QueenZone.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -1144,6 +1144,46 @@ namespace QueenZone.Data.Migrations
                         .HasDatabaseName("IX_HelpRequests_Status_SubmittedAt");
 
                     b.ToTable("HelpRequests", (string)null);
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.HelpRequestReplyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("HelpRequestId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("SentAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SentByEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ToEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HelpRequestId", "SentAt")
+                        .HasDatabaseName("IX_HelpRequestReplies_HelpRequest_SentAt");
+
+                    b.ToTable("HelpRequestReplies", (string)null);
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.HomePollEntity", b =>
@@ -4191,6 +4231,17 @@ namespace QueenZone.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Member");
+                });
+
+            modelBuilder.Entity("QueenZone.Data.Entities.HelpRequestReplyEntity", b =>
+                {
+                    b.HasOne("QueenZone.Data.Entities.HelpRequestEntity", "HelpRequest")
+                        .WithMany()
+                        .HasForeignKey("HelpRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("HelpRequest");
                 });
 
             modelBuilder.Entity("QueenZone.Data.Entities.HomePollOptionEntity", b =>

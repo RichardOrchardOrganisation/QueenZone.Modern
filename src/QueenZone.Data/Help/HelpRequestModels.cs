@@ -15,6 +15,20 @@ public sealed record HelpRequest(
     string? ReviewerEmail,
     string? ReviewNotes);
 
+/// <summary>An email an admin sent in response to a help request, kept as an audit log.</summary>
+public sealed record HelpRequestReply(
+    Guid Id,
+    Guid HelpRequestId,
+    string ToEmail,
+    string Subject,
+    string Body,
+    string SentByEmail,
+    DateTimeOffset SentAt)
+{
+    public const int MaxSubjectLength = 200;
+    public const int MaxBodyLength = 8000;
+}
+
 public sealed record HelpRequestListItem(
     Guid Id,
     string Topic,

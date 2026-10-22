@@ -363,6 +363,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddScoped<HelpRequestNotificationSender>();
         services.AddScoped<HelpRequestService>();
+        services.AddScoped<HelpRequestReplyService>();
         services.AddScoped<PublicWarmupService>();
         services.AddScoped<UgcHtml>();
         services.AddScoped<FanPerformanceDurationResolver>();

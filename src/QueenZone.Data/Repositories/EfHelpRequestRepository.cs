@@ -117,6 +117,43 @@ public sealed class EfHelpRequestRepository(QueenZoneDbContext dbContext) : IHel
         return HelpRequestRecords.Map(entity);
     }
 
+    public async Task<HelpRequestReply?> AddReplyAsync(
+        HelpRequestReply reply,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(reply);
+
+        var exists = await dbContext.HelpRequests
+            .AsNoTracking()
+            .AnyAsync(row => row.Id == reply.HelpRequestId, cancellationToken);
+        if (!exists)
+        {
+            return null;
+        }
+
+        var entity = HelpRequestRecords.NewReplyEntity(reply);
+        dbContext.HelpRequestReplies.Add(entity);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return HelpRequestRecords.MapReply(entity);
+    }
+
+    public async Task<IReadOnlyList<HelpRequestReply>> ListRepliesAsync(
+        Guid helpRequestId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await dbContext.HelpRequestReplies
+            .AsNoTracking()
+            .Where(row => row.HelpRequestId == helpRequestId)
+            .ToListAsync(cancellationToken);
+
+        // Sorted client-side: SQLite cannot ORDER BY DateTimeOffset, and a request has few replies.
+        return rows
+            .OrderBy(row => row.SentAt)
+            .ThenBy(row => row.Id)
+            .Select(HelpRequestRecords.MapReply)
+            .ToList();
+    }
+
     public async Task<int> CountByEmailSinceAsync(
         string normalizedEmail,
         DateTimeOffset sinceUtc,
