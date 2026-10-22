@@ -1,5 +1,6 @@
 -- Materialized archive-author summary used by EfForumArchiveAuthorRepository.
--- The matching EF migration is 20260914070000_AddModernForumArchiveAuthorSummary.
+-- Created by 20260914070000_AddModernForumArchiveAuthorSummary; trigger guard updated by
+-- 20261022023000_SkipArchiveAuthorSummaryForPostEdits.
 
 IF OBJECT_ID(N'dbo.ModernForumArchiveAuthorSummary', N'U') IS NULL
 BEGIN
@@ -65,6 +66,15 @@ AFTER INSERT, UPDATE, DELETE
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- Body edits do not change the archive-author projection. Avoid its reads
+    -- and summary-row locks unless an input to that projection is being updated.
+    IF EXISTS (SELECT 1 FROM inserted)
+       AND EXISTS (SELECT 1 FROM deleted)
+       AND NOT (UPDATE(AuthorLegacyUserId) OR UPDATE(AuthorDisplayName)
+                OR UPDATE(AuthorJoinedAt) OR UPDATE(IsHidden)
+                OR UPDATE(PostedAt) OR UPDATE(Id))
+        RETURN;
 
     DECLARE @Affected TABLE
     (
