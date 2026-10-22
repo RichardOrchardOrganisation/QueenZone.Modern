@@ -34,7 +34,7 @@ public sealed class OpenRouterOptionsTests
     {
         var options = new OpenRouterOptions();
 
-        Assert.Equal("openai/gpt-4.1-nano", options.ResolveModel(NewsAiModelRole.Triage));
+        Assert.Equal("openai/gpt-4.1-mini", options.ResolveModel(NewsAiModelRole.Triage));
         Assert.Equal("openai/gpt-4.1-mini", options.ResolveModel(NewsAiModelRole.Drafting));
         Assert.Equal("deepseek/deepseek-chat-v3-0324", options.ResolveModel(NewsAiModelRole.Fallback));
     }
