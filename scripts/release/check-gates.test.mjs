@@ -11,6 +11,7 @@ import {
   GATE_JOB_NAME,
   OVERRIDE_MIN_LENGTH,
   buildOverrideComment,
+  releaseUrl,
   checkGates,
   runOverrideComment,
   createStoredZip,
@@ -163,6 +164,11 @@ test('override comment includes the reason without interpolating it into a comma
   assert.match(body, /production/i);
   assert.match(body, new RegExp(sha));
   assert.match(body, /Reason:\r?\n/);
+  assert.match(body, /releases\/tag\/v2026\.10\.13\.2/);
+  assert.equal(
+    releaseUrl('OWNER/REPO', 'refs/tags/v2026.10.22.1'),
+    'https://github.com/OWNER/REPO/releases/tag/v2026.10.22.1',
+  );
   assert.ok(body.includes(reason));
 });
 
@@ -541,6 +547,7 @@ test('runbook and environment docs exist and are linked', () => {
     '## Scope',
     '## Three tip gates',
     '## Tag',
+    '## Release notes',
     '## Deploy',
     '## OpenTofu',
     '## Post-deploy health',
@@ -557,6 +564,8 @@ test('runbook and environment docs exist and are linked', () => {
   assert.match(runbook, /richardorchard/);
   assert.match(runbook, /Prevent self-review/);
   assert.match(runbook, /Do not dispatch an old tag/);
+  assert.match(runbook, /releases\/tag\/<tag>/);
+  assert.match(runbook, /labels\.md/);
   assert.doesNotMatch(runbook, /gh workflow run deploy\.yml --ref vPREVIOUS/);
   const agents = readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
   const readme = readFileSync(path.join(repoRoot, 'README.md'), 'utf8');

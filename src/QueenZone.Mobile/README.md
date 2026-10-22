@@ -628,7 +628,9 @@ staging/production store Release behavior.
 CI: [`.github/workflows/mobile-device-smoke.yml`](../../.github/workflows/mobile-device-smoke.yml)
 runs on **Actions → Mobile device smoke** (`workflow_dispatch`) and
 weekdays at 04:00 UTC. Jobs are `Mobile Android device smoke` (self-hosted
-Mac, isolated AVD/port) and `Mobile iOS device smoke` (hosted `macos-26`).
+Mac, isolated AVD/port) and `Mobile iOS device smoke` (idle `ios-build` Mac,
+else hosted `macos-26`; hosted when the same run's Android job already has the Mac).
+Dispatch `suite=both` gives the Mac to at most one iOS job.
 Phase 1 is soak only — do **not** add those
 names as required checks on `main`. Device smoke is **not** started for
 API-only PRs (that stays `mobile-api-contracts`). After pass rate and

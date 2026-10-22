@@ -1,0 +1,22 @@
+# Categories for GitHub-generated release notes (issue #2379).
+# A pull request is placed in the first matching category.
+changelog:
+  categories:
+    - title: Features
+      labels:
+        - feature
+    - title: Fixes
+      labels:
+        - fix
+    - title: Mobile
+      labels:
+        - mobile
+    - title: Infra/CI
+      labels:
+        - infra
+    - title: Dependencies
+      labels:
+        - dependencies
+    - title: Other
+      labels:
+        - "*"

@@ -220,57 +220,10 @@ jobs:
   # so this cheap hosted probe fails open to macos-26 (issue #893).
   mobile-ios-runner:
     name: Choose iOS runner
-    runs-on: ubuntu-latest
     needs: changes
     if: needs.changes.outputs.mobile_native == 'true'
-    outputs:
-      runs_on: ${{ steps.pick.outputs.runs_on }}
-      runner_class: ${{ steps.pick.outputs.runner_class }}
-    steps:
-      - name: Fetch runner-list token
-        id: bitwarden-secrets
-        continue-on-error: true
-        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
-        with:
-          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
-          secrets: ${{ vars.BITWARDEN_IOS_RUNNER_SECRETS }}
-
-      - name: Prefer an idle iOS build runner
-        id: pick
-        env:
-          GH_TOKEN: ${{ steps.bitwarden-secrets.outputs.IOS_RUNNER_ADMIN_TOKEN }}
-        run: |
-          set +e
-          hosted='["macos-26"]'
-          self_hosted='["self-hosted","macOS","ARM64","ios-build"]'
-
-          echo "runs_on=$hosted" >> "$GITHUB_OUTPUT"
-          echo "runner_class=github-hosted macos-26" >> "$GITHUB_OUTPUT"
-
-          if [ -z "$GH_TOKEN" ]; then
-            echo "Runner-list token is unavailable; using GitHub-hosted macos-26."
-            exit 0
-          fi
-
-          response=$(gh api --paginate \
-            -H "Accept: application/vnd.github+json" \
-            "/repos/$GITHUB_REPOSITORY/actions/runners?per_page=100" 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$response" ]; then
-            echo "Runner status could not be read; using GitHub-hosted macos-26."
-            exit 0
-          fi
-
-          available=$(jq -s 'any(.[].runners[]?;
-            .status == "online" and .busy == false and
-            ([.labels[].name] | contains(["self-hosted", "macOS", "ARM64", "ios-build"])))' \
-            <<< "$response" 2>/dev/null)
-          if [ "$available" = "true" ]; then
-            echo "runs_on=$self_hosted" >> "$GITHUB_OUTPUT"
-            echo "runner_class=self-hosted ios-build" >> "$GITHUB_OUTPUT"
-            echo "An online, idle ios-build runner is available."
-          else
-            echo "No online, idle ios-build runner is available; using GitHub-hosted macos-26."
-          fi
+    uses: ./.github/workflows/choose-ios-runner.yml
+    secrets: inherit
 
   # Unsigned iOS Simulator build from CNG-generated native project (issues
   # #794 and #893). No signing identity or Apple credential is needed.
@@ -294,46 +247,14 @@ jobs:
           echo "/usr/local/bin" >> "$GITHUB_PATH"
 
       # Expo SDK 58 requires Xcode 26.4+ (docs/mobile-development-environment.md);
-      # the runner's default DEVELOPER_DIR can be an older Xcode also installed
-      # on the image. Select the newest one actually present rather than
-      # hardcoding a version that may not match what GitHub ships on this
-      # runner generation.
+      # Sentry 8 floor 16.4 is enforced by IOS_CI_XCODE_MIN + select-ios-ci-xcode.sh.
+      # Self-hosted jobs never sudo xcode-select.
       - name: Select latest available Xcode
-        run: |
-          ls /Applications | grep -i Xcode
-          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -z "$LATEST" ] && [ -d /Applications/Xcode.app ]; then
-            LATEST=/Applications/Xcode.app
-          fi
-          if [ -z "$LATEST" ]; then
-            echo "::error::No Xcode application found on this runner."
-            exit 1
-          fi
-          EXPECTED="$LATEST/Contents/Developer"
-          CURRENT=$(xcode-select -p)
-          if [ "$CURRENT" = "$EXPECTED" ]; then
-            echo "Xcode is already selected: $LATEST"
-          elif [[ "${{ runner.environment }}" = "self-hosted" ]]; then
-            echo "::error::Self-hosted runner selects $CURRENT; configure xcode-select as an administrator to use $EXPECTED."
-            exit 1
-          else
-            echo "Selecting $LATEST"
-            sudo xcode-select -s "$EXPECTED"
-          fi
-          xcodebuild -version
-          xcode_ver="$(xcodebuild -version | awk '/^Xcode / { print $2 }')"
-          if [ -z "$xcode_ver" ]; then
-            echo "::error::Could not read Xcode version (Sentry 8 requires 16.4+)."
-            exit 1
-          fi
-          xcode_major="${xcode_ver%%.*}"
-          xcode_rest="${xcode_ver#*.}"
-          xcode_minor="${xcode_rest%%.*}"
-          if [ "$xcode_major" -lt 16 ] || { [ "$xcode_major" -eq 16 ] && [ "${xcode_minor:-0}" -lt 4 ]; }; then
-            echo "::error::Xcode ${xcode_ver} is below 16.4 required by Sentry 8 (#1782)."
-            exit 1
-          fi
-          echo "Xcode ${xcode_ver} meets the Sentry 8 floor 16.4."
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          IOS_CI_XCODE_MIN: "16.4"
+        run: bash ./scripts/select-ios-ci-xcode.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -445,6 +366,8 @@ jobs:
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
         run: |
+          DERIVED="build-${GITHUB_JOB}-${GITHUB_RUN_ID}"
+          echo "IOS_DERIVED_DATA=${PWD}/${DERIVED}" >> "$GITHUB_ENV"
           WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           # Expo CNG names the app scheme after the workspace itself
           # (QueenZone.xcworkspace -> scheme QueenZone). Do not pick from
@@ -459,14 +382,14 @@ jobs:
             -scheme "$SCHEME" \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build \
+            -derivedDataPath "$DERIVED" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
       - name: Zip Simulator app bundle
         working-directory: src/QueenZone.Mobile/ios
         run: |
-          cd build/Build/Products/Debug-iphonesimulator
+          cd "$IOS_DERIVED_DATA/Build/Products/Debug-iphonesimulator"
           APP=$(ls -d ./*.app | head -n 1)
           zip -r -y "$GITHUB_WORKSPACE/mobile-ios-simulator.zip" "$APP"
 
@@ -478,13 +401,26 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      - name: Record selected runner
+      - name: Delete job DerivedData
         if: always()
         working-directory: ${{ github.workspace }}
         run: |
+          if [ -n "${IOS_DERIVED_DATA:-}" ] && [ -d "$IOS_DERIVED_DATA" ]; then
+            rm -rf "$IOS_DERIVED_DATA"
+          fi
+
+      - name: Record selected runner
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
+          RUNNER_CLASS: ${{ needs.mobile-ios-runner.outputs.runner_class }}
+        run: |
           echo "### Mobile iOS runner" >> "$GITHUB_STEP_SUMMARY"
-          echo "Selected: **${{ needs.mobile-ios-runner.outputs.runner_class }}**" >> "$GITHUB_STEP_SUMMARY"
-          echo "Runner: \`${{ runner.name }}\` (\`${{ runner.os }}\` / \`${{ runner.arch }}\`)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected: **${RUNNER_CLASS}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runner: \`${RUNNER_NAME}\` (\`${RUNNER_OS_NAME}\` / \`${RUNNER_ARCH_NAME}\`)" >> "$GITHUB_STEP_SUMMARY"
 
   # Required on main after #870. Non-mobile PRs must still report these exact
   # check names as success; otherwise GitHub leaves the required checks pending.

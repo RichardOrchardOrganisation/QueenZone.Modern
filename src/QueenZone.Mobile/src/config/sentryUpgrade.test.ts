@@ -42,6 +42,8 @@ describe('Sentry 8 on Expo SDK 58 (#1782 PR 2)', () => {
   it('uses the Sentry 8 xcframework install and requires Xcode 16.4+ / iOS 16.4 (Expo.podspec)', () => {
     assert.match(ci, /SENTRY_USE_XCFRAMEWORK:\s*"1"/);
     assert.doesNotMatch(ci, /SENTRY_USE_XCFRAMEWORK:\s*["']0["']/);
+    assert.match(ci, /IOS_CI_XCODE_MIN:\s*"16\.4"/);
+    assert.match(ci, /scripts\/select-ios-ci-xcode\.sh/);
     assert.match(ci, /Sentry 8 floor 16\.4/);
     assert.match(ci, /Sentry 8 floor 15\.1/);
     const appJson = JSON.parse(

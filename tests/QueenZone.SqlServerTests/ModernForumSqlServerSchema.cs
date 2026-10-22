@@ -248,11 +248,13 @@ public static class ModernForumSqlServerSchema
     public static string GetProcedureSql(string name) =>
         name == "ModernForum_GetTopicPostsPage"
             ? OptimizePublicReadQueries.TopicPostsProcedureSql
-            : (name == "ModernForum_GetCategoryThreadsPage"
-                ? new CategoryThreadsKeysetPaging().UpOperations
-                : name is "ModernForum_GetTopicSitemapCount" or "ModernForum_GetTopicSitemapPage"
-                ? new AlignForumSitemapVisibility().UpOperations
-                : new HideSuspendedMemberTopics().UpOperations)
+            : (name switch
+            {
+                "ModernForum_GetCategoryThreadsPage" => new CategoryThreadsKeysetPaging().UpOperations,
+                "ModernForum_GetTopicSitemapPage" => new SitemapKeysetPaging().UpOperations,
+                "ModernForum_GetTopicSitemapCount" => new AlignForumSitemapVisibility().UpOperations,
+                _ => new HideSuspendedMemberTopics().UpOperations,
+            })
             .OfType<SqlOperation>()
             .Single(operation => operation.Sql.Contains(
                 $"CREATE OR ALTER PROCEDURE dbo.{name}",
@@ -290,6 +292,10 @@ public static class ModernForumSqlServerSchema
             await schema.Database.ExecuteSqlRawAsync(batch, cancellationToken);
         }
 
+        var sitemapIndexSql = new SitemapKeysetPaging().UpOperations.OfType<SqlOperation>()
+            .Single(operation => operation.Sql.Contains("CREATE INDEX IX_ModernForumThread_SitemapVisible", StringComparison.Ordinal))
+            .Sql;
+        await schema.Database.ExecuteSqlRawAsync(sitemapIndexSql, cancellationToken);
         await schema.Database.ExecuteSqlRawAsync(OptimizePublicReadQueries.ForumIndexesSql, cancellationToken);
         await schema.Database.ExecuteSqlRawAsync(GetCategoriesProcedureSql, cancellationToken);
         foreach (var name in new[]

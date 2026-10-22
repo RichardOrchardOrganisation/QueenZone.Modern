@@ -42,7 +42,7 @@ skip_re='^(docs/|infra/|design/|examples/|[^/]*\.md$|LICENSE$|THIRD-PARTY-NOTICE
 mobile_re='^src/QueenZone\.Mobile(/|$)'
 # development-standards.json names the mobile floors file (typescript.floors).
 mobile_coverage_re='^(scripts/(Test-TypeScriptCoverageGate\.mjs|Get-MobileCrapReport\.mjs|mobile-coverage-floors\.json)|config/crap-baseline\.mobile\.json|development-standards\.json)$'
-mobile_native_re='^(src/QueenZone\.Mobile/(package(-lock)?\.json|app\.json|app\.config\.(js|cjs|mjs|ts)|google-services\.json|plugins/|assets/(icon|splash-icon|android-icon-(foreground|background|monochrome)|ic-notification)\.png|src/widgets/(OnThisDayWidget\.ios|OnThisDayAndroidWidget)\.tsx)|\.github/workflows/ci\.yml$)'
+mobile_native_re='^(src/QueenZone\.Mobile/(package(-lock)?\.json|app\.json|app\.config\.(js|cjs|mjs|ts)|google-services\.json|plugins/|assets/(icon|splash-icon|android-icon-(foreground|background|monochrome)|ic-notification)\.png|src/widgets/(OnThisDayWidget\.ios|OnThisDayAndroidWidget)\.tsx)|\.github/workflows/(ci|choose-ios-runner)\.yml$|scripts/choose-ios-runner\.sh$)'
 migration_re='^(src/QueenZone\.Data/Migrations/|src/QueenZone\.Data/QueenZoneDbContext\.cs|src/QueenZone\.Data/QueenZoneDbContextFactory\.cs|src/QueenZone\.Data/Entities/)'
 design_tokens_re='^(design/tokens/|design/design_handoff_[^/]+/tokens/|src/QueenZone\.Web/wwwroot/design-system/tokens/|scripts/Sync-DesignTokens\.ps1$)'
 # Keep this list explicit so an unclassified contract path is a classifier
@@ -229,6 +229,16 @@ if [[ "${1:-}" = "--self-test" ]]; then
   assert_classify ci-yml \
     "code=true${nl}migrations=false${nl}mobile=false${nl}mobile_native=true${nl}mobile_api_contracts=true${nl}design_tokens=false" \
     ".github/workflows/ci.yml" \
+    || fail=1
+
+  assert_classify choose-ios-runner-workflow \
+    "code=false${nl}migrations=false${nl}mobile=false${nl}mobile_native=true${nl}mobile_api_contracts=false${nl}design_tokens=false" \
+    ".github/workflows/choose-ios-runner.yml" \
+    || fail=1
+
+  assert_classify choose-ios-runner-script \
+    "code=true${nl}migrations=false${nl}mobile=false${nl}mobile_native=true${nl}mobile_api_contracts=false${nl}design_tokens=false" \
+    "scripts/choose-ios-runner.sh" \
     || fail=1
 
   assert_classify deploy-yml-only \

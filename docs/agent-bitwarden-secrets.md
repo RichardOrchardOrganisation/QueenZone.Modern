@@ -110,11 +110,12 @@ test app before installing the next APK.
 
 ## iOS CI runner status token
 
-The unsigned iOS CI runner probe uses an `IOS_RUNNER_ADMIN_TOKEN` entry in
+The unsigned iOS runner probe (`choose-ios-runner.yml`, used by `ci.yml` and
+`mobile-device-smoke.yml`) uses an `IOS_RUNNER_ADMIN_TOKEN` entry in
 Bitwarden. It is a fine-grained GitHub PAT for this repository with
 Administration read-only access, mapped by the repository variable
 `BITWARDEN_IOS_RUNNER_SECRETS`. Rotate it in GitHub and Bitwarden together; if
-it is absent or expired, CI safely chooses hosted `macos-26`.
+it is absent or expired, those workflows safely choose hosted `macos-26`.
 
 ## Six Labors build licence
 
