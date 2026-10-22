@@ -22,10 +22,13 @@ public partial class SitemapKeysetPaging : Migration
                   AND name = N'IX_ModernForumThread_SitemapVisible'
             )
             BEGIN
-                CREATE INDEX IX_ModernForumThread_SitemapVisible
-                ON dbo.ModernForumThread (LegacyTopicId)
-                INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId)
-                WHERE IsHidden = 0;
+                -- ONLINE must use dynamic SQL because SQL Express parses every CREATE INDEX (#1628).
+                DECLARE @sql nvarchar(max);
+                IF SERVERPROPERTY('EngineEdition') = 5
+                    SET @sql = N'CREATE INDEX IX_ModernForumThread_SitemapVisible ON dbo.ModernForumThread (LegacyTopicId) INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId) WHERE IsHidden = 0 WITH (ONLINE = ON);';
+                ELSE
+                    SET @sql = N'CREATE INDEX IX_ModernForumThread_SitemapVisible ON dbo.ModernForumThread (LegacyTopicId) INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId) WHERE IsHidden = 0;';
+                EXEC sys.sp_executesql @sql;
             END;
             """, suppressTransaction: true);
 

@@ -86,10 +86,13 @@ IF NOT EXISTS (
       AND name = N'IX_ModernForumThread_SitemapVisible'
 )
 BEGIN
-    CREATE INDEX IX_ModernForumThread_SitemapVisible
-    ON dbo.ModernForumThread (LegacyTopicId)
-    INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId)
-    WHERE IsHidden = 0;
+    -- ONLINE must use dynamic SQL because SQL Express parses every CREATE INDEX (#1628).
+    DECLARE @sql nvarchar(max);
+    IF SERVERPROPERTY('EngineEdition') = 5
+        SET @sql = N'CREATE INDEX IX_ModernForumThread_SitemapVisible ON dbo.ModernForumThread (LegacyTopicId) INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId) WHERE IsHidden = 0 WITH (ONLINE = ON);';
+    ELSE
+        SET @sql = N'CREATE INDEX IX_ModernForumThread_SitemapVisible ON dbo.ModernForumThread (LegacyTopicId) INCLUDE (Title, LastActivityAt, LegacyForumId, CategoryId) WHERE IsHidden = 0;';
+    EXEC sys.sp_executesql @sql;
 END;
 GO
 
@@ -417,14 +420,16 @@ BEGIN
 END;
 GO
 
-CREATE OR ALTER PROCEDURE dbo.ModernForum_GetTopicSitemapCount
-AS
+CREATE OR ALTER PROCEDURE dbo.ModernForum_GetTopicSitemapCount AS
 BEGIN
     SET NOCOUNT ON;
-
-    SELECT ISNULL(
-        (SELECT SitemapTopicCount FROM dbo.ModernForumArchiveReadStats WHERE Id = 1),
-        (SELECT CONVERT(int, COUNT_BIG(*)) FROM dbo.ModernForumThread WHERE IsHidden = 0 AND NULLIF(LTRIM(RTRIM(Title)), '') IS NOT NULL));
+    SELECT CONVERT(int, COUNT_BIG(*))
+    FROM dbo.ModernForumThread t
+    INNER JOIN dbo.ModernForumCategory c ON c.Id = t.CategoryId
+    WHERE t.IsHidden = 0
+      AND NULLIF(LTRIM(RTRIM(t.Title)), '') IS NOT NULL
+      AND t.LegacyForumId > 0
+      AND c.LegacyForumId > 0;
 END;
 GO
 
