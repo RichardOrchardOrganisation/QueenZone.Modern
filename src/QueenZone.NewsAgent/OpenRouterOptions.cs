@@ -6,7 +6,7 @@ public sealed class OpenRouterOptions
 
     public string? ApiKey { get; set; }
 
-    public string TriageModel { get; set; } = "openai/gpt-4.1-nano";
+    public string TriageModel { get; set; } = "openai/gpt-4.1-mini";
 
     public string DraftingModel { get; set; } = "openai/gpt-4.1-mini";
 

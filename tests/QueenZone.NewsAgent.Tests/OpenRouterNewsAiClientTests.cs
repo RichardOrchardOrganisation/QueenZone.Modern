@@ -73,7 +73,7 @@ public sealed class OpenRouterNewsAiClientTests
         var completion = await client.CompleteChatAsync(CreateRequest());
 
         Assert.True(completion.DryRun);
-        Assert.Equal("openai/gpt-4.1-nano", completion.ModelId);
+        Assert.Equal("openai/gpt-4.1-mini", completion.ModelId);
         Assert.Equal(0, completion.InputTokens);
     }
 
