@@ -45,6 +45,7 @@ public static class QueenZoneTelemetryServiceCollectionExtensions
             .WithTracing(tracing => HttpQueryValueRedactionProcessor.AddTo(tracing))
             .WithTracing(tracing => FastSqlSpanFilterProcessor.AddTo(
                 tracing, TimeSpan.FromMilliseconds(sqlSpanMinDurationMs)))
+            .WithTracing(tracing => SqlDependencyNameProcessor.AddTo(tracing))
             .ConfigureResource(resource => resource.AddService(
                 serviceName: "QueenZone.Web",
                 serviceNamespace: "QueenZone"))
