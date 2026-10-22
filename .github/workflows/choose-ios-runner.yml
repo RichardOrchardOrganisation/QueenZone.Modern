@@ -1,0 +1,60 @@
+# Shared idle-Mac probe for unsigned iOS jobs (issue #893).
+# Callers set runs-on from outputs.runs_on. Fail open to macos-26.
+name: Choose iOS runner
+
+on:
+  workflow_call:
+    inputs:
+      force_hosted:
+        description: Force GitHub-hosted macos-26 even when the Mac is idle
+        type: boolean
+        required: false
+        default: false
+      mac_claimed_by_sibling:
+        description: Treat the Mac as unavailable because a sibling job will use it
+        type: boolean
+        required: false
+        default: false
+    outputs:
+      runs_on:
+        description: JSON array for runs-on (hosted macos-26 or self-hosted ios-build)
+        value: ${{ jobs.pick.outputs.runs_on }}
+      runs_on_secondary:
+        description: JSON array for a second iOS job in the same run (always hosted when primary took the Mac)
+        value: ${{ jobs.pick.outputs.runs_on_secondary }}
+      runner_class:
+        description: Human-readable runner class written to the job summary
+        value: ${{ jobs.pick.outputs.runner_class }}
+
+permissions:
+  contents: read
+
+jobs:
+  pick:
+    name: Prefer an idle iOS build runner
+    runs-on: ubuntu-latest
+    outputs:
+      runs_on: ${{ steps.pick.outputs.runs_on }}
+      runs_on_secondary: ${{ steps.pick.outputs.runs_on_secondary }}
+      runner_class: ${{ steps.pick.outputs.runner_class }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch runner-list token
+        id: bitwarden-secrets
+        continue-on-error: true
+        uses: bitwarden/sm-action@1238aae8fc64b212641190a9227c8a734ab1a793 # v3.0.1
+        with:
+          access_token: ${{ secrets.BITWARDEN_SECRETS_MANAGER_ACCESS_TOKEN }}
+          secrets: ${{ vars.BITWARDEN_IOS_RUNNER_SECRETS }}
+
+      - name: Prefer an idle iOS build runner
+        id: pick
+        env:
+          GH_TOKEN: ${{ steps.bitwarden-secrets.outputs.IOS_RUNNER_ADMIN_TOKEN }}
+          FORCE_HOSTED: ${{ inputs.force_hosted }}
+          MAC_CLAIMED_BY_SIBLING: ${{ inputs.mac_claimed_by_sibling }}
+        run: bash ./scripts/choose-ios-runner.sh

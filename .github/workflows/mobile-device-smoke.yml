@@ -40,6 +40,11 @@ on:
         required: false
         type: boolean
         default: false
+      force_hosted_ios:
+        description: "Force iOS jobs onto GitHub-hosted macos-26 even when the Mac is idle"
+        required: false
+        type: boolean
+        default: false
   schedule:
     # After nightly-legacy-checks (03:00 UTC). Weekdays only for Phase 1 soak.
     - cron: "0 4 * * 1-5"
@@ -343,14 +348,32 @@ jobs:
           fi
           exit 1
 
+  # Same idle-Mac probe as ci.yml. Sibling Android-on-Mac jobs claim the Mini
+  # so iOS goes to hosted macos-26 instead of queueing behind the emulator.
+  choose-ios-runner:
+    name: Choose iOS runner
+    if: >-
+      github.event_name == 'schedule'
+      || (github.event_name == 'workflow_dispatch'
+        && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
+    uses: ./.github/workflows/choose-ios-runner.yml
+    with:
+      force_hosted: ${{ github.event.inputs.force_hosted_ios == 'true' }}
+      mac_claimed_by_sibling: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof' || github.event.inputs.suite == 'release') && (github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both')) }}
+    secrets: inherit
+
   mobile-ios-smoke:
     name: Mobile iOS device smoke
+    needs: choose-ios-runner
     if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5')
-      || (github.event_name == 'workflow_dispatch'
-        && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
-        && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
-    runs-on: macos-26
+      needs.choose-ios-runner.result == 'success'
+      && (
+        (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5')
+        || (github.event_name == 'workflow_dispatch'
+          && (github.event.inputs.suite == 'smoke' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
+          && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
+      )
+    runs-on: ${{ fromJSON(needs.choose-ios-runner.outputs.runs_on) }}
     timeout-minutes: 90
     defaults:
       run:
@@ -359,18 +382,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Configure self-hosted tool paths
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/sbin" >> "$GITHUB_PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+
       - name: Select latest available Xcode
         working-directory: .
-        run: |
-          ls /Applications | grep -i Xcode
-          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -z "$LATEST" ]; then
-            echo "::error::No /Applications/Xcode_*.app found on this runner."
-            exit 1
-          fi
-          echo "Selecting $LATEST"
-          sudo xcode-select -s "$LATEST/Contents/Developer"
-          xcodebuild -version
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash ./scripts/select-ios-ci-xcode.sh
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -391,10 +414,21 @@ jobs:
       - name: Install mobile JS
         run: npm ci
 
+      - name: Verify self-hosted CocoaPods
+        if: runner.environment == 'self-hosted'
+        run: |
+          if ! command -v pod >/dev/null; then
+            echo "::error::CocoaPods is not available to the runner service. Install it with Homebrew and ensure /opt/homebrew/bin is on PATH."
+            exit 1
+          fi
+          pod --version
+
       - name: Cache CocoaPods
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/Library/Caches/CocoaPods
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
           key: cocoapods-smoke-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
             cocoapods-smoke-${{ runner.os }}-
@@ -419,6 +453,8 @@ jobs:
         run: |
           npx expo prebuild --platform ios --clean
           cd ios
+          DERIVED="build-${GITHUB_JOB}-${GITHUB_RUN_ID}"
+          echo "IOS_DERIVED_DATA=${PWD}/${DERIVED}" >> "$GITHUB_ENV"
           WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           xcodebuild \
@@ -426,7 +462,7 @@ jobs:
             -scheme "$SCHEME" \
             -sdk iphonesimulator \
             -configuration Release \
-            -derivedDataPath build \
+            -derivedDataPath "$DERIVED" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -443,19 +479,9 @@ jobs:
           fi
           maestro --version
 
-      - name: Boot iPhone Simulator
+      - name: Create job iPhone Simulator
         working-directory: .
-        run: |
-          UDID=$(xcrun simctl list devices available | grep iPhone | grep -oE '[0-9A-F-]{36}' | head -n 1)
-          if [ -z "$UDID" ]; then
-            echo "::error::No available iPhone Simulator runtime."
-            xcrun simctl list devices
-            exit 1
-          fi
-          echo "Booting $UDID"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          echo "IOS_SIM_UDID=$UDID" >> "$GITHUB_ENV"
+        run: bash ./scripts/ios-ci-simulator.sh create
 
       - name: Run iOS device smoke
         working-directory: .
@@ -471,7 +497,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          APP=$(ls -d src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
+          APP=$(ls -d "$IOS_DERIVED_DATA/Build/Products/Release-iphonesimulator/"*.app | head -n 1)
           EXTRA=""
           if [ "$SUITE" = "proof" ]; then
             EXTRA="--suite proof --feature $FEATURE"
@@ -483,6 +509,32 @@ jobs:
             --app "$APP" \
             $PROVE \
             $EXTRA
+
+      - name: Delete job iPhone Simulator
+        if: always()
+        working-directory: .
+        run: bash ./scripts/ios-ci-simulator.sh cleanup
+
+      - name: Delete job DerivedData
+        if: always()
+        working-directory: .
+        run: |
+          if [ -n "${IOS_DERIVED_DATA:-}" ] && [ -d "$IOS_DERIVED_DATA" ]; then
+            rm -rf "$IOS_DERIVED_DATA"
+          fi
+
+      - name: Record selected runner
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
+          RUNNER_CLASS: ${{ needs.choose-ios-runner.outputs.runner_class }}
+        run: |
+          echo "### Mobile iOS device smoke runner" >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected: **${RUNNER_CLASS}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runner: \`${RUNNER_NAME}\` (\`${RUNNER_OS_NAME}\` / \`${RUNNER_ARCH_NAME}\`)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Package iOS evidence for PR gate
         if: success() && github.event.inputs.suite == 'proof'
@@ -963,14 +1015,18 @@ jobs:
 
   mobile-ios-journeys:
     name: Mobile iOS extended device suite
+    needs: choose-ios-runner
     if: >-
-      (github.event_name == 'schedule' && github.event.schedule == '0 16 * * 1-5')
-      || (github.event_name == 'workflow_dispatch'
-        && (github.event.inputs.suite == 'journeys'
-          || github.event.inputs.suite == 'release'
-          || github.event.inputs.suite == 'both')
-        && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
-    runs-on: macos-26
+      needs.choose-ios-runner.result == 'success'
+      && (
+        (github.event_name == 'schedule' && github.event.schedule == '0 16 * * 1-5')
+        || (github.event_name == 'workflow_dispatch'
+          && (github.event.inputs.suite == 'journeys'
+            || github.event.inputs.suite == 'release'
+            || github.event.inputs.suite == 'both')
+          && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
+      )
+    runs-on: ${{ fromJSON(github.event.inputs.suite == 'both' && needs.choose-ios-runner.outputs.runs_on_secondary || needs.choose-ios-runner.outputs.runs_on) }}
     timeout-minutes: 90
     defaults:
       run:
@@ -979,18 +1035,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Configure self-hosted tool paths
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "/opt/homebrew/sbin" >> "$GITHUB_PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+
       - name: Select latest available Xcode
         working-directory: .
-        run: |
-          ls /Applications | grep -i Xcode
-          LATEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -z "$LATEST" ]; then
-            echo "::error::No /Applications/Xcode_*.app found on this runner."
-            exit 1
-          fi
-          echo "Selecting $LATEST"
-          sudo xcode-select -s "$LATEST/Contents/Developer"
-          xcodebuild -version
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: bash ./scripts/select-ios-ci-xcode.sh
 
       - name: Setup .NET
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
@@ -1011,10 +1067,21 @@ jobs:
       - name: Install mobile JS
         run: npm ci
 
+      - name: Verify self-hosted CocoaPods
+        if: runner.environment == 'self-hosted'
+        run: |
+          if ! command -v pod >/dev/null; then
+            echo "::error::CocoaPods is not available to the runner service. Install it with Homebrew and ensure /opt/homebrew/bin is on PATH."
+            exit 1
+          fi
+          pod --version
+
       - name: Cache CocoaPods
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/Library/Caches/CocoaPods
+          path: |
+            ~/Library/Caches/CocoaPods
+            ~/Library/Caches/sentry-react-native
           key: cocoapods-smoke-${{ runner.os }}-${{ hashFiles('src/QueenZone.Mobile/package-lock.json') }}
           restore-keys: |
             cocoapods-smoke-${{ runner.os }}-
@@ -1039,6 +1106,8 @@ jobs:
         run: |
           npx expo prebuild --platform ios --clean
           cd ios
+          DERIVED="build-${GITHUB_JOB}-${GITHUB_RUN_ID}"
+          echo "IOS_DERIVED_DATA=${PWD}/${DERIVED}" >> "$GITHUB_ENV"
           WORKSPACE=$(ls -d ./*.xcworkspace | head -n 1)
           SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           xcodebuild \
@@ -1046,7 +1115,7 @@ jobs:
             -scheme "$SCHEME" \
             -sdk iphonesimulator \
             -configuration Release \
-            -derivedDataPath build \
+            -derivedDataPath "$DERIVED" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -1063,19 +1132,9 @@ jobs:
           fi
           maestro --version
 
-      - name: Boot iPhone Simulator
+      - name: Create job iPhone Simulator
         working-directory: .
-        run: |
-          UDID=$(xcrun simctl list devices available | grep iPhone | grep -oE '[0-9A-F-]{36}' | head -n 1)
-          if [ -z "$UDID" ]; then
-            echo "::error::No available iPhone Simulator runtime."
-            xcrun simctl list devices
-            exit 1
-          fi
-          echo "Booting $UDID"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          echo "IOS_SIM_UDID=$UDID" >> "$GITHUB_ENV"
+        run: bash ./scripts/ios-ci-simulator.sh create
 
       - name: Run iOS device journeys
         working-directory: .
@@ -1085,7 +1144,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          APP=$(ls -d src/QueenZone.Mobile/ios/build/Build/Products/Release-iphonesimulator/*.app | head -n 1)
+          APP=$(ls -d "$IOS_DERIVED_DATA/Build/Products/Release-iphonesimulator/"*.app | head -n 1)
           SUITE="journeys"
           if [ "$SUITE_INPUT" = "release" ]; then
             SUITE="release"
@@ -1096,6 +1155,32 @@ jobs:
             --skip-build \
             --no-build \
             --app "$APP"
+
+      - name: Delete job iPhone Simulator
+        if: always()
+        working-directory: .
+        run: bash ./scripts/ios-ci-simulator.sh cleanup
+
+      - name: Delete job DerivedData
+        if: always()
+        working-directory: .
+        run: |
+          if [ -n "${IOS_DERIVED_DATA:-}" ] && [ -d "$IOS_DERIVED_DATA" ]; then
+            rm -rf "$IOS_DERIVED_DATA"
+          fi
+
+      - name: Record selected runner
+        if: always()
+        working-directory: ${{ github.workspace }}
+        env:
+          RUNNER_NAME: ${{ runner.name }}
+          RUNNER_OS_NAME: ${{ runner.os }}
+          RUNNER_ARCH_NAME: ${{ runner.arch }}
+          RUNNER_CLASS: ${{ needs.choose-ios-runner.outputs.runner_class }}
+        run: |
+          echo "### Mobile iOS journeys runner" >> "$GITHUB_STEP_SUMMARY"
+          echo "Selected: **${RUNNER_CLASS}**" >> "$GITHUB_STEP_SUMMARY"
+          echo "Runner: \`${RUNNER_NAME}\` (\`${RUNNER_OS_NAME}\` / \`${RUNNER_ARCH_NAME}\`)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload iOS journeys diagnostics
         if: failure()
