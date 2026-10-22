@@ -253,8 +253,11 @@ public sealed class ForumTodayCountSqlServerTests(ITestOutputHelper output) : IA
             ((string?)range.Attribute("ScanType") is "GE" or "GT" or "LE" or "LT" or "EQ") &&
             range.Elements(ns + "RangeColumns").Descendants(ns + "ColumnReference")
                 .Any(column => (string?)column.Attribute("Column") == "PostedAt") &&
-            range.Elements(ns + "RangeExpressions").Descendants(ns + "ColumnReference")
-                .Any(column => ((string?)column.Attribute("Column"))?.StartsWith('@') == true)) == true;
+            // RECOMPILE embeds the parameter value, so the range bound may be a Const.
+            (range.Elements(ns + "RangeExpressions").Descendants(ns + "ColumnReference")
+                .Any(column => ((string?)column.Attribute("Column"))?.StartsWith('@') == true)
+             || range.Elements(ns + "RangeExpressions").Descendants(ns + "Const")
+                .Any(value => (string?)value.Attribute("ConstValue") != "NULL"))) == true;
 
     private static bool HasPostedAtNotNullRange(XElement? seek, XNamespace ns) =>
         seek?.Descendants(ns + "StartRange").Any(range =>
