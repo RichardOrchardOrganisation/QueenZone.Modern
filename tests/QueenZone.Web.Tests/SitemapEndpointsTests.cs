@@ -15,6 +15,17 @@ public sealed class SitemapEndpointsTests : IClassFixture<QueenZoneWebApplicatio
     }
 
     [Fact]
+    public async Task ForumSitemap_CapsPublicCacheControlAtOneHour()
+    {
+        var client = factory.CreateClient();
+        var response = await client.GetAsync("/sitemap-forum-1.xml");
+
+        response.EnsureSuccessStatusCode();
+        Assert.True(response.Headers.CacheControl?.Public);
+        Assert.Equal(TimeSpan.FromHours(1), response.Headers.CacheControl?.MaxAge);
+    }
+
+    [Fact]
     public async Task RobotsTxt_ReferencesProductionSitemapAndBlocksAdmin()
     {
         var client = factory.CreateClient();

@@ -31,6 +31,40 @@ public sealed class ModernForumRepositorySqlServerTests : IAsyncLifetime
     public Task DisposeAsync() => database.DisposeAsync();
 
     [Fact]
+    public async Task Sitemap_only_lists_resolvable_topics_and_counts_live_visibility()
+    {
+        await database.SeedCategoryAsync(1, 10, "General", sortOrder: 1);
+        await database.SeedCategoryAsync(2, 0, "Invalid forum", sortOrder: 2);
+        await database.SeedThreadAsync(100, 1000, 10, 1, "Visible", "Brian");
+        await database.SeedThreadAsync(101, 1001, 10, 1, "Hidden", "Brian", isHidden: true);
+        // Model the orphan rows possible in imported legacy projections.
+        await database.ExecuteAsync("ALTER TABLE dbo.ModernForumThread NOCHECK CONSTRAINT FK_ModernForumThread_Category;");
+        await database.SeedThreadAsync(102, 1002, 10, 999, "Uncategorised", "Brian");
+        await database.SeedThreadAsync(103, 1003, 0, 1, "Zero forum", "Brian");
+        await database.SeedThreadAsync(104, 1004, -1, 1, "Negative forum", "Brian");
+        await database.SeedThreadAsync(105, 1005, 10, 1, "   ", "Brian");
+        await database.SeedThreadAsync(106, 1006, 10, 2, "Invalid category forum", "Brian");
+        await database.SeedArchiveStatsAsync(totalThreads: 99, sitemapTopicCount: 99);
+
+        var page = await repository.GetTopicSitemapPageAsync(0, 100);
+        Assert.Equal(1000, Assert.Single(page).TopicId);
+        Assert.Equal(page.Count, await repository.GetTopicSitemapCountAsync());
+        foreach (var topic in page)
+        {
+            var resolved = await repository.GetTopicPostsPageAsync(topic.TopicId, 1, 10);
+            Assert.NotNull(resolved);
+            Assert.Equal(topic.Title, resolved.Header.Title);
+        }
+
+        await database.ExecuteAsync("UPDATE dbo.ModernForumThread SET IsHidden = 1 WHERE Id = 100;");
+        Assert.Empty(await repository.GetTopicSitemapPageAsync(0, 100));
+        Assert.Equal(0, await repository.GetTopicSitemapCountAsync());
+        await database.ExecuteAsync("UPDATE dbo.ModernForumThread SET IsHidden = 0 WHERE Id = 100;");
+        Assert.Single(await repository.GetTopicSitemapPageAsync(0, 100));
+        Assert.Equal(1, await repository.GetTopicSitemapCountAsync());
+    }
+
+    [Fact]
     public void Search_procedure_preserves_fulltext_sources_and_visibility_filters()
     {
         var sql = ModernForumSqlServerSchema.SearchProcedureSql();

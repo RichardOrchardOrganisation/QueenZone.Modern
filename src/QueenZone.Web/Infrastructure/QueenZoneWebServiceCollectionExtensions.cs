@@ -326,6 +326,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<ArticleSitemapEntriesBuilder>();
         services.AddScoped<CoreSitemapBuilder>();
         services.AddScoped<CoreSitemapService>();
+        services.AddScoped<ICoreSitemapService>(provider => provider.GetRequiredService<CoreSitemapService>());
         services.AddScoped<ForumSitemapBuilder>();
         services.AddScoped<SitemapIndexBuilder>();
         return services;

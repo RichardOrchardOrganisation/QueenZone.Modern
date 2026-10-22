@@ -1,12 +1,14 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
+using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web;
 
 public sealed partial class ForumPostModerationService(
     MemberAccountService memberAccountService,
     IForumWriteRepository forumWriteRepository,
+    ICoreSitemapService coreSitemapService,
     TimeProvider timeProvider,
     ILogger<ForumPostWriteService> logger)
 {
@@ -73,6 +75,7 @@ public sealed partial class ForumPostModerationService(
 
         await forumWriteRepository.HideAuthorForumContentAsync(
             memberId, suspended.DisplayName, cancellationToken);
+        await coreSitemapService.InvalidateAsync(cancellationToken);
         Log.AutoSuspendedMember(
             logger,
             memberId,

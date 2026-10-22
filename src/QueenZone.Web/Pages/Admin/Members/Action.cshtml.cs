@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using QueenZone.Data;
+using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web.Pages.Admin.Members;
 
 public sealed class ActionModel(
     IMemberAccountRepository memberAccountRepository,
     IForumWriteRepository forumWriteRepository,
+    ICoreSitemapService coreSitemapService,
     AdminMemberSuspendService adminMemberSuspendService) : AdminMembersPageModel
 {
     [BindProperty]
@@ -41,6 +43,7 @@ public sealed class ActionModel(
         }
 
         await forumWriteRepository.UnhideAuthorForumContentAsync(id, updated.DisplayName, cancellationToken);
+        await coreSitemapService.InvalidateAsync(cancellationToken);
 
         return RedirectWithMessage(id, "Member reinstated and their forum posts restored.", "success");
     }
@@ -50,6 +53,7 @@ public sealed class ActionModel(
         var member = await memberAccountRepository.FindByIdAsync(id, cancellationToken);
         if (member is null) return NotFound();
         await forumWriteRepository.HideAuthorForumContentAsync(id, member.DisplayName, cancellationToken);
+        await coreSitemapService.InvalidateAsync(cancellationToken);
         return RedirectWithMessage(id, $"All forum content by {member.DisplayName} is hidden.", "success");
     }
 
@@ -58,6 +62,7 @@ public sealed class ActionModel(
         var member = await memberAccountRepository.FindByIdAsync(id, cancellationToken);
         if (member is null) return NotFound();
         await forumWriteRepository.UnhideAuthorForumContentAsync(id, member.DisplayName, cancellationToken);
+        await coreSitemapService.InvalidateAsync(cancellationToken);
         return RedirectWithMessage(id, $"All forum content by {member.DisplayName} is visible.", "success");
     }
 
