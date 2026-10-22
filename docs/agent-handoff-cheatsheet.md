@@ -155,6 +155,90 @@ WEBSITE_WARMUP_STATUSES=200
 
 Application logging should be enabled at Information level on the filesystem. If the stream is quiet, hit the failing route to generate entries.
 
+### Temporary Veronica access to production SCM
+
+`temp-veronica` is an existing operator rule on **queenzone-prod** in
+**Queenzone-RG**. It permits a short, explicitly approved diagnostic window from
+Veronica's fixed public IPv4; its normal state is **Deny**.
+
+| Setting | Required value |
+| --- | --- |
+| Endpoint | `queenzone-prod.scm.azurewebsites.net` (SCM/Kudu only) |
+| Rule name | `temp-veronica` |
+| Source | `103.94.49.172/32` |
+| Priority | `100` |
+| Normal action | `Deny` |
+| SCM default action | `Deny` |
+| SCM inherits main-site restrictions | `false` |
+
+The main site's Cloudflare allow rules and default Deny stay unchanged. Allowing
+this /32 does not remove SCM authentication; use the existing authorized Azure
+CLI session and keep tokens, credentials and raw logs out of output and commits.
+A valid CLI session with `Microsoft.Web/sites/config/write` can update the rule
+without a portal login, subject to current RBAC, policy and locks. Do not acquire
+broader permissions or work around a denied connection.
+
+For each window:
+
+1. Obtain explicit approval for temporary Allow and agree a short deadline and
+   cleanup owner. Approval for read-only logs does not authorize a mutating
+   reproduction. Coordinate with releases and OpenTofu applies, which also touch
+   SCM restrictions.
+2. Verify the current outbound IPv4 **from Veronica**, without changing its
+   network path, and compare it with the rule's /32:
+
+   ```powershell
+   (Invoke-RestMethod 'https://api.ipify.org?format=json').ip
+   ```
+
+   Stop if it differs; do not widen the range or silently substitute another IP.
+3. Read and retain the current restriction policy, including all main and SCM
+   rules, both defaults and inheritance:
+
+   ```powershell
+   az webapp config access-restriction show --name queenzone-prod --resource-group Queenzone-RG
+   ```
+
+   Require exactly one matching `temp-veronica` rule with the values above and
+   action Deny. Do not use `access-restriction add` as an upsert: it can append a
+   duplicate. Do not remove and recreate this named rule.
+4. Change only its action to Allow. The supported CLI approach is to freshly read
+   the policy, find the matching rule's current array index, then update that
+   field on the existing config resource:
+
+   ```powershell
+   $configId = '/subscriptions/610e3b3a-028d-4f1b-ac1d-a5567a4f8b9d/resourceGroups/Queenzone-RG/providers/Microsoft.Web/sites/queenzone-prod/config/web'
+   # $index must come from the freshly verified SCM rule list; never assume zero.
+   az resource update --ids $configId --set "properties.scmIpSecurityRestrictions[$index].action=Allow" --only-show-errors --output none
+   ```
+
+   Re-read the policy to confirm effective Allow and that every other rule,
+   priority, IP range, default and inheritance setting matches the baseline.
+   Check the command exit status; inspect uncertain outcomes before retrying.
+5. Inspect retained logs for the known time window first. Retention may not cover
+   the event, and live Log Stream does not recover missing historical logs. If a
+   live reproduction is separately approved, establish capture and report ready
+   before the operator performs the agreed single attempt. Preserve only a
+   minimal redacted excerpt: UTC time, status, error type/number and correlation
+   identifiers. Do not publish post contents or raw request/SQL parameters.
+6. Close capture and restore **the same rule to Deny immediately**, including on
+   errors, disconnects, cancellation or deadline expiry. Re-read the policy and
+   locate the rule again before restoring; another operation may have changed
+   its index. Use the same update command with `.action=Deny`. Re-read once more
+   and verify Deny, /32, priority, SCM independence, both defaults and unchanged
+   main rules. A stop marker or planned cleanup is not proof of restoration.
+   If cleanup fails, report the actual remaining state promptly; do not claim the
+   window is closed until verification succeeds.
+
+**OpenTofu ownership:** the rule was added manually and is not declared in
+`infra/modules/azure-web/main.tf`. That module declares separate SCM/default-Deny
+policy and does not ignore changes to the SCM rule list. Treat the named rule as
+unmanaged drift that a future apply may remove; inspect a refreshed plan rather
+than assuming it will survive. No IaC plan/apply is part of a diagnostic window.
+A persistent declaration of the closed Deny rule, or a different ownership
+policy, needs a separate reviewed infrastructure change. Do not use a broad
+ignore or change either default to Allow to retain operator access.
+
 ### Reproducing live database issues locally
 
 Use live legacy data locally only for production-only SQL, mapping, or data-shape debugging. Prefer an imported local SQL Server copy when you will run repeated checks.
