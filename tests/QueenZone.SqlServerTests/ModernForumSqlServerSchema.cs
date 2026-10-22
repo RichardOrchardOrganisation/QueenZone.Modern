@@ -232,7 +232,9 @@ public static class ModernForumSqlServerSchema
     public static string GetProcedureSql(string name) =>
         name == "ModernForum_GetTopicPostsPage"
             ? OptimizePublicReadQueries.TopicPostsProcedureSql
-            : new HideSuspendedMemberTopics().UpOperations
+            : (name is "ModernForum_GetTopicSitemapCount" or "ModernForum_GetTopicSitemapPage"
+                ? new AlignForumSitemapVisibility().UpOperations
+                : new HideSuspendedMemberTopics().UpOperations)
             .OfType<SqlOperation>()
             .Single(operation => operation.Sql.Contains(
                 $"CREATE OR ALTER PROCEDURE dbo.{name}",

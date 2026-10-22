@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
+using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web;
 
@@ -12,6 +13,7 @@ namespace QueenZone.Web;
 public sealed class AdminMemberSuspendService(
     IMemberAccountRepository memberAccountRepository,
     IForumWriteRepository forumWriteRepository,
+    ICoreSitemapService coreSitemapService,
     IMobileAuthGrantRepository mobileAuthGrantRepository,
     ILogger<AdminMemberSuspendService> logger,
     IServiceProvider? serviceProvider = null)
@@ -38,9 +40,10 @@ public sealed class AdminMemberSuspendService(
             return AdminMemberSuspendResult.NotFound();
         }
 
+        bool hiddenAndSuspended;
         try
         {
-            var hiddenAndSuspended = await QueenZoneDbTransactions.ExecuteAsync(
+            hiddenAndSuspended = await QueenZoneDbTransactions.ExecuteAsync(
                 serviceProvider,
                 async ct =>
                 {
@@ -52,11 +55,6 @@ public sealed class AdminMemberSuspendService(
                     return updated is not null;
                 },
                 cancellationToken);
-
-            if (!hiddenAndSuspended)
-            {
-                return AdminMemberSuspendResult.NotFound();
-            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException && SiteSearchSqlTimeout.IsCommandTimeout(ex))
         {
@@ -65,6 +63,12 @@ public sealed class AdminMemberSuspendService(
                 "Admin member suspend hide timed out for {MemberId}. Account left active.",
                 memberId);
             return AdminMemberSuspendResult.HideTimedOut();
+        }
+
+        await coreSitemapService.InvalidateAsync(cancellationToken);
+        if (!hiddenAndSuspended)
+        {
+            return AdminMemberSuspendResult.NotFound();
         }
 
         try

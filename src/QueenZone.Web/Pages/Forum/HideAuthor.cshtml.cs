@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
+using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web.Pages.Forum;
 
 public sealed class HideAuthorModel(
     IForumWriteRepository forumWriteRepository,
+    ICoreSitemapService coreSitemapService,
     IOptions<AdminOptions> adminOptions) : PageModel
 {
     public ForumEditablePost? Post { get; private set; }
@@ -44,6 +46,7 @@ public sealed class HideAuthorModel(
         if (post is null) return NotFound();
         await forumWriteRepository.HideAuthorForumContentAsync(
             post.AuthorMemberId, post.AuthorDisplayName, cancellationToken);
+        await coreSitemapService.InvalidateAsync(cancellationToken);
         return Redirect(ForumRoutes.GetTopicCanonicalPath(
             post.TopicId, NewsSlug.Slugify(post.TopicSubject)));
     }

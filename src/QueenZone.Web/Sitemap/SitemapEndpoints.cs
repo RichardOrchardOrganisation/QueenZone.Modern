@@ -40,11 +40,10 @@ public static class SitemapEndpoints
             int fileNumber,
             ForumSitemapBuilder builder,
             IOptions<SiteOptions> options,
-            IOptions<SitemapOptions> sitemapOptions,
             HttpContext httpContext,
             CancellationToken cancellationToken) =>
         {
-            ApplyPublicCacheHeader(httpContext, sitemapOptions.Value);
+            httpContext.Response.Headers.CacheControl = "public, max-age=3600";
 
             var entries = await builder.BuildFileAsync(fileNumber, cancellationToken);
             if (entries is null || entries.Count == 0)

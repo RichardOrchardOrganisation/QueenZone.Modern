@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
+using QueenZone.Web.Sitemap;
 
 namespace QueenZone.Web.Tests;
 
@@ -10,12 +11,14 @@ public sealed class AdminMemberSuspendServiceTests
     public async Task SuspendAsync_ReturnsNotFound_WhenMemberMissing()
     {
         var members = new InMemoryMemberAccountRepository();
-        var service = CreateService(members, new RecordingForumWriteRepository());
+        var sitemap = new RecordingSitemapService();
+        var service = CreateService(members, new RecordingForumWriteRepository(), sitemap: sitemap);
 
         var result = await service.SuspendAsync(
             Guid.NewGuid(), "Spam", "admin@example.com", DateTime.UtcNow);
 
         Assert.Equal(AdminMemberSuspendStatus.NotFound, result.Status);
+        Assert.Equal(0, sitemap.Invalidations);
     }
 
     [Fact]
@@ -67,12 +70,14 @@ public sealed class AdminMemberSuspendServiceTests
         var forum = new RecordingForumWriteRepository { HideException = timeout };
         var grants = new RecordingMobileAuthGrantRepository();
         var logger = new CollectingLogger<AdminMemberSuspendService>();
-        var service = CreateService(members, forum, grants, logger);
+        var sitemap = new RecordingSitemapService();
+        var service = CreateService(members, forum, grants, logger, sitemap);
 
         var result = await service.SuspendAsync(
             account.Id, "Spam", "admin@example.com", DateTime.UtcNow);
 
         Assert.Equal(AdminMemberSuspendStatus.HideTimedOut, result.Status);
+        Assert.Equal(0, sitemap.Invalidations);
         Assert.False((await members.FindByIdAsync(account.Id))!.IsSuspended);
         Assert.Equal(0, grants.RevokeCalls);
         var warning = Assert.Single(logger.Entries);
@@ -105,14 +110,47 @@ public sealed class AdminMemberSuspendServiceTests
         Assert.Contains("revoke failed", warning.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SuspendAsync_InvalidatesSitemapEvenWhenTokenRevocationFails(bool revokeFails)
+    {
+        var members = new InMemoryMemberAccountRepository();
+        var account = await SeedMemberAsync(members);
+        var sitemap = new RecordingSitemapService();
+        var grants = new RecordingMobileAuthGrantRepository
+        {
+            RevokeException = revokeFails ? new InvalidOperationException("unavailable") : null,
+        };
+        var service = CreateService(members, new RecordingForumWriteRepository(), grants, sitemap: sitemap);
+
+        var result = await service.SuspendAsync(account.Id, "Spam", "admin@example.com", DateTime.UtcNow);
+
+        Assert.Equal(revokeFails ? AdminMemberSuspendStatus.RevokeFailed : AdminMemberSuspendStatus.Succeeded, result.Status);
+        Assert.Equal(1, sitemap.Invalidations);
+    }
+
+    private sealed class RecordingSitemapService : ICoreSitemapService
+    {
+        public int Invalidations { get; private set; }
+
+        public Task InvalidateAsync(CancellationToken cancellationToken = default)
+        {
+            Invalidations++;
+            return Task.CompletedTask;
+        }
+    }
+
     private static AdminMemberSuspendService CreateService(
         IMemberAccountRepository members,
         IForumWriteRepository forum,
         IMobileAuthGrantRepository? grants = null,
-        ILogger<AdminMemberSuspendService>? logger = null) =>
+        ILogger<AdminMemberSuspendService>? logger = null,
+        RecordingSitemapService? sitemap = null) =>
         new(
             members,
             forum,
+            sitemap ?? new RecordingSitemapService(),
             grants ?? new RecordingMobileAuthGrantRepository(),
             logger ?? new CollectingLogger<AdminMemberSuspendService>());
 

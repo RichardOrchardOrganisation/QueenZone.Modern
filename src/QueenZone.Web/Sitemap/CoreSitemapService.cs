@@ -8,7 +8,7 @@ public sealed class CoreSitemapService(
     CoreSitemapBuilder builder,
     IMemoryCache cache,
     IOptions<SitemapOptions> options,
-    IOutputCacheStore outputCacheStore)
+    IOutputCacheStore outputCacheStore) : ICoreSitemapService
 {
     private const string CacheKeyPrefix = "sitemap-core.xml";
     private const string VersionKey = "sitemap-core.version";
