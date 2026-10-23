@@ -20,6 +20,9 @@ public sealed class InMemoryNewsDiscoveryRepository(SharedNewsDiscoveryStore sto
     public Task<int> UpsertSourceAsync(NewsDiscoverySourceDraft source, CancellationToken cancellationToken = default) =>
         Task.FromResult(store.UpsertSource(source));
 
+    public Task<int> MarkSourceFailedAsync(int sourceId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(store.MarkSourceFailed(sourceId));
+
     public Task MarkSourceFetchedAsync(int sourceId, DateTime fetchedAt, CancellationToken cancellationToken = default)
     {
         store.MarkSourceFetched(sourceId, fetchedAt);

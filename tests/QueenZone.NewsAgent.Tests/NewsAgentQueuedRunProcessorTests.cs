@@ -77,6 +77,28 @@ public sealed class NewsAgentQueuedRunProcessorTests
         Assert.Contains("candidate #9", request.Summary, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(1, 0, NewsAgentRunRequestStatus.Completed)]
+    [InlineData(2, 1, NewsAgentRunRequestStatus.Failed)]
+    public async Task RunOnce_persists_failure_details_even_when_run_completes(int failures, int exitCode, NewsAgentRunRequestStatus status)
+    {
+        var repository = CreateRepository();
+        await repository.QueueAsync(new NewsAgentRunRequestCreate("editor@example.com"));
+        var summary = CreateSummary(false) with
+        {
+            Discovery = new NewsDiscoveryRunResult(2, 0, 0, 0, 0, 0, failures, ["Queen Online: source unavailable"]),
+            ExitCode = exitCode
+        };
+        var processor = new NewsAgentQueuedRunProcessor(repository,
+            new FakeExecutor(new NewsAgentQueuedRunResult(exitCode, summary)),
+            CreateUrlIngestionService(), NullLogger<NewsAgentQueuedRunProcessor>.Instance);
+
+        Assert.Equal(exitCode, await processor.RunOnceAsync("news-pc"));
+        var request = Assert.Single(await repository.ListRecentAsync());
+        Assert.Equal(status, request.Status);
+        Assert.Contains("Queen Online: source unavailable", request.Summary ?? request.ErrorMessage, StringComparison.Ordinal);
+    }
+
     private static InMemoryNewsAgentRunRequestRepository CreateRepository() =>
         new(new SharedNewsAgentRunRequestStore());
 

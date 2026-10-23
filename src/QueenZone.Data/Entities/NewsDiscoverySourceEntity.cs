@@ -22,6 +22,8 @@ public sealed class NewsDiscoverySourceEntity
 
     public string? RelevanceKeywords { get; set; }
 
+    public int ConsecutiveFailureCount { get; set; }
+
     public DateTime? LastFetchedAt { get; set; }
 
     public DateTime CreatedAt { get; set; }

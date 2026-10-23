@@ -69,11 +69,11 @@ public sealed class NewsTriageService(
                         break;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 failures++;
                 errors.Add($"Candidate {candidate.Id}: {ex.Message}");
-                logger.LogError(ex, "Triage failed for candidate {CandidateId}.", candidate.Id);
+                logger.LogWarning(ex, "Triage failed for candidate {CandidateId}.", candidate.Id);
             }
         }
 
