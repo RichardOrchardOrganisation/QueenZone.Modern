@@ -4,6 +4,31 @@ $ErrorActionPreference = 'Stop'
 BeforeAll {
     . (Join-Path $PSScriptRoot 'NewsAgentVersion.ps1')
     $script:RunNewsAgent = Join-Path $PSScriptRoot 'Run-NewsAgent.ps1'
+
+    function script:New-NewsAgentFakeInstall {
+        param(
+            [string]$Root,
+            [string]$PointerName = 'current',
+            [string]$Script = @'
+#!/bin/sh
+echo worker-stdout
+printf '%s\n' "$@" > args.txt
+exit 0
+'@
+        )
+
+        New-Item -ItemType Directory -Path $Root -Force | Out-Null
+        $pointer = Join-Path $Root $PointerName
+        New-Item -ItemType Directory -Path $pointer -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $pointer 'version.txt') -Value 'v2026.10.22.1'
+        $worker = Join-Path $pointer 'QueenZone.NewsAgent.Worker.exe'
+        Set-Content -LiteralPath $worker -Value ($Script -replace "`r", '') -Encoding ascii
+        if (Get-Command chmod -ErrorAction SilentlyContinue) {
+            & chmod +x $worker
+        }
+
+        return $pointer
+    }
 }
 
 Describe 'QueenZone prod tag compare/select' {
@@ -96,6 +121,14 @@ Describe 'QueenZone prod tag compare/select' {
         }
     }
 
+    It 'strips a leading -- from worker arguments' {
+        (Get-NewsAgentWorkerArguments -Arguments @('--', 'process-news-requests', '--runner-id', 'glory11')) -join ' ' |
+            Should -Be 'process-news-requests --runner-id glory11'
+        (Get-NewsAgentWorkerArguments -Arguments @('discover-news', '--scheduled')) -join ' ' |
+            Should -Be 'discover-news --scheduled'
+        @(Get-NewsAgentWorkerArguments -Arguments @('--')).Count | Should -Be 0
+    }
+
     It 'returns only the child exit code when the child writes stdout' {
         $pwsh = (Get-Command pwsh).Source
         $code = Invoke-NewsAgentNativeCommand -FilePath $pwsh -ArgumentList @('-NoProfile', '-Command', 'Write-Output leaked-line; exit 3')
@@ -124,21 +157,52 @@ Describe 'QueenZone prod tag compare/select' {
 Describe 'Run-NewsAgent exit-code passthrough' {
     It 'exits 3 when the worker exits 3' {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
-        $current = Join-Path $root 'current'
-        New-Item -ItemType Directory -Path $current | Out-Null
         try {
-            Set-Content -LiteralPath (Join-Path $current 'version.txt') -Value 'v2026.10.22.1'
-            $worker = Join-Path $current 'QueenZone.NewsAgent.Worker.exe'
-            Set-Content -LiteralPath $worker -Value "#!/bin/sh`necho worker-stdout`nexit 3`n" -Encoding ascii
-            if (Get-Command chmod -ErrorAction SilentlyContinue) {
-                & chmod +x $worker
-            }
-
+            New-NewsAgentFakeInstall -Root $root -Script "#!/bin/sh`necho worker-stdout`nexit 3`n" | Out-Null
             & pwsh -NoProfile -File $script:RunNewsAgent -InstallRoot $root -SkipUpdate | Out-Host
             $LASTEXITCODE | Should -Be 3
         }
         finally {
-            Remove-Item -LiteralPath $root -Recurse -Force
+            if (Test-Path -LiteralPath $root) {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+}
+
+Describe 'Run-NewsAgent documented invocation' {
+    It 'accepts the ops-doc first-run arguments without a -- separator' {
+        $doc = Get-Content -LiteralPath (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'docs/ops/glory11-newsagent.md') -Raw
+        $doc | Should -Not -Match 'LoadProductionConnection[`\s]+--\s+(process-news-requests|discover-news)'
+
+        $root = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
+        try {
+            $current = New-NewsAgentFakeInstall -Root $root
+            & pwsh -NoProfile -File $script:RunNewsAgent -InstallRoot $root -SkipUpdate process-news-requests --runner-id glory11 | Out-Host
+            $LASTEXITCODE | Should -Be 0
+            Get-Content -LiteralPath (Join-Path $current 'args.txt') | Should -Be @('process-news-requests', '--runner-id', 'glory11')
+        }
+        finally {
+            if (Test-Path -LiteralPath $root) {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
+        }
+    }
+
+    It 'restores current.prev when current is missing' {
+        $root = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
+        try {
+            $prev = New-NewsAgentFakeInstall -Root $root -PointerName 'current.prev'
+            & pwsh -NoProfile -File $script:RunNewsAgent -InstallRoot $root -SkipUpdate process-news-requests --runner-id glory11 | Out-Host
+            $LASTEXITCODE | Should -Be 0
+            Test-Path -LiteralPath (Join-Path $root 'current') | Should -BeTrue
+            Test-Path -LiteralPath $prev | Should -BeFalse
+            Get-Content -LiteralPath (Join-Path (Join-Path $root 'current') 'args.txt') | Should -Be @('process-news-requests', '--runner-id', 'glory11')
+        }
+        finally {
+            if (Test-Path -LiteralPath $root) {
+                Remove-Item -LiteralPath $root -Recurse -Force
+            }
         }
     }
 }

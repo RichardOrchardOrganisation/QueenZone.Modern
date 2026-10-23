@@ -13,7 +13,7 @@
     Do not hard-code a token. Pass -GitHubToken or set GH_TOKEN / GITHUB_TOKEN.
 
 .EXAMPLE
-    .\scripts\glory11\Run-NewsAgent.ps1 -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection -- discover-news --scheduled
+    .\scripts\glory11\Run-NewsAgent.ps1 -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection discover-news --scheduled
 #>
 [CmdletBinding()]
 param(
@@ -129,7 +129,16 @@ function Set-NewsAgentCurrentPointer {
     }
     catch {
         if (Test-Path -LiteralPath $prevPath) {
-            Rename-Item -LiteralPath $prevPath -NewName 'current' -ErrorAction SilentlyContinue
+            try {
+                Rename-Item -LiteralPath $prevPath -NewName 'current'
+            }
+            catch {
+                Write-NewsAgentLog "WARNING: failed to roll current.prev back to current: $($_.Exception.Message)"
+            }
+
+            if (-not (Test-Path -LiteralPath $currentPath)) {
+                Write-NewsAgentLog 'WARNING: failed to roll current.prev back to current.'
+            }
         }
 
         Remove-NewsAgentPointer -Path $nextPath
@@ -311,13 +320,19 @@ if (-not (Test-Path -LiteralPath $InstallRoot)) {
 }
 $InstallRoot = (Resolve-Path -LiteralPath $InstallRoot).Path
 
-$runArguments = @()
-if ($WorkerArguments -and $WorkerArguments.Count -gt 0) {
-    $runArguments += $WorkerArguments
+$currentPath = Join-Path $InstallRoot 'current'
+$prevPath = Join-Path $InstallRoot 'current.prev'
+if (-not (Test-Path -LiteralPath $currentPath) -and (Test-Path -LiteralPath $prevPath)) {
+    try {
+        Rename-Item -LiteralPath $prevPath -NewName 'current'
+        Write-NewsAgentLog 'Restored current from current.prev after an interrupted swap.'
+    }
+    catch {
+        Write-NewsAgentLog "WARNING: failed to restore current.prev to current: $($_.Exception.Message)"
+    }
 }
-if ($RemainingArguments -and $RemainingArguments.Count -gt 0) {
-    $runArguments += $RemainingArguments
-}
+
+$runArguments = Get-NewsAgentWorkerArguments -Arguments (@($WorkerArguments) + @($RemainingArguments))
 
 if ($LoadProductionConnection) {
     $importScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'Import-NewsAgentProductionConnection.ps1'

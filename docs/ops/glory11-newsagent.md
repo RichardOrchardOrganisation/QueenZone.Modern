@@ -14,7 +14,7 @@ Pushing a `vYYYY.MM.DD.N` tag still creates the GitHub Release (issue #2379). Th
 newsagent-<tag>.zip
 ```
 
-The zip includes `version.txt` with that tag. Unreleased draft refreshes and notes backfills do **not** attach a zip.
+The zip includes `version.txt` with that tag. The publish step skips (exit 0) when the tag is not `vYYYY.MM.DD.N`; the GitHub Release notes may already exist. Upload does not use `--clobber`, so a rerun of the notes job on a tag that already has the zip fails with "asset already exists". That is intended. Unreleased draft refreshes and notes backfills do **not** attach a zip.
 
 Until the next prod tag after this lands, attach a zip by hand from the tagged commit:
 
@@ -54,7 +54,7 @@ $env:GH_TOKEN = [Environment]::GetEnvironmentVariable('GH_TOKEN', 'User')
 pwsh -NoProfile -File C:\path\to\QueenZone.Modern\scripts\glory11\Run-NewsAgent.ps1 `
   -InstallRoot C:\QueenZone\NewsAgent `
   -LoadProductionConnection `
-  -- process-news-requests --runner-id glory11
+  process-news-requests --runner-id glory11
 ```
 
 Windows PowerShell 5.1 is also supported (`powershell.exe`). Confirm `current\version.txt` matches the latest prod tag and `newsagent.log` records that version plus the exit code.
@@ -66,13 +66,13 @@ The current task still runs `scripts/Run-NewsAgentDiscovery.ps1` from a stale ch
 **Gathering** (example, keep the existing 6-hour trigger):
 
 - Program: `powershell.exe`
-- Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\QueenZone.Modern\scripts\glory11\Run-NewsAgent.ps1" -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection -- discover-news --scheduled`
+- Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\QueenZone.Modern\scripts\glory11\Run-NewsAgent.ps1" -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection discover-news --scheduled`
 - Start in: `C:\QueenZone\NewsAgent`
 
 **Queued requests** (example, keep the existing hourly trigger):
 
 - Program: `powershell.exe`
-- Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\QueenZone.Modern\scripts\glory11\Run-NewsAgent.ps1" -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection -- process-news-requests --runner-id glory11`
+- Arguments: `-NoProfile -ExecutionPolicy Bypass -File "C:\path\to\QueenZone.Modern\scripts\glory11\Run-NewsAgent.ps1" -InstallRoot C:\QueenZone\NewsAgent -LoadProductionConnection process-news-requests --runner-id glory11`
 - Start in: `C:\QueenZone\NewsAgent`
 
 The wrapper:
@@ -83,12 +83,10 @@ The wrapper:
 - Copies `appsettings.Local.json` from the install root into the version directory.
 - Logs the version and worker exit code on every run, and returns that exit code.
 
-Older zips stay under `versions\`. To pin an older build, retarget `current` at that folder and write the tag into `current.txt`.
-
 ## Follow-up
 
 Not in this change:
 
 - A `.sha256` asset or `actions/attest-build-provenance` for the zip
 - Pin the publish SDK with `global.json` (upload no longer uses `--clobber`)
-- A real pin switch so the next run does not replace an intentionally older `current`
+- A real pin switch so an older `current` is not replaced on the next run (do not retarget `current` by hand; the next run reinstalls the latest prod tag)

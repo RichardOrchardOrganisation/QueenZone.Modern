@@ -65,6 +65,27 @@ function Resolve-NewsAgentDownloadedZip {
     throw "Downloaded release is missing $AssetName."
 }
 
+function Get-NewsAgentWorkerArguments {
+    param(
+        [string[]]$Arguments
+    )
+
+    $list = @()
+    if ($Arguments) {
+        $list = @($Arguments)
+    }
+
+    if ($list.Count -gt 0 -and $list[0] -eq '--') {
+        if ($list.Count -eq 1) {
+            return @()
+        }
+
+        return @($list[1..($list.Count - 1)])
+    }
+
+    return $list
+}
+
 function Invoke-NewsAgentNativeCommand {
     param(
         [Parameter(Mandatory = $true)]
