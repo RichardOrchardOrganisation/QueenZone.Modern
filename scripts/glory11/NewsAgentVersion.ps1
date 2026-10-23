@@ -49,6 +49,41 @@ function Get-NewsAgentAssetName {
     return "newsagent-$Tag.zip"
 }
 
+function Resolve-NewsAgentDownloadedZip {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Directory,
+        [Parameter(Mandatory = $true)]
+        [string]$AssetName
+    )
+
+    $path = Join-Path $Directory $AssetName
+    if (Test-Path -LiteralPath $path) {
+        return $path
+    }
+
+    throw "Downloaded release is missing $AssetName."
+}
+
+function Invoke-NewsAgentNativeCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$FilePath,
+        [string[]]$ArgumentList = @()
+    )
+
+    if ($null -eq $ArgumentList) {
+        $ArgumentList = @()
+    }
+
+    & $FilePath @ArgumentList | Out-Host
+    if ($null -eq $LASTEXITCODE) {
+        return 0
+    }
+
+    return [int]$LASTEXITCODE
+}
+
 function Test-NewsAgentNeedsUpdate {
     param(
         [AllowEmptyString()]
@@ -113,7 +148,12 @@ function Select-LatestQueenZoneProdRelease {
             $isDraft = [bool]$release.draft
         }
 
-        if ($isDraft -or -not (Test-QueenZoneProdTag -Name $tag)) {
+        $isPrerelease = $false
+        if ($release.PSObject.Properties['prerelease']) {
+            $isPrerelease = [bool]$release.prerelease
+        }
+
+        if ($isDraft -or $isPrerelease -or -not (Test-QueenZoneProdTag -Name $tag)) {
             continue
         }
 

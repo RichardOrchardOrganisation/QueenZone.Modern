@@ -29,7 +29,9 @@ param(
 
     [string]$Repository,
 
-    [switch]$LoadProductionConnection
+    [switch]$LoadProductionConnection,
+
+    [switch]$SkipUpdate
 )
 
 Set-StrictMode -Version Latest
@@ -69,6 +71,29 @@ function Copy-NewsAgentLocalConfig {
     Copy-Item -LiteralPath $source -Destination (Join-Path $VersionDirectory 'appsettings.Local.json') -Force
 }
 
+function Remove-NewsAgentPointer {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $item = Get-Item -LiteralPath $Path -Force
+    if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+        cmd /c rmdir "$Path"
+        if ($LASTEXITCODE -ne 0 -or (Test-Path -LiteralPath $Path)) {
+            throw "Failed to remove junction $Path (exit $LASTEXITCODE)."
+        }
+
+        return
+    }
+
+    Remove-Item -LiteralPath $Path -Recurse -Force
+}
+
 function Set-NewsAgentCurrentPointer {
     param(
         [Parameter(Mandatory = $true)]
@@ -78,17 +103,40 @@ function Set-NewsAgentCurrentPointer {
     )
 
     $currentPath = Join-Path $InstallRoot 'current'
+    $nextPath = Join-Path $InstallRoot 'current.next'
+    $prevPath = Join-Path $InstallRoot 'current.prev'
+    Remove-NewsAgentPointer -Path $nextPath
+    Remove-NewsAgentPointer -Path $prevPath
+
+    New-Item -ItemType Junction -Path $nextPath -Target $VersionDirectory | Out-Null
+    if (-not (Test-Path -LiteralPath $nextPath)) {
+        throw "Failed to create junction $nextPath."
+    }
+
     if (Test-Path -LiteralPath $currentPath) {
-        $item = Get-Item -LiteralPath $currentPath -Force
-        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-            cmd /c rmdir "$currentPath"
-        }
-        else {
-            Remove-Item -LiteralPath $currentPath -Recurse -Force
+        Rename-Item -LiteralPath $currentPath -NewName 'current.prev'
+        if (-not (Test-Path -LiteralPath $prevPath)) {
+            Remove-NewsAgentPointer -Path $nextPath
+            throw "Failed to retire $currentPath."
         }
     }
 
-    New-Item -ItemType Junction -Path $currentPath -Target $VersionDirectory | Out-Null
+    try {
+        Rename-Item -LiteralPath $nextPath -NewName 'current'
+        if (-not (Test-Path -LiteralPath $currentPath)) {
+            throw "Failed to promote $nextPath to current."
+        }
+    }
+    catch {
+        if (Test-Path -LiteralPath $prevPath) {
+            Rename-Item -LiteralPath $prevPath -NewName 'current' -ErrorAction SilentlyContinue
+        }
+
+        Remove-NewsAgentPointer -Path $nextPath
+        throw
+    }
+
+    Remove-NewsAgentPointer -Path $prevPath
     Set-Content -LiteralPath (Join-Path $InstallRoot 'current.txt') -Value $Tag
 }
 
@@ -148,22 +196,17 @@ function Save-NewsAgentReleaseZip {
         }
 
         $directory = Split-Path -Parent $ZipPath
-        & gh release download $tag --repo $Repo --pattern $assetName --dir $directory --clobber
+        & gh release download $tag --repo $Repo --pattern $assetName --dir $directory
         if ($LASTEXITCODE -ne 0) {
             throw "gh release download failed for $tag."
         }
 
-        if (Test-Path -LiteralPath $ZipPath) {
-            return
+        $downloaded = Resolve-NewsAgentDownloadedZip -Directory $directory -AssetName $assetName
+        if ($downloaded -cne $ZipPath) {
+            Move-Item -LiteralPath $downloaded -Destination $ZipPath -Force
         }
 
-        $found = Get-ChildItem -LiteralPath $directory -Filter '*.zip' | Select-Object -First 1
-        if ($found) {
-            Move-Item -LiteralPath $found.FullName -Destination $ZipPath -Force
-            return
-        }
-
-        throw "Downloaded release $tag but $assetName was not found."
+        return
     }
 
     if ([string]::IsNullOrWhiteSpace($resolved)) {
@@ -244,20 +287,19 @@ function Invoke-NewsAgentWorker {
     Push-Location $currentPath
     try {
         if (Test-Path -LiteralPath $exe) {
-            & $exe @Arguments
-        }
-        elseif (Test-Path -LiteralPath $dll) {
-            & dotnet $dll @Arguments
-        }
-        else {
-            throw 'QueenZone.NewsAgent.Worker.exe (or .dll) was not found in the current install.'
+            return Invoke-NewsAgentNativeCommand -FilePath $exe -ArgumentList $Arguments
         }
 
-        if ($null -eq $LASTEXITCODE) {
-            return 0
+        if (Test-Path -LiteralPath $dll) {
+            $dotnetArgs = @($dll)
+            if ($Arguments) {
+                $dotnetArgs += $Arguments
+            }
+
+            return Invoke-NewsAgentNativeCommand -FilePath 'dotnet' -ArgumentList $dotnetArgs
         }
 
-        return [int]$LASTEXITCODE
+        throw 'QueenZone.NewsAgent.Worker.exe (or .dll) was not found in the current install.'
     }
     finally {
         Pop-Location
@@ -282,29 +324,30 @@ if ($LoadProductionConnection) {
     & $importScript
 }
 
-$Repository = Resolve-QueenZoneRepository -Repository $Repository
-
 $installed = Get-InstalledNewsAgentVersion -InstallRoot $InstallRoot
-try {
-    $releases = Get-QueenZoneReleases -Repo $Repository -Token $GitHubToken
-    $latestRelease = Select-LatestQueenZoneProdRelease -Releases $releases
-    if ($null -eq $latestRelease) {
-        throw 'No GitHub Release with a prod tag vYYYY.MM.DD.N was found.'
-    }
+if (-not $SkipUpdate) {
+    $Repository = Resolve-QueenZoneRepository -Repository $Repository
+    try {
+        $releases = Get-QueenZoneReleases -Repo $Repository -Token $GitHubToken
+        $latestRelease = Select-LatestQueenZoneProdRelease -Releases $releases
+        if ($null -eq $latestRelease) {
+            throw 'No GitHub Release with a prod tag vYYYY.MM.DD.N was found.'
+        }
 
-    $latest = [string]$latestRelease.tag_name
-    if (Test-NewsAgentNeedsUpdate -InstalledVersion $installed -LatestVersion $latest) {
-        Install-NewsAgentVersion -Release $latestRelease -Repo $Repository -Token $GitHubToken
-        $installed = $latest
+        $latest = [string]$latestRelease.tag_name
+        if (Test-NewsAgentNeedsUpdate -InstalledVersion $installed -LatestVersion $latest) {
+            Install-NewsAgentVersion -Release $latestRelease -Repo $Repository -Token $GitHubToken
+            $installed = $latest
+        }
+        else {
+            Write-NewsAgentLog "News Agent $installed is already current."
+            Copy-NewsAgentLocalConfig -VersionDirectory (Join-Path $InstallRoot 'current')
+        }
     }
-    else {
-        Write-NewsAgentLog "News Agent $installed is already current."
-        Copy-NewsAgentLocalConfig -VersionDirectory (Join-Path $InstallRoot 'current')
+    catch {
+        Write-Warning "News Agent download/update failed: $($_.Exception.Message). Using the installed version."
+        Write-NewsAgentLog "WARNING: update failed ($($_.Exception.Message)); using installed $installed."
     }
-}
-catch {
-    Write-Warning "News Agent download/update failed: $($_.Exception.Message). Using the installed version."
-    Write-NewsAgentLog "WARNING: update failed ($($_.Exception.Message)); using installed $installed."
 }
 
 if ([string]::IsNullOrWhiteSpace($installed)) {

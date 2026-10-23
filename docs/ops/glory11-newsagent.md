@@ -77,10 +77,18 @@ The current task still runs `scripts/Run-NewsAgentDiscovery.ps1` from a stale ch
 
 The wrapper:
 
-- Selects the newest **published** release whose tag matches `vYYYY.MM.DD.N` (not `unreleased`, not `main`).
+- Selects the newest **published** release whose tag matches `vYYYY.MM.DD.N` (not drafts, prereleases, `unreleased`, or `main`).
 - Downloads only when that tag differs from `current\version.txt`.
 - On download failure, logs a warning and runs the already-installed version.
 - Copies `appsettings.Local.json` from the install root into the version directory.
 - Logs the version and worker exit code on every run, and returns that exit code.
 
 Older zips stay under `versions\`. To pin an older build, retarget `current` at that folder and write the tag into `current.txt`.
+
+## Follow-up
+
+Not in this change:
+
+- A `.sha256` asset or `actions/attest-build-provenance` for the zip
+- Pin the publish SDK with `global.json` (upload no longer uses `--clobber`)
+- A real pin switch so the next run does not replace an intentionally older `current`

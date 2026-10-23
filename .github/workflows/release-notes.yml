@@ -73,6 +73,10 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF#refs/tags/}"
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$'; then
+            echo "Skipping News Agent zip; $TAG is not a prod tag vYYYY.MM.DD.N."
+            exit 0
+          fi
           PUBLISH_DIR="${RUNNER_TEMP}/newsagent-publish"
           ZIP_PATH="${RUNNER_TEMP}/newsagent-${TAG}.zip"
           rm -rf "$PUBLISH_DIR"
@@ -85,4 +89,4 @@ jobs:
           printf '%s\n' "$TAG" > "$PUBLISH_DIR/version.txt"
           rm -f "$ZIP_PATH"
           (cd "$PUBLISH_DIR" && zip -r "$ZIP_PATH" .)
-          gh release upload "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY"
