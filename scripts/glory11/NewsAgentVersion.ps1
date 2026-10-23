@@ -1,0 +1,170 @@
+#Requires -Version 5.1
+# Version-compare and select helpers for the Glory11 News Agent wrapper (#2386).
+# Prod tags match scripts/release/generate-notes.mjs (vYYYY.MM.DD.N).
+
+Set-StrictMode -Version Latest
+
+$script:QueenZoneProdTagPattern = '^v(\d{4})\.(\d{2})\.(\d{2})\.(\d+)$'
+
+function Test-QueenZoneProdTag {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Name
+    )
+
+    return [bool][regex]::IsMatch($Name, $script:QueenZoneProdTagPattern)
+}
+
+function Compare-QueenZoneProdTag {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Left,
+        [Parameter(Mandatory = $true)]
+        [string]$Right
+    )
+
+    $leftMatch = [regex]::Match($Left, $script:QueenZoneProdTagPattern)
+    $rightMatch = [regex]::Match($Right, $script:QueenZoneProdTagPattern)
+    if (-not $leftMatch.Success -or -not $rightMatch.Success) {
+        throw "Compare-QueenZoneProdTag requires prod tags vYYYY.MM.DD.N, got '$Left' and '$Right'."
+    }
+
+    foreach ($index in 1..4) {
+        $delta = [int]$leftMatch.Groups[$index].Value - [int]$rightMatch.Groups[$index].Value
+        if ($delta -ne 0) {
+            return $delta
+        }
+    }
+
+    return 0
+}
+
+function Get-NewsAgentAssetName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Tag
+    )
+
+    return "newsagent-$Tag.zip"
+}
+
+function Test-NewsAgentNeedsUpdate {
+    param(
+        [AllowEmptyString()]
+        [string]$InstalledVersion,
+        [Parameter(Mandatory = $true)]
+        [string]$LatestVersion
+    )
+
+    if ([string]::IsNullOrWhiteSpace($InstalledVersion)) {
+        return $true
+    }
+
+    return $InstalledVersion.Trim() -cne $LatestVersion.Trim()
+}
+
+function Get-InstalledNewsAgentVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot
+    )
+
+    $currentVersion = Join-Path (Join-Path $InstallRoot 'current') 'version.txt'
+    $pointerFile = Join-Path $InstallRoot 'current.txt'
+    foreach ($path in @($currentVersion, $pointerFile)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        $raw = Get-Content -LiteralPath $path -TotalCount 1
+        if ($null -eq $raw) {
+            continue
+        }
+
+        $value = ([string]$raw).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($value)) {
+            return $value
+        }
+    }
+
+    return $null
+}
+
+function Select-LatestQueenZoneProdRelease {
+    param(
+        [AllowEmptyCollection()]
+        [object[]]$Releases
+    )
+
+    $latest = $null
+    foreach ($release in @($Releases)) {
+        if ($null -eq $release) {
+            continue
+        }
+
+        $tag = ''
+        if ($release.PSObject.Properties['tag_name'] -and $release.tag_name) {
+            $tag = [string]$release.tag_name
+        }
+
+        $isDraft = $false
+        if ($release.PSObject.Properties['draft']) {
+            $isDraft = [bool]$release.draft
+        }
+
+        if ($isDraft -or -not (Test-QueenZoneProdTag -Name $tag)) {
+            continue
+        }
+
+        if ($null -eq $latest -or (Compare-QueenZoneProdTag -Left $tag -Right ([string]$latest.tag_name)) -gt 0) {
+            $latest = $release
+        }
+    }
+
+    return $latest
+}
+
+function Resolve-QueenZoneRepository {
+    param(
+        [string]$Repository
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Repository)) {
+        return $Repository.Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_REPOSITORY)) {
+        return $env:GITHUB_REPOSITORY.Trim()
+    }
+
+    $gh = Get-Command gh -ErrorAction SilentlyContinue
+    if ($gh) {
+        $name = & gh repo view --json nameWithOwner --jq .nameWithOwner
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace([string]$name)) {
+            return ([string]$name).Trim()
+        }
+    }
+
+    throw 'Repository is required (-Repository or GITHUB_REPOSITORY, or run from a gh-authenticated clone).'
+}
+
+function Get-QueenZoneGitHubToken {
+    param(
+        [string]$Token
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Token)) {
+        return $Token
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+        return $env:GH_TOKEN
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
+        return $env:GITHUB_TOKEN
+    }
+
+    return $null
+}

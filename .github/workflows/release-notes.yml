@@ -1,5 +1,6 @@
-# Non-blocking release notes (issue #2379). Do not add this workflow to
-# deploy.yml, tip-gate, or CI `needs`, and do not make it a required check.
+# Non-blocking release notes (issue #2379) and the Glory11 News Agent zip
+# (issue #2386). Do not add this workflow to deploy.yml, tip-gate, or CI
+# `needs`, and do not make it a required check.
 name: Release notes
 
 on:
@@ -55,3 +56,33 @@ jobs:
           else
             node scripts/release/generate-notes.mjs publish
           fi
+
+      # Tag-push only: workflow_dispatch backfill checks out main, so a zip
+      # built there would not match the tag. QueenZone.NewsAgent is a library;
+      # publish the worker executable (framework-dependent win-x64).
+      - name: Setup .NET
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish and attach News Agent zip
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF#refs/tags/}"
+          PUBLISH_DIR="${RUNNER_TEMP}/newsagent-publish"
+          ZIP_PATH="${RUNNER_TEMP}/newsagent-${TAG}.zip"
+          rm -rf "$PUBLISH_DIR"
+          mkdir -p "$PUBLISH_DIR"
+          dotnet publish src/QueenZone.NewsAgent.Worker/QueenZone.NewsAgent.Worker.csproj \
+            --configuration Release \
+            --runtime win-x64 \
+            --self-contained false \
+            --output "$PUBLISH_DIR"
+          printf '%s\n' "$TAG" > "$PUBLISH_DIR/version.txt"
+          rm -f "$ZIP_PATH"
+          (cd "$PUBLISH_DIR" && zip -r "$ZIP_PATH" .)
+          gh release upload "$TAG" "$ZIP_PATH" --repo "$GITHUB_REPOSITORY" --clobber
