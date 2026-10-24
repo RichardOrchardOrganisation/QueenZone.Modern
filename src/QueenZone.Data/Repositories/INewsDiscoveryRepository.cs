@@ -10,6 +10,8 @@ public interface INewsDiscoveryRepository
 
     Task<int> UpsertSourceAsync(NewsDiscoverySourceDraft source, CancellationToken cancellationToken = default);
 
+    Task<int> MarkSourceFailedAsync(int sourceId, CancellationToken cancellationToken = default);
+
     Task MarkSourceFetchedAsync(int sourceId, DateTime fetchedAt, CancellationToken cancellationToken = default);
 
     Task<NewsCandidate?> GetCandidateByCanonicalUrlHashAsync(string canonicalUrlHash, CancellationToken cancellationToken = default);

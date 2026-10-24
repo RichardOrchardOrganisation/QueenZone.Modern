@@ -200,6 +200,9 @@ internal sealed class ConfigurableNewsDiscoveryRepository(INewsDiscoveryReposito
     public Task<int> UpsertSourceAsync(NewsDiscoverySourceDraft source, CancellationToken cancellationToken = default) =>
         inner.UpsertSourceAsync(source, cancellationToken);
 
+    public Task<int> MarkSourceFailedAsync(int sourceId, CancellationToken cancellationToken = default) =>
+        inner.MarkSourceFailedAsync(sourceId, cancellationToken);
+
     public Task MarkSourceFetchedAsync(int sourceId, DateTime fetchedAt, CancellationToken cancellationToken = default) =>
         inner.MarkSourceFetchedAsync(sourceId, fetchedAt, cancellationToken);
 

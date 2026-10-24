@@ -13,7 +13,13 @@ public sealed record NewsAgentRunSummary(
     decimal EstimatedAiSpendUsd,
     int ExitCode)
 {
+    public IReadOnlyList<string> StepErrors { get; init; } = [];
+
+    public IReadOnlyList<string> Errors =>
+        [.. Discovery?.Errors ?? [], .. Triage?.Errors ?? [], .. Draft?.Errors ?? [], .. StepErrors];
+
     public int TotalFailures =>
+        StepErrors.Count +
         (Discovery?.Failures ?? 0)
         + (Triage?.Failures ?? 0)
         + (Draft?.Failures ?? 0);
@@ -38,7 +44,7 @@ public static class NewsAgentRunTelemetry
             "News agent run completed. ExitCode={ExitCode} AiEnabled={AiEnabled} DryRun={DryRun} " +
             "SourcesChecked={SourcesChecked} CandidatesCreated={CandidatesCreated} " +
             "TriageConsidered={TriageConsidered} TriagePromoted={TriagePromoted} TriageRejected={TriageRejected} TriageDuplicates={TriageDuplicates} " +
-            "DraftsCreated={DraftsCreated} TotalFailures={TotalFailures} EstimatedAiSpendUsd={EstimatedAiSpendUsd}",
+            "DraftsCreated={DraftsCreated} TotalFailures={TotalFailures} EstimatedAiSpendUsd={EstimatedAiSpendUsd} Errors={Errors}",
             summary.ExitCode,
             summary.AiEnabled,
             summary.DryRun,
@@ -50,6 +56,7 @@ public static class NewsAgentRunTelemetry
             summary.Triage?.MarkedDuplicate ?? 0,
             summary.Draft?.DraftsCreated ?? 0,
             summary.TotalFailures,
-            summary.EstimatedAiSpendUsd);
+            summary.EstimatedAiSpendUsd,
+            string.Join("; ", summary.Errors));
     }
 }

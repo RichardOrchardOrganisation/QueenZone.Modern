@@ -41,10 +41,16 @@ public sealed record NewsDraftRunResult(
     int DraftsCreated,
     int Skipped,
     int Failures,
-    IReadOnlyList<string> Errors);
+    IReadOnlyList<string> Errors)
+{
+    public int CandidatesAttempted { get; init; } = CandidatesConsidered;
+}
 
 public sealed record NewsDraftCandidateResult(
     int CandidateId,
     int? DraftId,
     bool Succeeded,
-    string? ErrorMessage);
+    string? ErrorMessage)
+{
+    public bool Attempted { get; init; } = true;
+}
