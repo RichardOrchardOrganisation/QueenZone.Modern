@@ -98,7 +98,7 @@
     "eslint": "^9.39.5",
     "eslint-config-expo": "~58.0.4",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "expo-doctor": "^1.21.4",
+    "expo-doctor": "^1.21.5",
     "jest": "~30.5.2",
     "jest-expo": "~58.0.12",
     "test-renderer": "~1.3.1",
