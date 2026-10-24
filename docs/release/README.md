@@ -81,7 +81,7 @@ Cherry-picked or older commits still need all three gates on that exact SHA.
 
 ## Release notes
 
-Pushing a `v*` tag publishes a GitHub Release for that tag. Every merge to `main` refreshes one draft release named **Unreleased** (placeholder tag `unreleased`, `target_commitish: main`) covering main since the last prod tag. Notes are grouped by pull-request label; see [labels.md](labels.md). After generation, each pull-request line gets `(closes #N)` from GitHub's closing-issue links.
+Pushing a `v*` tag publishes a GitHub Release for that tag and attaches `newsagent-<tag>.zip` (framework-dependent win-x64 worker plus `version.txt`) for Glory11. Every merge to `main` refreshes one draft release named **Unreleased** (placeholder tag `unreleased`, `target_commitish: main`) covering main since the last prod tag. Notes are grouped by pull-request label; see [labels.md](labels.md). After generation, each pull-request line gets `(closes #N)` from GitHub's closing-issue links. Glory11 setup: [glory11-newsagent.md](../ops/glory11-newsagent.md).
 
 `.github/workflows/release-notes.yml` is non-blocking. It is not a required check and is not in any `needs` of `deploy.yml` or the tip gates. A red notes run does not delay production.
 
