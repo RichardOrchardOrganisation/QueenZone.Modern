@@ -25,19 +25,12 @@ param(
     [switch]$TriageOnly,
     [switch]$DraftOnly,
     [switch]$DryRun,
-    [switch]$Force
+    [switch]$Force,
+    [string]$LogDirectory = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'QueenZone\Logs\NewsAgent')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-Set-Location $repoRoot
-. (Join-Path $PSScriptRoot 'Import-NewsAgentProductionConnection.ps1')
-
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Error 'dotnet SDK not found. Install from https://dotnet.microsoft.com/download'
-}
 
 $workerArgs = @('run', '--project', 'src/QueenZone.NewsAgent.Worker', '--', 'discover-news')
 
@@ -67,6 +60,5 @@ if (-not $Scheduled -and -not $SeedSources -and -not $FetchOnly -and -not $Triag
   Write-Error 'Specify -Scheduled, -FetchOnly, -TriageOnly, -DraftOnly, or at least -SeedSources.'
 }
 
-Write-Host "QueenZone news discovery: dotnet $($workerArgs -join ' ')"
-& dotnet @workerArgs
+& (Join-Path $PSScriptRoot 'Invoke-LoggedNewsAgentTask.ps1') -TaskName discovery -WorkerArguments $workerArgs -LogDirectory $LogDirectory
 exit $LASTEXITCODE

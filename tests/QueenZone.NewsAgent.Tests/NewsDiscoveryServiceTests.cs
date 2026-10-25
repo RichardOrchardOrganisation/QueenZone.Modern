@@ -170,7 +170,8 @@ public sealed class NewsDiscoveryServiceTests
         Assert.Contains(sources, source => source.Key == "udiscover-music" && source.TrustTier == NewsDiscoveryTrustTier.Secondary);
         Assert.Contains(sources, source => source.Key == "official-charts" && source.FeedOrSiteUrl == "https://www.officialcharts.com/chart-news/");
         Assert.Contains(sources, source => source.Key == "nme-music" && source.TrustTier == NewsDiscoveryTrustTier.Secondary);
-        Assert.Contains(sources, source => source.Key == "musicradar" && source.SourceType == NewsDiscoverySourceType.Rss && source.FeedOrSiteUrl == "https://www.musicradar.com/feeds/all");
+        Assert.Contains(sources, source => source.Key == "musicradar" && source.SourceType == NewsDiscoverySourceType.Rss && source.FeedOrSiteUrl == "https://www.musicradar.com/feeds.xml");
+        Assert.Contains(sources, source => source.Key == "louder" && source.SourceType == NewsDiscoverySourceType.Rss && source.FeedOrSiteUrl == "https://www.loudersound.com/feeds.xml");
         Assert.Contains(sources, source => source.Key == "gold-radio" && !source.Enabled);
         Assert.Contains(
             sources,
