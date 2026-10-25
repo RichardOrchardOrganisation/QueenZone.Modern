@@ -82,6 +82,7 @@ public static class QueenZoneDataServiceCollectionExtensions
         services.AddScoped<IForumAttachmentRepository, EfForumAttachmentRepository>();
         services.AddScoped<IForumPollRepository, EfForumPollRepository>();
         services.AddScoped<IHomePollRepository, EfHomePollRepository>();
+        services.AddSingleton<QuizSprintPoolCache>();
         services.AddScoped<IQuizRepository, EfQuizRepository>();
         services.AddScoped<ICrosswordCatalogRepository>(sp => new EfCrosswordCatalogRepository(
             sp.GetRequiredService<QueenZoneDbContext>(), sp.GetService<TimeProvider>() ?? TimeProvider.System));
