@@ -68,6 +68,22 @@ jobs:
           pwsh -File ./scripts/Test-OpenTofuContainerPublicAccessDrift.ps1 -SelfTest
           pwsh -File ./scripts/Get-DevAttachmentEvidence.ps1 -SelfTest
 
+  news-task-logging:
+    name: News task logging (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test Windows PowerShell 5.1
+        shell: powershell
+        run: ./scripts/Test-NewsAgentTaskLogging.ps1
+      - name: Test PowerShell 7
+        shell: pwsh
+        run: ./scripts/Test-NewsAgentTaskLogging.ps1
+
   bitwarden-contract:
     name: Bitwarden output contract (${{ matrix.case }})
     runs-on: ubuntu-latest

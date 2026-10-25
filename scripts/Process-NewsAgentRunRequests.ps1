@@ -24,19 +24,12 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$RunnerId = $env:COMPUTERNAME
+    [string]$RunnerId = $env:COMPUTERNAME,
+    [string]$LogDirectory = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'QueenZone\Logs\NewsAgent')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')
-Set-Location $repoRoot
-. (Join-Path $PSScriptRoot 'Import-NewsAgentProductionConnection.ps1')
-
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    Write-Error 'dotnet SDK not found. Install from https://dotnet.microsoft.com/download'
-}
 
 if ([string]::IsNullOrWhiteSpace($RunnerId)) {
     $RunnerId = 'windows-news-runner'
@@ -52,6 +45,5 @@ $workerArgs = @(
     $RunnerId
 )
 
-Write-Host "QueenZone queued news requests: runner $RunnerId"
-& dotnet @workerArgs
+& (Join-Path $PSScriptRoot 'Invoke-LoggedNewsAgentTask.ps1') -TaskName requests -WorkerArguments $workerArgs -LogDirectory $LogDirectory
 exit $LASTEXITCODE
