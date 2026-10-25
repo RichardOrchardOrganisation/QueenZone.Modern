@@ -3,7 +3,10 @@ using QueenZone.Data.Entities;
 
 namespace QueenZone.Data;
 
-public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider timeProvider) : IQuizRepository
+public sealed class EfQuizRepository(
+    QueenZoneDbContext dbContext,
+    TimeProvider timeProvider,
+    QuizSprintPoolCache? sprintPoolCache = null) : IQuizRepository
 {
     public async Task<IReadOnlyList<QuizAdminItem>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -65,6 +68,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         var entity = BuildEntity(draft, createdByMemberId, now);
         dbContext.Quizzes.Add(entity);
         await dbContext.SaveChangesAsync(cancellationToken);
+        sprintPoolCache?.Invalidate();
         return entity.Id;
     }
 
@@ -106,6 +110,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         dbContext.QuizQuestions.AddRange(BuildQuestions(quiz.Id, draft.Questions));
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        sprintPoolCache?.Invalidate();
     }
 
     public async Task PublishAsync(Guid id, CancellationToken cancellationToken = default)
@@ -117,6 +122,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         quiz.IsPublished = true;
         quiz.PublishedAt ??= timeProvider.GetUtcNow();
         await dbContext.SaveChangesAsync(cancellationToken);
+        sprintPoolCache?.Invalidate();
     }
 
     public async Task UnpublishAsync(Guid id, CancellationToken cancellationToken = default)
@@ -127,6 +133,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
 
         quiz.IsPublished = false;
         await dbContext.SaveChangesAsync(cancellationToken);
+        sprintPoolCache?.Invalidate();
     }
 
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -138,6 +145,7 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         await EnsureNoResultsAsync(id, "This quiz has results and cannot be deleted.", cancellationToken);
         dbContext.Quizzes.Remove(quiz);
         await dbContext.SaveChangesAsync(cancellationToken);
+        sprintPoolCache?.Invalidate();
     }
 
     public async Task RecordAttemptAsync(
@@ -180,11 +188,24 @@ public sealed class EfQuizRepository(QueenZoneDbContext dbContext, TimeProvider 
         return quiz is null ? null : ToPlayView(quiz);
     }
 
-    public Task<bool> HasPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default) =>
-        dbContext.Quizzes.AnyAsync(quiz => quiz.IsPublished && quiz.Questions.Any(), cancellationToken);
+    public async Task<bool> HasPublishedSprintQuestionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (sprintPoolCache is null)
+        {
+            return await dbContext.Quizzes.AnyAsync(quiz => quiz.IsPublished && quiz.Questions.Any(), cancellationToken);
+        }
 
-    public async Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
+        return (await GetPublishedSprintQuestionsAsync(cancellationToken)).Count > 0;
+    }
+
+    public Task<IReadOnlyList<QuizSprintQuestion>> GetPublishedSprintQuestionsAsync(
         CancellationToken cancellationToken = default) =>
+        sprintPoolCache is null
+            ? LoadPublishedSprintQuestionsAsync(cancellationToken)
+            : sprintPoolCache.GetAsync(LoadPublishedSprintQuestionsAsync, cancellationToken);
+
+    private async Task<IReadOnlyList<QuizSprintQuestion>> LoadPublishedSprintQuestionsAsync(
+        CancellationToken cancellationToken) =>
         await dbContext.Quizzes
             .AsNoTracking()
             .Where(quiz => quiz.IsPublished)
