@@ -62,6 +62,8 @@ dotnet ef database update --project src/QueenZone.Data --startup-project src/Que
 
 ## Windows Task Scheduler (local pilot)
 
+Glory11 production runs the published `newsagent-<tag>.zip` from the prod tag's GitHub Release, not a git checkout. One-time setup: [`docs/ops/glory11-newsagent.md`](../ops/glory11-newsagent.md). Changing that scheduled task needs Richard's OK.
+
 Use `scripts/Run-NewsAgentDiscovery.ps1` for automatic gathering and `scripts/Process-NewsAgentRunRequests.ps1` for requests queued from `/admin/news-discovery`. Both run from the repository root and forward worker exit codes.
 
 ### One-time setup
