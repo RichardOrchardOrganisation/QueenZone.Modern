@@ -55,7 +55,11 @@ Never hand-edit `.terraform.lock.hcl`.
 
 ## Planning
 
-Use the committed backend configuration and environment-provided credentials:
+Use the committed backend configuration and environment-provided credentials.
+A production plan requires `TF_VAR_scm_deny_ip` from repository variable
+`QZ_SCM_DENY_IP` (bare IPv4, never committed). The production root has no
+default; a missing or blank value fails closed instead of omitting the live
+rule. See [`scm-temp-veronica.md`](scm-temp-veronica.md).
 
 ```powershell
 tofu -chdir=infra/environments/production init `

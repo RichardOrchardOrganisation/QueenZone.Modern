@@ -118,7 +118,8 @@ az webapp config appsettings list `
 
 Requires `az login` as a user with access to subscription **Base Thinking**.
 
-Live log stream:
+Live log stream (SCM must allow the operator IP first — see
+[`scm-temp-veronica.md`](architecture/scm-temp-veronica.md)):
 
 ```powershell
 az webapp log tail --name queenzone-prod --resource-group Queenzone-RG
@@ -157,15 +158,18 @@ Application logging should be enabled at Information level on the filesystem. If
 
 ### Temporary Veronica access to production SCM
 
-`temp-veronica` is an existing operator rule on **queenzone-prod** in
+`temp-veronica` is the declared SCM `/32` on **queenzone-prod** in
 **Queenzone-RG**. It permits a short, explicitly approved diagnostic window from
-Veronica's fixed public IPv4; its normal state is **Deny**.
+Richard's IP; its normal state is **Deny**. The address lives only in repository
+variable `QZ_SCM_DENY_IP` — see
+[`scm-temp-veronica.md`](architecture/scm-temp-veronica.md) for the portal
+steps. Do not write the address into files, issues, or chat.
 
 | Setting | Required value |
 | --- | --- |
 | Endpoint | `queenzone-prod.scm.azurewebsites.net` (SCM/Kudu only) |
 | Rule name | `temp-veronica` |
-| Source | `103.94.49.172/32` |
+| Source | repository variable `QZ_SCM_DENY_IP` as a `/32` |
 | Priority | `100` |
 | Normal action | `Deny` |
 | SCM default action | `Deny` |
@@ -230,14 +234,13 @@ For each window:
    If cleanup fails, report the actual remaining state promptly; do not claim the
    window is closed until verification succeeds.
 
-**OpenTofu ownership:** the rule was added manually and is not declared in
-`infra/modules/azure-web/main.tf`. That module declares separate SCM/default-Deny
-policy and does not ignore changes to the SCM rule list. Treat the named rule as
-unmanaged drift that a future apply may remove; inspect a refreshed plan rather
-than assuming it will survive. No IaC plan/apply is part of a diagnostic window.
-A persistent declaration of the closed Deny rule, or a different ownership
-policy, needs a separate reviewed infrastructure change. Do not use a broad
-ignore or change either default to Allow to retain operator access.
+**OpenTofu ownership:** `infra/modules/azure-web` declares this named Deny
+rule when `scm_deny_ip` is set. Production CI passes
+`TF_VAR_scm_deny_ip` from `QZ_SCM_DENY_IP`. Do not `ignore_changes` on
+`site_config` or `scm_ip_restriction`. An apply during an Allow window
+restores Deny. Nightly drift suppresses only an action-only toggle of this
+named rule; see [`scm-temp-veronica.md`](architecture/scm-temp-veronica.md).
+No IaC plan/apply is part of a diagnostic window.
 
 ### Reproducing live database issues locally
 

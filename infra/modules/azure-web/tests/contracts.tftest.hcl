@@ -178,6 +178,58 @@ run "production_cloudflare_rules_are_single_cidrs" {
   }
 }
 
+run "production_emits_temp_veronica_scm_deny_when_ip_set" {
+  command = plan
+  variables {
+    scm_deny_ip = "192.0.2.10"
+  }
+
+  assert {
+    condition = (
+      length(azurerm_linux_web_app.production.site_config[0].scm_ip_restriction) == 1 &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].name == "temp-veronica" &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].action == "Deny" &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].priority == 100 &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].ip_address == "192.0.2.10/32" &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].description == null &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].headers == null &&
+      azurerm_linux_web_app.production.site_config[0].scm_ip_restriction[0].service_tag == null
+    )
+    error_message = "Production must emit exactly one temp-veronica SCM Deny /32 when scm_deny_ip is set."
+  }
+}
+
+run "production_omits_scm_deny_when_ip_blank" {
+  command = plan
+  variables {
+    scm_deny_ip = ""
+  }
+
+  assert {
+    condition     = length(azurerm_linux_web_app.production.site_config[0].scm_ip_restriction) == 0
+    error_message = "An empty scm_deny_ip must omit the SCM restriction block."
+  }
+}
+
+run "production_rejects_scm_deny_cidr" {
+  command = plan
+  variables {
+    scm_deny_ip = "192.0.2.10/32"
+  }
+  expect_failures = [var.scm_deny_ip]
+}
+
+run "dev_rejects_scm_deny_ip" {
+  command = plan
+  variables {
+    environment_name    = "dev"
+    custom_hostnames    = {}
+    allow_direct_access = true
+    scm_deny_ip         = "192.0.2.10"
+  }
+  expect_failures = [var.scm_deny_ip]
+}
+
 run "dev_managed_tls_after_dns" {
   command = plan
   variables {

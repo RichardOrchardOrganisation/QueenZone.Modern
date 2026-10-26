@@ -32,6 +32,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "OpenTofu container publicAccess drift self-test failed."
 }
 
+& (Join-Path $PSScriptRoot "Test-OpenTofuExpectedScmToggle.ps1") -SelfTest
+if ($LASTEXITCODE -ne 0) {
+    throw "OpenTofu expected SCM toggle self-test failed."
+}
+
 & $tofu.Source fmt -check -recursive $infraPath
 if ($LASTEXITCODE -ne 0) {
     throw "OpenTofu formatting failed."

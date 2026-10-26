@@ -73,6 +73,7 @@ module "azure_web_target" {
   worker_count                 = var.app_service_worker_count
   environment_name             = "production"
   allow_direct_access          = false
+  scm_deny_ip                  = var.scm_deny_ip
   custom_hostnames = {
     "queenzone.org"     = "16D5EE38A8ECAB979AE6960C2CEAABCAF5B7FC14"
     "www.queenzone.org" = "16D5EE38A8ECAB979AE6960C2CEAABCAF5B7FC14"
