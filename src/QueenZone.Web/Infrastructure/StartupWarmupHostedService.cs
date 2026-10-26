@@ -43,7 +43,8 @@ public class StartupWarmupHostedService(
     ILogger<StartupWarmupHostedService> logger,
     HttpMessageHandler? handler = null) : IHostedService
 {
-    private readonly CancellationTokenSource stopping = new();
+    private const string Loopback = "127.0.0.1";
+
     private Task? running;
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -53,13 +54,14 @@ public class StartupWarmupHostedService(
             return Task.CompletedTask;
         }
 
-        lifetime.ApplicationStarted.Register(() => running = Task.Run(() => RunAsync(stopping.Token)));
+        // Host shutdown (ApplicationStopping) cancels the warm-up; no token source of our own to dispose.
+        var stopping = lifetime.ApplicationStopping;
+        lifetime.ApplicationStarted.Register(() => running = Task.Run(() => RunAsync(stopping), stopping));
         return Task.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        await stopping.CancelAsync();
         if (running is { } task)
         {
             await task.WaitAsync(cancellationToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
@@ -79,9 +81,9 @@ public class StartupWarmupHostedService(
                 cachesMs,
                 pages);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
-            logger.LogInformation("Startup warmup stopped by shutdown after {TotalMs}ms.", total.ElapsedMilliseconds);
+            logger.LogInformation(exception, "Startup warmup stopped by shutdown after {TotalMs}ms.", total.ElapsedMilliseconds);
         }
         catch (Exception exception)
         {
@@ -171,10 +173,10 @@ public class StartupWarmupHostedService(
         foreach (var address in addresses)
         {
             var candidate = address
-                .Replace("[::]", "127.0.0.1", StringComparison.Ordinal)
-                .Replace("0.0.0.0", "127.0.0.1", StringComparison.Ordinal)
-                .Replace("*", "127.0.0.1", StringComparison.Ordinal)
-                .Replace("+", "127.0.0.1", StringComparison.Ordinal);
+                .Replace("[::]", Loopback, StringComparison.Ordinal)
+                .Replace("0.0.0.0", Loopback, StringComparison.Ordinal)
+                .Replace("*", Loopback, StringComparison.Ordinal)
+                .Replace("+", Loopback, StringComparison.Ordinal);
             if (Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
                 && uri.Scheme == Uri.UriSchemeHttp
                 && uri.Port > 0)
