@@ -585,9 +585,19 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # Single Linux publish reused by smoke-test in this run.
+      # Single Linux publish reused by smoke-test in this run and by the DEV deploy.
+      # ReadyToRun (#2391) is compiled for linux-x64, so this is a real publish (restore + compile),
+      # not --no-build; restamp it exactly like the Build step so the deployed stamp still matches.
+      # Production (deploy.yml) publishes its own JIT build until DEV measurements justify promoting it.
       - name: Publish web app
-        run: dotnet publish src/QueenZone.Web/QueenZone.Web.csproj --configuration Release --no-build --output publish
+        run: |
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          if [ -z "$HEAD_SHA" ]; then
+            HEAD_SHA="${{ github.sha }}"
+          fi
+          SHORT="${HEAD_SHA:0:7}"
+          dotnet publish src/QueenZone.Web/QueenZone.Web.csproj --configuration Release --output publish \
+            -p:QueenZoneReadyToRun=true /p:OverrideGitCommitShort="$SHORT"
 
       - name: Upload publish artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
