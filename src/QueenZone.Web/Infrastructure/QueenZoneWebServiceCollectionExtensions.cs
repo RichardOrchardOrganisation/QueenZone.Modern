@@ -74,6 +74,9 @@ public static class QueenZoneWebServiceCollectionExtensions
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<PublicQueryCacheOptions>, PublicQueryCacheOptionsValidator>();
 
+        services.AddOptions<StartupWarmupOptions>()
+            .Bind(configuration.GetSection(StartupWarmupOptions.SectionName));
+
         services.AddOptions<ForumAttachmentOptions>()
             .Bind(configuration.GetSection(ForumAttachmentOptions.SectionName))
             .ValidateOnStart();
@@ -366,6 +369,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<HelpRequestService>();
         services.AddScoped<HelpRequestReplyService>();
         services.AddScoped<PublicWarmupService>();
+        services.AddHostedService<StartupWarmupHostedService>();
         services.AddScoped<UgcHtml>();
         services.AddScoped<FanPerformanceDurationResolver>();
         services.AddScoped<FanPerformanceAudioUploadService>();

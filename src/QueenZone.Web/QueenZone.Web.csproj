@@ -36,6 +36,16 @@
     <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))</RepositoryRoot>
   </PropertyGroup>
 
+  <!-- Opt-in ReadyToRun (AOT-precompiled) publish for the Linux App Service, to cut JIT cost on
+       every process start (#2391). Passed as -p:QueenZoneReadyToRun=true by the CI publish, so DEV
+       gets it first; production publishes stay JIT until the DEV measurements justify promoting it.
+       Not set for build/test, so test projects that reference this project are unaffected. -->
+  <PropertyGroup Condition="'$(QueenZoneReadyToRun)' == 'true'">
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishReadyToRun>true</PublishReadyToRun>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Single Cloudflare prefix list shared with infra/modules/azure-web (#1654). -->
     <EmbeddedResource Include="..\..\config\cloudflare-ip-ranges.json" LogicalName="QueenZone.Web.cloudflare-ip-ranges.json" />
