@@ -11,15 +11,23 @@ Cloudflare service tag, so the module does not use `AzureFrontDoor.Backend`.
 Dev and migration apps that allow direct access omit that list and keep the
 main-site default at Allow.
 
-Production SCM has a separate restriction list with default Deny. The release
-workflow signs in through the `prod-release-gated` OIDC federation, grants
-its current runner IPv4 `/32` during zip deploy and Kudu restart, and removes
-the rule even when deployment fails. A cancelled runner can leave its rule
-behind; check for and remove stale `github-deploy-*` SCM rules before applying
-the next release. The publish profile still authenticates the deploy and Kudu
-restart, so WebDeploy basic publishing credentials remain enabled. FTP basic
-publishing credentials remain enabled until that path is separately audited.
-Dev and migration apps keep SCM default Allow for direct development access.
+Production SCM has a separate restriction list with default Deny. When
+`scm_deny_ip` is set (production CI: `TF_VAR_scm_deny_ip` from repository
+variable `QZ_SCM_DENY_IP`), the module emits one named `temp-veronica` Deny
+`/32` at priority 100. That rule's resting state is Deny; Richard may flip
+only its action to Allow in the portal for a short Kudu / log-stream window.
+See [`scm-temp-veronica.md`](../../../docs/architecture/scm-temp-veronica.md).
+The release workflow signs in through the `prod-release-gated` OIDC
+federation, grants its current runner IPv4 `/32` during zip deploy and Kudu
+restart as `github-deploy-*` (also priority 100 Allow), and removes that rule
+by name even when deployment fails. The names do not collide, and Azure
+matches by address, so the resting Deny never blocks the runner. A cancelled
+runner can leave its rule behind; check for and remove stale `github-deploy-*`
+SCM rules before applying the next release. The publish profile still
+authenticates the deploy and Kudu restart, so WebDeploy basic publishing
+credentials remain enabled. FTP basic publishing credentials remain enabled
+until that path is separately audited. Dev and migration apps keep SCM default
+Allow for direct development access and must not pass `scm_deny_ip`.
 
 Uploaded App Service certificate resources remain outside OpenTofu. AzureRM
 cannot describe them without the private PFX material, and their renewal path

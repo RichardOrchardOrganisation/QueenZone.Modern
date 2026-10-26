@@ -32,6 +32,23 @@ test('drift check keeps the existing Bitwarden plan mapping and only fetches it 
   assert.match(workflow, /Export-EphemeralSqlAdminPassword\.ps1/);
 });
 
+test('production plan, apply, and drift pass QZ_SCM_DENY_IP as TF_VAR_scm_deny_ip', () => {
+  const applyWorkflow = readText('.github/workflows/opentofu-apply.yml');
+  for (const text of [planWorkflow, applyWorkflow, workflow]) {
+    assert.match(text, /TF_VAR_scm_deny_ip: \$\{\{ matrix\.root == 'production' && vars\.QZ_SCM_DENY_IP \|\| '' \}\}|TF_VAR_scm_deny_ip: \$\{\{ vars\.QZ_SCM_DENY_IP \}\}/);
+    assert.match(text, /Require production SCM deny IP/);
+    assert.doesNotMatch(text, /BITWARDEN_OPENTOFU_(PLAN|APPLY)_SECRETS.*QZ_SCM_DENY_IP/);
+  }
+  assert.match(applyWorkflow, /TF_VAR_scm_deny_ip: \$\{\{ vars\.QZ_SCM_DENY_IP \}\}\n        run: tofu apply/);
+});
+
+test('drift skips the issue when the only change is the temp-veronica SCM action', () => {
+  assert.match(workflow, /Test-OpenTofuExpectedScmToggle\.ps1/);
+  assert.match(workflow, /expected_toggle != 'true'/);
+  const issueStep = workflow.split('Open or update the drift issue')[1];
+  assert.match(issueStep.slice(0, 250), /expected_toggle != 'true'/);
+});
+
 test('drift and detector failures each open or update a labelled issue without succeeding the job', () => {
   assert.match(workflow, /if: steps\.plan\.outputs\.exit_code == '2'/);
   assert.match(workflow, /if: failure\(\)/);

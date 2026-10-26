@@ -131,10 +131,21 @@ jobs:
         working-directory: infra/environments/${{ matrix.root }}
         run: tofu init -input=false -reconfigure -backend-config=../../backend/${{ matrix.root }}.backend.hcl
 
+      - name: Require production SCM deny IP
+        if: matrix.root == 'production'
+        env:
+          QZ_SCM_DENY_IP: ${{ vars.QZ_SCM_DENY_IP }}
+        run: |
+          if [ -z "$QZ_SCM_DENY_IP" ]; then
+            echo "::error::Repository variable QZ_SCM_DENY_IP is not set. Production plans need TF_VAR_scm_deny_ip so the temp-veronica SCM Deny rule is not deleted (see docs/architecture/scm-temp-veronica.md)."
+            exit 1
+          fi
+
       - name: OpenTofu plan
         working-directory: infra/environments/${{ matrix.root }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_scm_deny_ip: ${{ matrix.root == 'production' && vars.QZ_SCM_DENY_IP || '' }}
         # Read-only plan: no state lock (#2230). A cancelled/superseded run
         # otherwise leaves a stale blob lease that blocks the next apply.
         # Applies still lock. tofu apply rejects this saved plan only if state
@@ -258,6 +269,7 @@ jobs:
         working-directory: infra/environments/production
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_scm_deny_ip: ${{ vars.QZ_SCM_DENY_IP }}
         run: tofu apply -input=false -lock-timeout=5m tfplan
 
   wait-for-dev-dns:

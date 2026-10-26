@@ -105,6 +105,27 @@ variable "allow_direct_access" {
   }
 }
 
+variable "scm_deny_ip" {
+  description = "Optional bare IPv4 for the resting-state production SCM Deny rule named temp-veronica. The module appends /32. Production CI sets this from repository variable QZ_SCM_DENY_IP. Leave empty so the block is omitted. Never commit the address."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition     = var.scm_deny_ip == null || trimspace(var.scm_deny_ip) == "" || var.environment_name == "production"
+    error_message = "scm_deny_ip is production-only."
+  }
+
+  validation {
+    condition = var.scm_deny_ip == null || trimspace(var.scm_deny_ip) == "" || (
+      can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$", trimspace(var.scm_deny_ip))) &&
+      can(cidrhost("${trimspace(var.scm_deny_ip)}/32", 0))
+    )
+    error_message = "scm_deny_ip must be a dotted-decimal IPv4 address without a prefix length."
+  }
+}
+
 variable "managed_hostnames" {
   description = "Dev hostnames with Azure-managed TLS; enable only after DNS validation is ready."
   type        = set(string)

@@ -116,3 +116,19 @@ variable "app_service_worker_count" {
     error_message = "QueenZone production is intentionally single-instance."
   }
 }
+
+variable "scm_deny_ip" {
+  description = "Optional bare IPv4 for the resting-state SCM Deny rule named temp-veronica. Production CI sets TF_VAR_scm_deny_ip from repository variable QZ_SCM_DENY_IP. Leave empty so the azure-web module omits the block. Never commit the address."
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+
+  validation {
+    condition = var.scm_deny_ip == null || trimspace(var.scm_deny_ip) == "" || (
+      can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$", trimspace(var.scm_deny_ip))) &&
+      can(cidrhost("${trimspace(var.scm_deny_ip)}/32", 0))
+    )
+    error_message = "scm_deny_ip must be a dotted-decimal IPv4 address without a prefix length."
+  }
+}

@@ -83,11 +83,22 @@ jobs:
         working-directory: infra/environments/${{ matrix.root }}
         run: tofu init -input=false -reconfigure -backend-config=../../backend/${{ matrix.root }}.backend.hcl
 
+      - name: Require production SCM deny IP
+        if: matrix.root == 'production'
+        env:
+          QZ_SCM_DENY_IP: ${{ vars.QZ_SCM_DENY_IP }}
+        run: |
+          if [ -z "$QZ_SCM_DENY_IP" ]; then
+            echo "::error::Repository variable QZ_SCM_DENY_IP is not set. Production drift plans need TF_VAR_scm_deny_ip so the temp-veronica SCM Deny rule is not reported as a delete (see docs/architecture/scm-temp-veronica.md)."
+            exit 1
+          fi
+
       - name: OpenTofu plan (detect drift)
         id: plan
         working-directory: infra/environments/${{ matrix.root }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ steps.bitwarden-secrets.outputs.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_scm_deny_ip: ${{ matrix.root == 'production' && vars.QZ_SCM_DENY_IP || '' }}
         run: |
           set +e
           # Read-only plan: no state lock (#2230) so a cancelled run can't leave a stale lease.
@@ -112,8 +123,21 @@ jobs:
           ./scripts/Test-OpenTofuContainerPublicAccessDrift.ps1 `
             -PlanJsonPath infra/environments/${{ matrix.root }}/plan.json
 
-      - name: Build drift summary
+      - name: Classify expected temp-veronica SCM toggle
+        id: expected-scm-toggle
         if: steps.plan.outputs.exit_code == '2'
+        shell: pwsh
+        run: |
+          ./scripts/Test-OpenTofuExpectedScmToggle.ps1 `
+            -PlanJsonPath infra/environments/${{ matrix.root }}/plan.json
+
+      - name: Note expected temp-veronica SCM toggle
+        if: steps.plan.outputs.exit_code == '2' && steps.expected-scm-toggle.outputs.expected_toggle == 'true'
+        run: |
+          echo "Production plan only toggles the temp-veronica SCM action (expected operator window). No drift issue opened. See docs/architecture/scm-temp-veronica.md." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build drift summary
+        if: steps.plan.outputs.exit_code == '2' && steps.expected-scm-toggle.outputs.expected_toggle != 'true'
         shell: pwsh
         run: |
           # Reuses the same redaction logic as the plan/apply workflows; the
@@ -125,7 +149,7 @@ jobs:
         continue-on-error: true
 
       - name: Open or update the drift issue
-        if: steps.plan.outputs.exit_code == '2'
+        if: steps.plan.outputs.exit_code == '2' && steps.expected-scm-toggle.outputs.expected_toggle != 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           DRIFT_ROOT: ${{ matrix.root }}
