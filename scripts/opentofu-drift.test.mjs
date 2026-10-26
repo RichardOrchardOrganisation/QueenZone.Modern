@@ -37,6 +37,7 @@ test('production plan, apply, and drift pass QZ_SCM_DENY_IP as TF_VAR_scm_deny_i
   for (const text of [planWorkflow, applyWorkflow, workflow]) {
     assert.match(text, /TF_VAR_scm_deny_ip: \$\{\{ matrix\.root == 'production' && vars\.QZ_SCM_DENY_IP \|\| '' \}\}|TF_VAR_scm_deny_ip: \$\{\{ vars\.QZ_SCM_DENY_IP \}\}/);
     assert.match(text, /Require production SCM deny IP/);
+    assert.match(text, /\[\[ -z "\$\{QZ_SCM_DENY_IP\/\/\[\[:space:\]\]\/\}" \]\]/);
     assert.doesNotMatch(text, /BITWARDEN_OPENTOFU_(PLAN|APPLY)_SECRETS.*QZ_SCM_DENY_IP/);
   }
   assert.match(applyWorkflow, /TF_VAR_scm_deny_ip: \$\{\{ vars\.QZ_SCM_DENY_IP \}\}\n        run: tofu apply/);

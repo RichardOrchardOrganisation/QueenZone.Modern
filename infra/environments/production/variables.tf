@@ -118,14 +118,14 @@ variable "app_service_worker_count" {
 }
 
 variable "scm_deny_ip" {
-  description = "Optional bare IPv4 for the resting-state SCM Deny rule named temp-veronica. Production CI sets TF_VAR_scm_deny_ip from repository variable QZ_SCM_DENY_IP. Leave empty so the azure-web module omits the block. Never commit the address."
+  description = "Required bare IPv4 for the resting-state SCM Deny rule named temp-veronica. Production CI sets TF_VAR_scm_deny_ip from repository variable QZ_SCM_DENY_IP. Never commit the address. A missing, blank, or whitespace-only value fails closed so a plan cannot omit the live rule."
   type        = string
-  default     = null
-  nullable    = true
+  nullable    = false
   sensitive   = true
 
   validation {
-    condition = var.scm_deny_ip == null || trimspace(var.scm_deny_ip) == "" || (
+    condition = (
+      trimspace(var.scm_deny_ip) != "" &&
       can(regex("^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$", trimspace(var.scm_deny_ip))) &&
       can(cidrhost("${trimspace(var.scm_deny_ip)}/32", 0))
     )

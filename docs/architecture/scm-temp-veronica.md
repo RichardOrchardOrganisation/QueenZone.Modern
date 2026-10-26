@@ -10,9 +10,10 @@ portal while he needs log stream or Kudu (Veronica telemetry), then flips it
 back to Deny.
 
 The IPv4 address is the non-secret repository variable `QZ_SCM_DENY_IP` (bare
-address, no `/32`). Production OpenTofu reads it as `TF_VAR_scm_deny_ip` /
-`var.scm_deny_ip`. Do not commit the address, add it to Bitwarden, or put it
-in the `BITWARDEN_OPENTOFU_*` secret lists.
+address, no `/32`). Production OpenTofu requires `TF_VAR_scm_deny_ip` /
+`var.scm_deny_ip` as a non-blank IPv4; a missing or whitespace-only value
+fails closed. Do not commit the address, add it to Bitwarden, or put it in
+the `BITWARDEN_OPENTOFU_*` secret lists.
 
 ## Flip to Allow (short window)
 
@@ -37,12 +38,13 @@ The Azure CLI equivalent (no upsert, no delete/recreate) is in
 ## Drift while it is Allow
 
 The nightly [`opentofu-drift.yml`](../../.github/workflows/opentofu-drift.yml)
-plan then wants to set `temp-veronica.action` back to Deny. When **that
-action field on this named rule is the only change**, the workflow records
-the expected operator window and does **not** open or comment on an
-`opentofu-drift` issue. Any other SCM restriction change (name, IP, priority,
-extra `github-deploy-*` leftover, default action, inheritance) still opens
-an issue.
+plan then wants to set `temp-veronica.action` back to Deny. When live is
+Allow, config is Deny, and **that action field on this named rule is the
+only change**, the workflow records the expected operator window and does
+**not** open or comment on an `opentofu-drift` issue. A Deny-to-Allow
+toggle, or any other SCM restriction change (name, IP, priority, extra
+`github-deploy-*` leftover, default action, inheritance), still opens an
+issue.
 
 An OpenTofu apply during an Allow window restores Deny. Do not apply
 production infra while the diagnostic window must stay open.
@@ -51,8 +53,10 @@ production infra while the diagnostic window must stay open.
 
 `deploy.yml` adds `github-deploy-<run>-<attempt>` as a separate SCM **Allow**
 `/32` for the current GitHub runner at priority 100, then removes it by
-**name**. That name never matches `temp-veronica`. Azure matches each rule by
-address, so the resting Deny on Richard's IP does not block the runner, and
-the runner Allow does not open Richard's IP. OpenTofu does not declare the
-ephemeral deploy rule; an apply during a zip deploy can still remove a
-leftover `github-deploy-*` rule (existing risk).
+**name**. The names do not collide (`temp-veronica` vs `github-deploy-*`).
+Azure matches each rule by address, so the resting Deny on Richard's IP does
+not block the runner, and the runner Allow does not open Richard's IP.
+OpenTofu still treats the SCM list as authoritative: an apply that runs
+while a deploy is in progress removes the runner's live `github-deploy-*`
+Allow and can 403 that deploy. That race existed before this rule. Do not
+apply production infra during a zip deploy.

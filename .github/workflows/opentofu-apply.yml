@@ -136,8 +136,8 @@ jobs:
         env:
           QZ_SCM_DENY_IP: ${{ vars.QZ_SCM_DENY_IP }}
         run: |
-          if [ -z "$QZ_SCM_DENY_IP" ]; then
-            echo "::error::Repository variable QZ_SCM_DENY_IP is not set. Production plans need TF_VAR_scm_deny_ip so the temp-veronica SCM Deny rule is not deleted (see docs/architecture/scm-temp-veronica.md)."
+          if [[ -z "${QZ_SCM_DENY_IP//[[:space:]]/}" ]]; then
+            echo "::error::Repository variable QZ_SCM_DENY_IP is missing or whitespace-only. Production plans need TF_VAR_scm_deny_ip so the temp-veronica SCM Deny rule is not deleted (see docs/architecture/scm-temp-veronica.md)."
             exit 1
           fi
 

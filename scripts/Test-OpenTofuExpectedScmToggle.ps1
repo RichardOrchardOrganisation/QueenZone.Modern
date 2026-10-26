@@ -3,10 +3,10 @@
   Detects a plan whose only change is the temp-veronica SCM action toggle.
 
 .DESCRIPTION
-  Nightly drift should not open an issue when Richard has flipped the
-  existing temp-veronica SCM rule from Deny to Allow (or back) and nothing
-  else drifted. Any other SCM restriction change, extra resource, or
-  attribute still counts as real drift.
+  Nightly drift should not open an issue when live temp-veronica is Allow
+  and the plan only sets it back to Deny. Comparisons are case-sensitive.
+  Any other SCM restriction change, extra resource, or attribute still
+  counts as real drift.
 
   Writes expected_toggle=true|false to GITHUB_OUTPUT when that file is set.
   Never prints IP addresses.
@@ -44,7 +44,7 @@ function Test-IsMaterialPlanChange {
         $actions = @($ResourceChange.change.actions)
     }
 
-    $material = @($actions | Where-Object { $_ -notin @("no-op", "read") })
+    $material = @($actions | Where-Object { $_ -cnotin @("no-op", "read") })
     return $material.Count -gt 0
 }
 
@@ -132,7 +132,7 @@ function Get-PlanValueDifferences {
     param($Before, $After, [string]$Path)
 
     $differences = [System.Collections.Generic.List[string]]::new()
-    if ((ConvertTo-NormalizedJson -Value $Before) -eq (ConvertTo-NormalizedJson -Value $After)) {
+    if ((ConvertTo-NormalizedJson -Value $Before) -ceq (ConvertTo-NormalizedJson -Value $After)) {
         return @($differences)
     }
 
@@ -187,7 +187,7 @@ function Get-NamedScmRestriction {
         }
 
         foreach ($rule in @($siteConfig.scm_ip_restriction)) {
-            if ($null -ne $rule -and [string]$rule.name -eq $Name) {
+            if ($null -ne $rule -and [string]$rule.name -ceq $Name) {
                 $matches.Add($rule)
             }
         }
@@ -209,12 +209,12 @@ function Test-IsExpectedTempVeronicaActionToggle {
     }
 
     $resourceChange = $material[0]
-    if ([string]$resourceChange.address -ne $script:ProductionWebAppAddress) {
+    if ([string]$resourceChange.address -cne $script:ProductionWebAppAddress) {
         return $false
     }
 
     $actions = @($resourceChange.change.actions)
-    if ($actions.Count -ne 1 -or $actions[0] -ne "update") {
+    if ($actions.Count -ne 1 -or $actions[0] -cne "update") {
         return $false
     }
 
@@ -224,8 +224,8 @@ function Test-IsExpectedTempVeronicaActionToggle {
         return $false
     }
 
-    $actionsPair = @([string]$beforeRule.action, [string]$afterRule.action) | Sort-Object
-    if (($actionsPair -join ",") -ne "Allow,Deny") {
+    # Config always declares Deny. Only a live Allow flipped back is expected.
+    if ([string]$beforeRule.action -cne "Allow" -or [string]$afterRule.action -cne "Deny") {
         return $false
     }
 
@@ -316,8 +316,8 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
         $failures.Add("Expected an Allow-to-Deny temp-veronica action toggle to be recognised.")
     }
 
-    if (-not (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -BeforeAction "Deny" -AfterAction "Allow")))) {
-        $failures.Add("Expected a Deny-to-Allow temp-veronica action toggle to be recognised.")
+    if (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -BeforeAction "Deny" -AfterAction "Allow"))) {
+        $failures.Add("Expected a Deny-to-Allow temp-veronica action toggle not to be treated as expected.")
     }
 
     $noOp = New-WebAppChange
@@ -334,12 +334,20 @@ if ($PSCmdlet.ParameterSetName -eq "SelfTest") {
         $failures.Add("Expected a renamed SCM rule not to be treated as a toggle.")
     }
 
+    if (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -AfterName "TEMP-VERONICA"))) {
+        $failures.Add("Expected a case-only SCM rule name change not to be treated as a toggle.")
+    }
+
     if (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -AfterIp "192.0.2.99/32"))) {
         $failures.Add("Expected an IP change not to be treated as a toggle.")
     }
 
     if (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -AfterExtra @{ https_only = $false }))) {
         $failures.Add("Expected an extra web-app attribute change not to be treated as a toggle.")
+    }
+
+    if (Test-IsExpectedTempVeronicaActionToggle -ResourceChanges @((New-WebAppChange -BeforeExtra @{ some_setting = "ABC" } -AfterExtra @{ some_setting = "abc" }))) {
+        $failures.Add("Expected a case-only extra attribute change not to be treated as a toggle.")
     }
 
     $second = New-WebAppChange -Address "azurerm_resource_group.production" -BeforeExtra @{ location = "canadaeast" } -AfterExtra @{ location = "australiaeast" }
