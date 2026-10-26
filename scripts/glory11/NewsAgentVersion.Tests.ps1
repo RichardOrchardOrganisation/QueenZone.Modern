@@ -72,6 +72,20 @@ Describe 'QueenZone prod tag compare/select' {
         Select-LatestQueenZoneProdRelease -Releases $releases | Should -BeNullOrEmpty
     }
 
+    It 'ignores null and incomplete releases while accepting a tag without optional flags' {
+        $releases = @(
+            $null
+            [pscustomobject]@{ draft = $false }
+            [pscustomobject]@{ tag_name = $null }
+            [pscustomobject]@{ tag_name = '' }
+            [pscustomobject]@{ tag_name = 'v2026.10.22.1' }
+            [pscustomobject]@{ tag_name = 'v2026.10.23.1'; prerelease = $true }
+            [pscustomobject]@{ tag_name = 'v2026.10.24.1'; draft = $true }
+        )
+
+        (Select-LatestQueenZoneProdRelease -Releases $releases).tag_name | Should -Be 'v2026.10.22.1'
+    }
+
     It 'needs an update when installed differs or is missing' {
         Test-NewsAgentNeedsUpdate -InstalledVersion $null -LatestVersion 'v2026.10.22.1' | Should -BeTrue
         Test-NewsAgentNeedsUpdate -InstalledVersion 'v2026.10.15.1' -LatestVersion 'v2026.10.22.1' | Should -BeTrue

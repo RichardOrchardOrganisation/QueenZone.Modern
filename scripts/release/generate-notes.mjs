@@ -89,7 +89,8 @@ export function formatCloses(issueNumbers) {
   if (unique.length === 0) {
     return '';
   }
-  return `(closes ${unique.map((number) => `#${number}`).join(', ')})`;
+  const references = unique.map((number) => `#${number}`).join(', ');
+  return `(closes ${references})`;
 }
 
 export function appendCloses(body, closesByPull) {
@@ -109,7 +110,7 @@ export function appendCloses(body, closesByPull) {
     if (!suffix || line.includes(suffix) || /\(closes #\d+/.test(line)) {
       return line;
     }
-    return `${line.replace(/\s+$/, '')} ${suffix}`;
+    return `${line.trimEnd()} ${suffix}`;
   }).join('\n');
 }
 

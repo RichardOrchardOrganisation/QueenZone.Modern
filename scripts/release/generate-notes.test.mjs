@@ -137,6 +137,13 @@ test('appendCloses adds closing issue links per pull request line', () => {
   assert.equal(appendCloses('* none', { 10: [1] }), '* none');
 });
 
+test('appendCloses trims trailing whitespace while preserving indentation and unrelated lines', () => {
+  const line = '  * Fix https://github.com/org/repo/pull/10';
+  const unrelated = '* No pull request here  \t';
+  const body = `${line}${' \t\u00a0'.repeat(10_000)}\n${unrelated}`;
+  assert.equal(appendCloses(body, { 10: [12] }), `${line} (closes #12)\n${unrelated}`);
+});
+
 test('title labels come from a conventional prefix unless a path category is present', () => {
   assert.deepEqual(labelsFromTitle('feat: add release notes'), ['feature']);
   assert.deepEqual(labelsFromTitle('feature/notes'), ['feature']);

@@ -101,8 +101,9 @@ test('labels an exhausted emulator install as install failure, never a selector 
     const r = s.run();
     assert.equal(r.status, 1, r.stdout + r.stderr);
     assert.equal(s.calls().length, 3);
-    assert.match(r.stdout, /::error::Android emulator install failure: .*after 3 attempts/);
-    assert.match(r.stdout, /Not a selector or assertion miss/);
+    assert.match(r.stderr, /::error::Android emulator install failure: .*after 3 attempts/);
+    assert.match(r.stderr, /Not a selector or assertion miss/);
+    assert.doesNotMatch(r.stdout, /::error::/);
     const marker = readFileSync(path.join(s.results, 'android-install-failure'), 'utf8');
     assert.match(marker, /^class=install_failure$/m);
     assert.match(marker, /^package=system-images;android-34;google_apis;x86_64$/m);

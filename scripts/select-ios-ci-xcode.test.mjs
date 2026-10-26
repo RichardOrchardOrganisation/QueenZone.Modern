@@ -102,7 +102,8 @@ test('IOS_CI_XCODE_MIN rejects a compiler below the floor', () => {
       extraEnv: { IOS_CI_XCODE_MIN: '16.4' },
     });
     assert.equal(result.status, 1, result.stderr + result.stdout);
-    assert.match(result.stdout + result.stderr, /below 16\.4/);
+    assert.match(result.stderr, /below 16\.4/);
+    assert.doesNotMatch(result.stdout, /::error::/);
   } finally {
     s.cleanup();
   }

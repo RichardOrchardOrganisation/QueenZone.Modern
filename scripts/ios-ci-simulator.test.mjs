@@ -214,7 +214,8 @@ esac
       },
     });
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr + result.stdout, /No available iPhone Simulator runtime|No available iOS Simulator runtime/);
+    assert.match(result.stderr, /No available iPhone Simulator runtime|No available iOS Simulator runtime/);
+    assert.doesNotMatch(result.stdout, /::error::/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

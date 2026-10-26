@@ -147,6 +147,27 @@ function Get-InstalledNewsAgentVersion {
     return $null
 }
 
+function Test-QueenZoneProdRelease {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$Release
+    )
+
+    if ($Release.PSObject.Properties['draft'] -and [bool]$Release.draft) {
+        return $false
+    }
+
+    if ($Release.PSObject.Properties['prerelease'] -and [bool]$Release.prerelease) {
+        return $false
+    }
+
+    if (-not $Release.PSObject.Properties['tag_name']) {
+        return $false
+    }
+
+    return Test-QueenZoneProdTag -Name ([string]$Release.tag_name)
+}
+
 function Select-LatestQueenZoneProdRelease {
     param(
         [AllowEmptyCollection()]
@@ -159,26 +180,11 @@ function Select-LatestQueenZoneProdRelease {
             continue
         }
 
-        $tag = ''
-        if ($release.PSObject.Properties['tag_name'] -and $release.tag_name) {
-            $tag = [string]$release.tag_name
-        }
-
-        $isDraft = $false
-        if ($release.PSObject.Properties['draft']) {
-            $isDraft = [bool]$release.draft
-        }
-
-        $isPrerelease = $false
-        if ($release.PSObject.Properties['prerelease']) {
-            $isPrerelease = [bool]$release.prerelease
-        }
-
-        if ($isDraft -or $isPrerelease -or -not (Test-QueenZoneProdTag -Name $tag)) {
+        if (-not (Test-QueenZoneProdRelease -Release $release)) {
             continue
         }
 
-        if ($null -eq $latest -or (Compare-QueenZoneProdTag -Left $tag -Right ([string]$latest.tag_name)) -gt 0) {
+        if ($null -eq $latest -or (Compare-QueenZoneProdTag -Left ([string]$release.tag_name) -Right ([string]$latest.tag_name)) -gt 0) {
             $latest = $release
         }
     }
