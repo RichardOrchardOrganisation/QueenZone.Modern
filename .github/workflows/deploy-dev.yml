@@ -593,10 +593,13 @@ jobs:
           CHECKOUT_SHA=$(git rev-parse HEAD)
           SHORT="${CHECKOUT_SHA:0:7}"
           echo "No CI web-publish — publishing QueenZone.Web from ${CHECKOUT_SHA} (stamp ${SHORT})."
-          dotnet restore src/QueenZone.Web/QueenZone.Web.csproj
+          # ReadyToRun like the CI web-publish (#2391). Merge-queue deploys land here because the
+          # squash commit never matches the PR-head CI run, so without the flag DEV stays JIT.
+          dotnet restore src/QueenZone.Web/QueenZone.Web.csproj -p:QueenZoneReadyToRun=true
           dotnet publish src/QueenZone.Web/QueenZone.Web.csproj \
             --configuration Release \
             --output publish \
+            -p:QueenZoneReadyToRun=true \
             /p:OverrideGitCommitShort="$SHORT"
 
       - name: Fetch Bitwarden deploy secrets
