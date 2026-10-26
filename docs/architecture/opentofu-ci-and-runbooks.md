@@ -164,6 +164,11 @@ every other drift is a problem: a deliberate break-glass dashboard change
 reconcile it into a PR or document why it's intentional, not to
 auto-suppress the alert.
 
+One narrow exception: if production's only change is the `temp-veronica`
+SCM rule's action (Allow versus the declared Deny), the workflow records
+an expected operator window and does not open an issue. Any other SCM
+restriction drift still files. See [`scm-temp-veronica.md`](scm-temp-veronica.md).
+
 ## Disaster recovery
 
 Issue [#596](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/596)

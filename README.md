@@ -537,4 +537,6 @@ DNS record remains in the production root. Run
 [dev environment runbook](docs/architecture/opentofu-dev-environment.md) for
 the current runtime boundary and historical provisioning evidence. Application
 deployment is automatic through `deploy-dev.yml`; production deployment is a
-separate tag or manual action.
+separate tag or manual action. Production log stream and Kudu from Richard's
+IP use the named SCM rule documented in
+[scm-temp-veronica.md](docs/architecture/scm-temp-veronica.md).

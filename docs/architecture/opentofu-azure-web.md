@@ -32,16 +32,19 @@ Azure publishes no Cloudflare service tag; `AzureFrontDoor.Backend` is not
 this origin's network. Dev and migration apps that allow direct access omit
 the Cloudflare list and keep the main-site default at Allow.
 
-SCM stays `scm_use_main_ip_restriction = false` and
-`scm_ip_restriction_default_action = "Allow"`. AzureRM 5.0.1 still needs
-that default set explicitly (#626). #1653's SCM Deny is not done.
-`deploy.yml` (`azure/webapps-deploy`) and `scripts/Invoke-AppServiceKudu.py`
-reach `*.scm.azurewebsites.net` with the publish profile from GitHub-hosted
-runners. Those addresses are not Cloudflare ranges, so copying only the
-main-site allow list onto SCM would 403 production deploys. SCM Deny waits
-for an explicit deploy or operator allow list, or for deploy to leave public
-SCM. Do not guess those addresses. WebDeploy and FTP basic authentication
-stay enabled because that publish-profile path still uses them.
+SCM stays `scm_use_main_ip_restriction = false` and production
+`scm_ip_restriction_default_action = "Deny"`. AzureRM 5.0.1 still needs
+that default set explicitly (#626). Production also declares the named
+`temp-veronica` SCM Deny `/32` when `scm_deny_ip` is set from repository
+variable `QZ_SCM_DENY_IP` — see
+[`scm-temp-veronica.md`](scm-temp-veronica.md). `deploy.yml`
+(`azure/webapps-deploy`) and `scripts/Invoke-AppServiceKudu.py` reach
+`*.scm.azurewebsites.net` with the publish profile from GitHub-hosted
+runners. Those addresses are not Cloudflare ranges, so the release workflow
+adds a separate `github-deploy-*` Allow `/32` for the current runner and
+removes it by name. Do not copy the main-site Cloudflare list onto SCM.
+WebDeploy and FTP basic authentication stay enabled because that
+publish-profile path still uses them.
 
 ## Certificate boundary
 

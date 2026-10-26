@@ -29,6 +29,19 @@ locals {
     for rule in concat(local.cloudflare_ipv4_rules, local.cloudflare_ipv6_rules) : rule
     if !var.allow_direct_access
   ]
+
+  # Production-only resting Deny for Richard's SCM /32. The address comes from
+  # QZ_SCM_DENY_IP via TF_VAR_scm_deny_ip and is never committed. AzureRM 5.0.1
+  # rejects description = "" (StringIsNotEmpty); omit it so the live empty
+  # description stays a no-op. Omit headers and service_tag so the provider
+  # keeps headers = [] and Azure's Default tag for an IP rule.
+  scm_deny_ip = var.scm_deny_ip == null ? "" : trimspace(var.scm_deny_ip)
+  scm_deny_restrictions = local.scm_deny_ip == "" ? [] : [{
+    name       = "temp-veronica"
+    priority   = 100
+    action     = "Deny"
+    ip_address = "${local.scm_deny_ip}/32"
+  }]
 }
 
 resource "azurerm_log_analytics_workspace" "production" {
@@ -138,8 +151,11 @@ resource "azurerm_linux_web_app" "production" {
     remote_debugging_enabled          = false
     scm_minimum_tls_version           = "1.2"
     # Production release grants its current GitHub runner /32 to SCM for the
-    # duration of the deploy, then removes it. Keep SCM rules separate from
-    # Cloudflare: GitHub-hosted runners do not use Cloudflare source IPs.
+    # duration of the deploy (name github-deploy-*, priority 100 Allow), then
+    # removes that rule by name. temp-veronica is a different name at the same
+    # priority; Azure matches by address, so the resting Deny on Richard's /32
+    # never blocks the runner. Keep SCM rules separate from Cloudflare:
+    # GitHub-hosted runners do not use Cloudflare source IPs.
     scm_use_main_ip_restriction       = false
     scm_ip_restriction_default_action = var.allow_direct_access ? "Allow" : "Deny"
     ip_restriction_default_action     = var.allow_direct_access ? "Allow" : "Deny"
@@ -160,6 +176,17 @@ resource "azurerm_linux_web_app" "production" {
         action      = "Allow"
         ip_address  = ip_restriction.value.ip_address
         description = ip_restriction.value.description
+      }
+    }
+
+    dynamic "scm_ip_restriction" {
+      for_each = local.scm_deny_restrictions
+
+      content {
+        name       = scm_ip_restriction.value.name
+        priority   = scm_ip_restriction.value.priority
+        action     = scm_ip_restriction.value.action
+        ip_address = scm_ip_restriction.value.ip_address
       }
     }
   }
