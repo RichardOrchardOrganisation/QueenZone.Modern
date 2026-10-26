@@ -76,16 +76,7 @@ public sealed class NewsDiscoveryService(
                 var message = $"{source.DisplayName} ({source.Key}): {ex.Message}";
                 errors.Add(message);
                 logger.LogWarning(ex, "Discovery fetch failed for source {SourceKey}.", source.Key);
-                if (!options.DryRun)
-                {
-                    var consecutiveFailures = await repository.MarkSourceFailedAsync(source.Id, cancellationToken);
-                    if (consecutiveFailures == 3)
-                    {
-                        logger.LogError(SourceFailureThresholdReached, ex,
-                            "Source {SourceKey} ({SourceName}) has failed {ConsecutiveFailureCount} consecutive runs.",
-                            source.Key, source.DisplayName, consecutiveFailures);
-                    }
-                }
+                await RecordSourceFailureAsync(source, ex, options.DryRun, cancellationToken);
             }
         }
 
@@ -98,6 +89,26 @@ public sealed class NewsDiscoveryService(
             keywordFiltered,
             failures,
             errors);
+    }
+
+    private async Task RecordSourceFailureAsync(
+        NewsDiscoverySource source,
+        Exception exception,
+        bool dryRun,
+        CancellationToken cancellationToken)
+    {
+        if (dryRun)
+        {
+            return;
+        }
+
+        var consecutiveFailures = await repository.MarkSourceFailedAsync(source.Id, cancellationToken);
+        if (consecutiveFailures == 3)
+        {
+            logger.LogError(SourceFailureThresholdReached, exception,
+                "Source {SourceKey} ({SourceName}) has failed {ConsecutiveFailureCount} consecutive runs.",
+                source.Key, source.DisplayName, consecutiveFailures);
+        }
     }
 
     private async Task<(int Created, int Duplicates, int Filtered)> IngestItemsAsync(

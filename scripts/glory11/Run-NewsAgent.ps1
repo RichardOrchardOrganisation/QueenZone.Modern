@@ -39,7 +39,7 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'NewsAgentVersion.ps1')
 
-function Write-NewsAgentLog {
+function Show-NewsAgentLog {
     param(
         [Parameter(Mandatory = $true)]
         [string]$Message
@@ -64,7 +64,7 @@ function Copy-NewsAgentLocalConfig {
 
     $source = Join-Path $InstallRoot 'appsettings.Local.json'
     if (-not (Test-Path -LiteralPath $source)) {
-        Write-NewsAgentLog 'No appsettings.Local.json in the install root; worker will use published settings and environment variables.'
+        Show-NewsAgentLog 'No appsettings.Local.json in the install root; worker will use published settings and environment variables.'
         return
     }
 
@@ -133,11 +133,11 @@ function Set-NewsAgentCurrentPointer {
                 Rename-Item -LiteralPath $prevPath -NewName 'current'
             }
             catch {
-                Write-NewsAgentLog "WARNING: failed to roll current.prev back to current: $($_.Exception.Message)"
+                Show-NewsAgentLog "WARNING: failed to roll current.prev back to current: $($_.Exception.Message)"
             }
 
             if (-not (Test-Path -LiteralPath $currentPath)) {
-                Write-NewsAgentLog 'WARNING: failed to roll current.prev back to current.'
+                Show-NewsAgentLog 'WARNING: failed to roll current.prev back to current.'
             }
         }
 
@@ -270,7 +270,7 @@ function Install-NewsAgentVersion {
         Set-Content -LiteralPath (Join-Path $destination 'version.txt') -Value $tag
         Copy-NewsAgentLocalConfig -VersionDirectory $destination
         Set-NewsAgentCurrentPointer -VersionDirectory $destination -Tag $tag
-        Write-NewsAgentLog "Installed News Agent $tag."
+        Show-NewsAgentLog "Installed News Agent $tag."
     }
     finally {
         Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
@@ -292,7 +292,7 @@ function Invoke-NewsAgentWorker {
     Copy-NewsAgentLocalConfig -VersionDirectory $currentPath
     $exe = Join-Path $currentPath 'QueenZone.NewsAgent.Worker.exe'
     $dll = Join-Path $currentPath 'QueenZone.NewsAgent.Worker.dll'
-    Write-NewsAgentLog "Starting News Agent $Version $($Arguments -join ' ')"
+    Show-NewsAgentLog "Starting News Agent $Version $($Arguments -join ' ')"
     Push-Location $currentPath
     try {
         if (Test-Path -LiteralPath $exe) {
@@ -325,10 +325,10 @@ $prevPath = Join-Path $InstallRoot 'current.prev'
 if (-not (Test-Path -LiteralPath $currentPath) -and (Test-Path -LiteralPath $prevPath)) {
     try {
         Rename-Item -LiteralPath $prevPath -NewName 'current'
-        Write-NewsAgentLog 'Restored current from current.prev after an interrupted swap.'
+        Show-NewsAgentLog 'Restored current from current.prev after an interrupted swap.'
     }
     catch {
-        Write-NewsAgentLog "WARNING: failed to restore current.prev to current: $($_.Exception.Message)"
+        Show-NewsAgentLog "WARNING: failed to restore current.prev to current: $($_.Exception.Message)"
     }
 }
 
@@ -355,21 +355,21 @@ if (-not $SkipUpdate) {
             $installed = $latest
         }
         else {
-            Write-NewsAgentLog "News Agent $installed is already current."
+            Show-NewsAgentLog "News Agent $installed is already current."
             Copy-NewsAgentLocalConfig -VersionDirectory (Join-Path $InstallRoot 'current')
         }
     }
     catch {
         Write-Warning "News Agent download/update failed: $($_.Exception.Message). Using the installed version."
-        Write-NewsAgentLog "WARNING: update failed ($($_.Exception.Message)); using installed $installed."
+        Show-NewsAgentLog "WARNING: update failed ($($_.Exception.Message)); using installed $installed."
     }
 }
 
 if ([string]::IsNullOrWhiteSpace($installed)) {
-    Write-NewsAgentLog 'No installed News Agent version is available.'
+    Show-NewsAgentLog 'No installed News Agent version is available.'
     exit 1
 }
 
 $exitCode = Invoke-NewsAgentWorker -Version $installed -Arguments $runArguments
-Write-NewsAgentLog "News Agent $installed exited $exitCode"
+Show-NewsAgentLog "News Agent $installed exited $exitCode"
 exit $exitCode

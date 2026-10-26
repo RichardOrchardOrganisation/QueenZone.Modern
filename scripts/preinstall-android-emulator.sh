@@ -43,7 +43,7 @@ PACKAGE="system-images;android-${API_LEVEL};${TARGET};${ARCH}"
 
 install_failure() {
   local reason="$1"
-  echo "::error::Android emulator install failure: ${reason}. The emulator never booted, so no journey ran. Not a selector or assertion miss."
+  echo "::error::Android emulator install failure: ${reason}. The emulator never booted, so no journey ran. Not a selector or assertion miss." >&2
   if [[ -n "$results_dir" ]]; then
     mkdir -p "$results_dir"
     {

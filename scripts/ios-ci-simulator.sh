@@ -136,7 +136,7 @@ print(
 print(f"{device_id}\t{runtime_id}")
 PY
 )" || {
-  echo "::error::No available iPhone Simulator runtime."
+  echo "::error::No available iPhone Simulator runtime." >&2
   "${xcrun_cmd}" simctl list devices || true
   "${xcrun_cmd}" simctl list runtimes || true
   exit 1
@@ -145,7 +145,7 @@ PY
 device_type="${pick%%$'\t'*}"
 runtime="${pick#*$'\t'}"
 if [[ -z "${device_type}" || -z "${runtime}" || "${device_type}" == "${runtime}" ]]; then
-  echo "::error::No available iPhone Simulator runtime."
+  echo "::error::No available iPhone Simulator runtime." >&2
   "${xcrun_cmd}" simctl list devices || true
   "${xcrun_cmd}" simctl list runtimes || true
   exit 1
@@ -154,7 +154,7 @@ fi
 name="QueenZone-CI-iOS-${GITHUB_RUN_ID:-local}-${GITHUB_JOB:-job}"
 udid=$("${xcrun_cmd}" simctl create "${name}" "${device_type}" "${runtime}")
 if [[ -z "${udid}" ]]; then
-  echo "::error::Failed to create iPhone Simulator ${name}."
+  echo "::error::Failed to create iPhone Simulator ${name}." >&2
   exit 1
 fi
 
