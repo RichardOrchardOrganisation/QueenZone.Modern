@@ -22,8 +22,8 @@ public sealed class NewsDraftGenerationService(
 
         if (!aiRunExecutor.IsAiEnabled)
         {
-            logger.LogWarning("OpenRouter is disabled; draft generation skipped.");
-            return new NewsDraftRunResult(0, 0, 0, 0, []);
+            logger.LogWarning("OpenRouter is disabled; draft generation cannot run.");
+            return new NewsDraftRunResult(0, 0, 0, 0, ["Draft generation cannot run because OpenRouter is disabled."]);
         }
 
         var limit = options.PerRunCandidateLimit ?? draftOptions.Value.PerRunCandidateLimit;
@@ -42,6 +42,7 @@ public sealed class NewsDraftGenerationService(
 
         aiRunExecutor.BeginRun();
 
+        var attempted = toProcess.Count;
         var created = 0;
         var skipped = 0;
         var failures = 0;
@@ -52,6 +53,10 @@ public sealed class NewsDraftGenerationService(
             try
             {
                 var result = await GenerateDraftAsync(candidate, options, cancellationToken);
+                if (!result.Attempted)
+                {
+                    attempted--;
+                }
                 if (result.Succeeded && result.DraftId is not null)
                 {
                     created++;
@@ -61,15 +66,15 @@ public sealed class NewsDraftGenerationService(
                     skipped++;
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 failures++;
                 errors.Add($"Candidate {candidate.Id}: {ex.Message}");
-                logger.LogError(ex, "Draft generation failed for candidate {CandidateId}.", candidate.Id);
+                logger.LogWarning(ex, "Draft generation failed for candidate {CandidateId}.", candidate.Id);
             }
         }
 
-        return new NewsDraftRunResult(toProcess.Count, created, skipped, failures, errors);
+        return new NewsDraftRunResult(toProcess.Count, created, skipped, failures, errors) { CandidatesAttempted = attempted };
     }
 
     public async Task<NewsDraftCandidateResult> GenerateDraftAsync(
@@ -83,7 +88,7 @@ public sealed class NewsDraftGenerationService(
         if (existingDraft is not null && !options.ForceRegenerate)
         {
             logger.LogInformation("Skipping candidate {CandidateId}; draft already exists.", candidate.Id);
-            return new NewsDraftCandidateResult(candidate.Id, existingDraft.Id, false, null);
+            return new NewsDraftCandidateResult(candidate.Id, existingDraft.Id, false, null) { Attempted = false };
         }
 
         var source = await repository.GetSourceByIdAsync(candidate.SourceId, cancellationToken)
@@ -275,7 +280,7 @@ public sealed class NewsDraftGenerationService(
 
             return [.. evidence, refreshed];
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning(
                 ex,

@@ -8,6 +8,8 @@ public sealed class NewsDiscoveryService(
     NewsSourceFetcherRegistry fetcherRegistry,
     ILogger<NewsDiscoveryService> logger)
 {
+    public static readonly EventId SourceFailureThresholdReached = new(4101, "NewsSourceFailureThresholdReached");
+
     public async Task<NewsDiscoveryRunResult> RunFetchAsync(
         NewsDiscoveryRunOptions options,
         CancellationToken cancellationToken = default)
@@ -68,12 +70,22 @@ public sealed class NewsDiscoveryService(
                     duplicates,
                     filtered);
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
                 failures++;
-                var message = $"{source.Key}: {ex.Message}";
+                var message = $"{source.DisplayName} ({source.Key}): {ex.Message}";
                 errors.Add(message);
-                logger.LogError(ex, "Discovery fetch failed for source {SourceKey}.", source.Key);
+                logger.LogWarning(ex, "Discovery fetch failed for source {SourceKey}.", source.Key);
+                if (!options.DryRun)
+                {
+                    var consecutiveFailures = await repository.MarkSourceFailedAsync(source.Id, cancellationToken);
+                    if (consecutiveFailures == 3)
+                    {
+                        logger.LogError(SourceFailureThresholdReached, ex,
+                            "Source {SourceKey} ({SourceName}) has failed {ConsecutiveFailureCount} consecutive runs.",
+                            source.Key, source.DisplayName, consecutiveFailures);
+                    }
+                }
             }
         }
 

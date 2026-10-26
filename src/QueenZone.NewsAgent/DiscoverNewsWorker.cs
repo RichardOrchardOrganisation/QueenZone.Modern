@@ -17,6 +17,10 @@ public sealed class DiscoverNewsWorker(
         DiscoverNewsCommandOptions options,
         CancellationToken cancellationToken = default)
     {
+        LastDiscoveryResult = null;
+        LastTriageResult = null;
+        LastDraftResult = null;
+        var stepErrors = new List<string>();
         await using var runLease = await runPreparation.PrepareAsync(options, cancellationToken);
         if (runLease is null)
         {
@@ -40,20 +44,20 @@ public sealed class DiscoverNewsWorker(
 
         if (!options.TriageOnly && !options.DraftOnly)
         {
-            exitCode = await RunDiscoveryAsync(options, cancellationToken);
+            exitCode = await RunStepAsync("Discovery", () => RunDiscoveryAsync(options, cancellationToken), stepErrors, cancellationToken);
             discoveryResult = LastDiscoveryResult;
         }
 
         if (options.Triage)
         {
-            var triageExit = await RunTriageAsync(options, cancellationToken);
+            var triageExit = await RunStepAsync("Triage", () => RunTriageAsync(options, cancellationToken), stepErrors, cancellationToken);
             exitCode = Math.Max(exitCode, triageExit);
             triageResult = LastTriageResult;
         }
 
         if (options.Draft)
         {
-            var draftExit = await RunDraftGenerationAsync(options, cancellationToken);
+            var draftExit = await RunStepAsync("Draft generation", () => RunDraftGenerationAsync(options, cancellationToken), stepErrors, cancellationToken);
             exitCode = Math.Max(exitCode, draftExit);
             draftResult = LastDraftResult;
         }
@@ -71,10 +75,25 @@ public sealed class DiscoverNewsWorker(
                 Triage: triageResult,
                 Draft: draftResult,
                 EstimatedAiSpendUsd: spend,
-                ExitCode: exitCode);
+                ExitCode: exitCode)
+        { StepErrors = stepErrors };
         NewsAgentRunTelemetry.LogRunCompleted(logger, LastRunSummary);
 
         return exitCode;
+    }
+
+    private async Task<int> RunStepAsync(string step, Func<Task<int>> run, List<string> errors, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await run();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            errors.Add($"{step}: {exception.Message}");
+            logger.LogError(exception, "News agent step {Step} failed.", step);
+            return 1;
+        }
     }
 
     private NewsDiscoveryRunResult? LastDiscoveryResult { get; set; }
@@ -108,10 +127,10 @@ public sealed class DiscoverNewsWorker(
 
         foreach (var error in result.Errors)
         {
-            logger.LogError("Discovery error: {Error}", error);
+            logger.LogWarning("Discovery error: {Error}", error);
         }
 
-        return result.Failures > 0 ? 1 : 0;
+        return result.SourcesChecked > 0 && result.Failures == result.SourcesChecked ? 1 : 0;
     }
 
     private async Task<int> RunTriageAsync(
@@ -134,10 +153,10 @@ public sealed class DiscoverNewsWorker(
 
         foreach (var error in triageResult.Errors)
         {
-            logger.LogError("Triage error: {Error}", error);
+            logger.LogWarning("Triage error: {Error}", error);
         }
 
-        return triageResult.Failures > 0 ? 1 : 0;
+        return triageResult.CandidatesConsidered > 0 && triageResult.Failures == triageResult.CandidatesConsidered ? 1 : 0;
     }
 
     private async Task<int> RunDraftGenerationAsync(
@@ -160,10 +179,11 @@ public sealed class DiscoverNewsWorker(
 
         foreach (var error in draftResult.Errors)
         {
-            logger.LogError("Draft generation error: {Error}", error);
+            logger.LogWarning("Draft generation error: {Error}", error);
         }
 
-        return draftResult.Failures > 0 ? 1 : 0;
+        return !draftGenerationService.IsAiEnabled
+            || (draftResult.CandidatesAttempted > 0 && draftResult.Failures == draftResult.CandidatesAttempted) ? 1 : 0;
     }
 
 }

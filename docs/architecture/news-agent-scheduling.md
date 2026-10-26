@@ -62,6 +62,8 @@ dotnet ef database update --project src/QueenZone.Data --startup-project src/Que
 
 ## Windows Task Scheduler (local pilot)
 
+Glory11 production runs the published `newsagent-<tag>.zip` from the prod tag's GitHub Release, not a git checkout. One-time setup: [`docs/ops/glory11-newsagent.md`](../ops/glory11-newsagent.md). Changing that scheduled task needs Richard's OK.
+
 Use `scripts/Run-NewsAgentDiscovery.ps1` for automatic gathering and `scripts/Process-NewsAgentRunRequests.ps1` for requests queued from `/admin/news-discovery`. Both run from the repository root and forward worker exit codes.
 
 ### One-time setup
@@ -82,11 +84,29 @@ Use `scripts/Run-NewsAgentDiscovery.ps1` for automatic gathering and `scripts/Pr
    - **Start in**: `C:\path\to\QueenZone.Modern`
 5. **Settings**: stop task if it runs longer than 2 hours; if the task is already running, **Do not start a new instance** (belt-and-braces with the DB lease).
 
-Optional log file (ignored path, not committed):
+Both wrappers save a separate transcript for each run under
+`%LOCALAPPDATA%\QueenZone\Logs\NewsAgent` for the task account. Names start with
+`discovery-` or `requests-` and include the UTC start time and process ID. The
+transcript includes startup failures, worker console logs, source/AI failures,
+the `NewsAgentRunCompleted` summary, and the final exit code and duration. Files
+older than 30 days are removed on the next run of that task. Use `-LogDirectory`
+on either wrapper to choose another local directory. No secrets are deliberately
+logged; treat transcripts as operator diagnostics because they include source
+URLs and database error details.
+
+Inspect the most recent discovery log:
 
 ```powershell
-scripts/Run-NewsAgentDiscovery.ps1 -Scheduled *>&1 | Tee-Object -FilePath "$env:LOCALAPPDATA\QueenZone\news-agent.log" -Append
+Get-ChildItem "$env:LOCALAPPDATA\QueenZone\Logs\NewsAgent\discovery-*.log" |
+    Sort-Object LastWriteTime -Descending | Select-Object -First 1 |
+    Get-Content -Tail 60
 ```
+
+Enable **Task Scheduler → Enable All Tasks History** (administrator required), or
+run `wevtutil sl Microsoft-Windows-TaskScheduler/Operational /e:true` from an
+elevated terminal. That Windows event log records task launch/action completion
+and failures to start PowerShell itself; transcripts record the runner output.
+Task Scheduler's **Last Run Result** remains the worker's exit code.
 
 ### Web-queued runs on the local computer
 

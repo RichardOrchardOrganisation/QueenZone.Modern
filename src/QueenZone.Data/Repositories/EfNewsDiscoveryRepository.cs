@@ -76,12 +76,29 @@ public sealed class EfNewsDiscoveryRepository(QueenZoneDbContext dbContext) : IN
         return existing.Id;
     }
 
+    public async Task<int> MarkSourceFailedAsync(int sourceId, CancellationToken cancellationToken = default)
+    {
+        var updated = await dbContext.NewsDiscoverySources
+            .Where(source => source.Id == sourceId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(source => source.ConsecutiveFailureCount, source => source.ConsecutiveFailureCount + 1),
+                cancellationToken);
+        if (updated == 0)
+        {
+            throw new InvalidOperationException($"News discovery source {sourceId} was not found.");
+        }
+
+        return await dbContext.NewsDiscoverySources.Where(source => source.Id == sourceId)
+            .Select(source => source.ConsecutiveFailureCount).SingleAsync(cancellationToken);
+    }
+
     public async Task MarkSourceFetchedAsync(int sourceId, DateTime fetchedAt, CancellationToken cancellationToken = default)
     {
         var updated = await dbContext.NewsDiscoverySources
             .Where(source => source.Id == sourceId)
             .ExecuteUpdateAsync(
                 setters => setters
+                    .SetProperty(source => source.ConsecutiveFailureCount, 0)
                     .SetProperty(source => source.LastFetchedAt, fetchedAt)
                     .SetProperty(source => source.UpdatedAt, fetchedAt),
                 cancellationToken);

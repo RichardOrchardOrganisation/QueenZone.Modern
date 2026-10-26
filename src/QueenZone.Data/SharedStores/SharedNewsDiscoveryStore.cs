@@ -86,12 +86,23 @@ public sealed class SharedNewsDiscoveryStore
         }
     }
 
+    public int MarkSourceFailed(int sourceId)
+    {
+        lock (sync)
+        {
+            var source = sources.SingleOrDefault(item => item.Id == sourceId)
+                ?? throw new InvalidOperationException($"News discovery source {sourceId} was not found.");
+            return ++source.ConsecutiveFailureCount;
+        }
+    }
+
     public void MarkSourceFetched(int sourceId, DateTime fetchedAt)
     {
         lock (sync)
         {
             var source = sources.SingleOrDefault(item => item.Id == sourceId)
                 ?? throw new InvalidOperationException($"News discovery source {sourceId} was not found.");
+            source.ConsecutiveFailureCount = 0;
             source.LastFetchedAt = fetchedAt;
             source.UpdatedAt = fetchedAt;
         }

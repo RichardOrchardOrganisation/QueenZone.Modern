@@ -108,7 +108,9 @@ public sealed class NewsAgentQueuedRunProcessor(
             + $"Fetched {discovery?.ItemsFetched ?? 0} items; created {discovery?.CandidatesCreated ?? 0} candidates. "
             + $"Triaged {triage?.CandidatesConsidered ?? 0}; sent {triage?.PromotedToReview ?? 0} for review; "
             + $"rejected {triage?.Rejected ?? 0}; duplicates {triage?.MarkedDuplicate ?? 0}. "
-            + $"Estimated AI spend ${summary.EstimatedAiSpendUsd:0.0000}.";
+            + $"Drafts created {summary.Draft?.DraftsCreated ?? 0}; failures {summary.TotalFailures}. "
+            + $"Estimated AI spend ${summary.EstimatedAiSpendUsd:0.0000}. "
+            + string.Join("; ", summary.Errors);
     }
 }
 
