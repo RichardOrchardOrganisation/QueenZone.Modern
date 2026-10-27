@@ -1,0 +1,27 @@
+--------- beginning of crash
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: FATAL EXCEPTION: main
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: Process: com.android.systemui, PID: 7080
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: java.lang.IllegalStateException: Unable to find parentView for tag 334
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at gp8.a(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:7)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.SurfaceMountingManager.removeViewAt(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:349)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.mountitems.IntBufferBatchMountItem.execute(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:439)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.MountItemDispatcher.executeOrEnqueue(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:58)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.MountItemDispatcher.dispatchMountItems$lambda$7$lambda$6(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:51)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.MountItemDispatcher.dispatchMountItems(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:175)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.mounting.MountItemDispatcher.tryDispatchMountItems(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:10)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.facebook.react.fabric.FabricUIManager$DispatchUIFrameCallback.doFrameGuarded(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:143)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at ct3.doFrame(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:1)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at co.doFrame(r8-map-id-824397122a544cbeb1214dce5838dcafd7c76049cf288c25512ca69225215b44:53)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1337)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.view.Choreographer$CallbackRecord.run(Choreographer.java:1348)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.view.Choreographer.doCallbacks(Choreographer.java:952)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.view.Choreographer.doFrame(Choreographer.java:878)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.view.Choreographer$FrameDisplayEventReceiver.run(Choreographer.java:1322)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.os.Handler.handleCallback(Handler.java:958)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:99)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:205)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:294)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:8177)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:552)
+10-26 21:30:10.461  7080  7080 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:971)

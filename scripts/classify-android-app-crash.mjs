@@ -172,6 +172,15 @@ export function extractCrashReports(text) {
 }
 
 export function parsePackageCrash(text, source = 'logcat') {
+  const javaFatal = /^FATAL EXCEPTION: [^\n]+\nProcess: org\.queenzone\.mobile(?:, PID: \d+)?\s*\n([^\n]+)\n((?:[ \t]+at [^\n]+(?:\n|$))*)/m.exec(stripLogcatText(text));
+  if (javaFatal) {
+    return {
+      ...parseReport('', source),
+      exception: javaFatal[1].trim(),
+      frames: javaFatal[2].split('\n').filter((line) => line.trim())
+        .slice(0, MAX_FRAMES).map((line) => line.trim()),
+    };
+  }
   const reports = extractCrashReports(text);
   let best = null;
   for (const report of reports) {
@@ -265,6 +274,9 @@ export function formatAppCrashReport(result) {
     `package=${result.package}`,
     `signal=${result.signal ?? 'unknown'}`,
   ];
+  if (result.exception) {
+    lines.push(`exception=${result.exception}`);
+  }
   if (result.faultCode) {
     lines.push(`fault_code=${result.faultCode}`);
   }
@@ -275,7 +287,7 @@ export function formatAppCrashReport(result) {
     lines.push('process_alive=false');
   }
   if (result.frames.length > 0) {
-    lines.push('top native frames:');
+    lines.push(result.exception ? 'top Java frames:' : 'top native frames:');
     for (const frame of result.frames) {
       lines.push(`  ${frame}`);
     }
@@ -293,6 +305,9 @@ export function formatAppCrashSummary(result) {
     `- Package: \`${result.package}\``,
     `- Signal: ${result.signal ?? 'unknown'}`,
   ];
+  if (result.exception) {
+    lines.push(`- Exception: ${result.exception}`);
+  }
   if (result.faultCode) {
     lines.push(`- Fault code: ${result.faultCode}`);
   }
@@ -303,7 +318,7 @@ export function formatAppCrashSummary(result) {
     lines.push('- Process: gone');
   }
   if (result.frames.length > 0) {
-    lines.push('', '### Top native frames', '', '```');
+    lines.push('', result.exception ? '### Top Java frames' : '### Top native frames', '', '```');
     lines.push(...result.frames);
     lines.push('```');
   }
