@@ -45,6 +45,12 @@ public class StartupWarmupHostedService(
 {
     private const string Loopback = "127.0.0.1";
 
+    /// <summary>
+    /// Logger category of this service. <c>AddQueenZoneApplicationInsights</c> exports this category
+    /// at Information so the warm-up summary survives the global warning-only log export (#2391).
+    /// </summary>
+    internal static readonly string LogCategory = typeof(StartupWarmupHostedService).FullName!;
+
     private Task? running;
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -70,14 +76,16 @@ public class StartupWarmupHostedService(
 
     internal async Task RunAsync(CancellationToken cancellationToken)
     {
+        var startedAfterMs = ProcessUptimeMs();
         var total = Stopwatch.StartNew();
         try
         {
             var cachesMs = await WarmCachesAsync(cancellationToken);
             var pages = await WarmPagesAsync(cancellationToken);
             logger.LogInformation(
-                "Startup warmup finished in {TotalMs}ms (public caches {CachesMs}ms, {Pages} pages).",
+                "Startup warmup finished in {TotalMs}ms (started {StartedAfterMs}ms after process start, public caches {CachesMs}ms, {Pages} pages).",
                 total.ElapsedMilliseconds,
+                startedAfterMs,
                 cachesMs,
                 pages);
         }
@@ -89,6 +97,12 @@ public class StartupWarmupHostedService(
         {
             logger.LogWarning(exception, "Startup warmup aborted after {TotalMs}ms.", total.ElapsedMilliseconds);
         }
+    }
+
+    private static long ProcessUptimeMs()
+    {
+        using var process = Process.GetCurrentProcess();
+        return (long)(DateTime.UtcNow - process.StartTime.ToUniversalTime()).TotalMilliseconds;
     }
 
     /// <summary>Resolves <see cref="PublicWarmupService"/> in its own scope and primes the caches.</summary>

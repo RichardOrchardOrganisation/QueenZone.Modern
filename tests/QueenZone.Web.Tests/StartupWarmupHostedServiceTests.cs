@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -95,6 +96,28 @@ public sealed class StartupWarmupHostedServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_logs_a_queryable_summary_under_the_category_the_telemetry_filter_exports()
+    {
+        var provider = new CapturingLoggerProvider();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        var logger = loggerFactory.CreateLogger<StartupWarmupHostedService>();
+        var service = CreateService(
+            new FakeLifetime(), "Production", true, new RecordingHandler(), logger: logger);
+
+        await service.RunAsync(CancellationToken.None);
+
+        var summary = Assert.Single(provider.Entries, entry => entry.Message.StartsWith("Startup warmup finished in"));
+        Assert.Equal(StartupWarmupHostedService.LogCategory, summary.Category);
+        Assert.Equal(LogLevel.Information, summary.Level);
+        Assert.Contains(summary.State, pair => pair.Key == "TotalMs");
+        Assert.Contains(summary.State, pair => pair.Key == "CachesMs");
+        Assert.Contains(summary.State, pair => pair.Key == "Pages" && Equals(pair.Value, 1));
+        var startedAfter = Assert.Single(summary.State, pair => pair.Key == "StartedAfterMs");
+        Assert.True(Convert.ToInt64(startedAfter.Value) > 0);
+        Assert.Contains(provider.Entries, entry => entry.Message.StartsWith("Startup warmup rendered /"));
+    }
+
+    [Fact]
     public async Task RunAsync_stops_quietly_when_shutdown_is_requested()
     {
         var handler = new RecordingHandler();
@@ -113,14 +136,49 @@ public sealed class StartupWarmupHostedServiceTests
         bool enabled,
         RecordingHandler handler,
         string[]? paths = null,
-        string[]? addresses = null) =>
+        string[]? addresses = null,
+        ILogger<StartupWarmupHostedService>? logger = null) =>
         new(
             lifetime,
             new FakeEnvironment(environmentName),
             new FakeServer(addresses ?? ["http://[::]:8080"]),
             Options.Create(new StartupWarmupOptions { Enabled = enabled, Paths = paths ?? ["/"] }),
             Options.Create(new SiteOptions { PublicBaseUrl = "https://www.example.test" }),
-            handler);
+            handler,
+            logger ?? NullLogger<StartupWarmupHostedService>.Instance);
+
+    private sealed class CapturingLoggerProvider : ILoggerProvider
+    {
+        public List<(string Category, LogLevel Level, string Message, IReadOnlyList<KeyValuePair<string, object?>> State)> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(categoryName, Entries);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CapturingLogger(
+            string category,
+            List<(string, LogLevel, string, IReadOnlyList<KeyValuePair<string, object?>>)> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter) =>
+                entries.Add((
+                    category,
+                    logLevel,
+                    formatter(state, exception),
+                    (state as IReadOnlyList<KeyValuePair<string, object?>>) ?? []));
+        }
+    }
 
     private sealed class TestableWarmup(
         FakeLifetime lifetime,
@@ -128,7 +186,8 @@ public sealed class StartupWarmupHostedServiceTests
         IServer server,
         IOptions<StartupWarmupOptions> options,
         IOptions<SiteOptions> siteOptions,
-        HttpMessageHandler handler)
+        HttpMessageHandler handler,
+        ILogger<StartupWarmupHostedService> logger)
         : StartupWarmupHostedService(
             lifetime,
             environment,
@@ -136,7 +195,7 @@ public sealed class StartupWarmupHostedServiceTests
             null!,
             options,
             siteOptions,
-            NullLogger<StartupWarmupHostedService>.Instance,
+            logger,
             handler)
     {
         public int CacheWarms { get; private set; }

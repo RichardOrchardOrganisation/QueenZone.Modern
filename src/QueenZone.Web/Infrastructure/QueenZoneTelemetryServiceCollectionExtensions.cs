@@ -34,6 +34,9 @@ public static class QueenZoneTelemetryServiceCollectionExtensions
         var exportedLogLevel = section.GetValue<LogLevel?>("ExportedLogLevel") ?? LogLevel.Warning;
 
         logging.AddFilter<OpenTelemetryLoggerProvider>(null, exportedLogLevel);
+        // The startup warm-up summary is the only way to see cold-start timing in App Insights
+        // (request telemetry is sampled); about five Information lines per process start (#2391).
+        logging.AddFilter<OpenTelemetryLoggerProvider>(StartupWarmupHostedService.LogCategory, LogLevel.Information);
 
         // Azure Monitor 1.6 defaults these to true when unset. Set them before
         // its options initialize, and redact again before exporters receive spans.
