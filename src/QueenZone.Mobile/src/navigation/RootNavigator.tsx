@@ -1,3 +1,4 @@
+import { useMountLog2404 } from '../diag2404';
 import { getFocusedRouteNameFromRoute, type RouteProp } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -107,6 +108,7 @@ export function reselectRoot(
 }
 
 function MainTabs() {
+  useMountLog2404('MainTabs');
   const { c, chrome } = useTheme();
   const platformChrome = Platform.OS === 'android' ? chrome.android : chrome.ios;
   const visibleTabBarStyle = useMemo(
@@ -201,6 +203,7 @@ function MainTabs() {
 }
 
 export function RootNavigator() {
+  useMountLog2404('RootNavigator');
   const { c } = useTheme();
   return (
     <View style={{ flex: 1 }}>

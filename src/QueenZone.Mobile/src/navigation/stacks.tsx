@@ -1,3 +1,4 @@
+import { useMountLog2404 } from '../diag2404';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { ReactNode } from 'react';
 import { testIds } from '../test/testIds';
@@ -112,6 +113,7 @@ export function commonScreens(Stack: CommonStackScreens, options?: CommonScreens
 }
 
 export function HomeStack() {
+  useMountLog2404('HomeStack');
   const { c } = useTheme();
   return (
     <Home.Navigator screenOptions={stackScreenOptions(c)}>
@@ -200,6 +202,7 @@ export function PhotosStack() {
 }
 
 export function ArchiveStack() {
+  useMountLog2404('ArchiveStack');
   const { c } = useTheme();
   return (
     <Archive.Navigator screenOptions={stackScreenOptions(c)}>

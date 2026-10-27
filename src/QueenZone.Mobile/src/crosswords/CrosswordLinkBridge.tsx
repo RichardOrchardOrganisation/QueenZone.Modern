@@ -10,6 +10,7 @@ export function CrosswordLinkBridge() {
   const lastDelivery = useRef({ url: '', at: 0 });
   const handle = useRef((value: string) => {
     const at = Date.now();
+    console.log(`QZ2404 link ${value}`);
     if (lastDelivery.current.url === value && at - lastDelivery.current.at < 500) return;
     if (openCrosswordLink(current.current, value)) lastDelivery.current = { url: value, at };
   });

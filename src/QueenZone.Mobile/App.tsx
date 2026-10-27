@@ -1,3 +1,4 @@
+import { describeState2404, useMountLog2404 } from './src/diag2404';
 import {
   DarkTheme,
   DefaultTheme,
@@ -35,6 +36,7 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 configureForegroundNotificationHandler();
 
 function AppNavigation({ analyticsEnabled }: { analyticsEnabled: boolean }) {
+  useMountLog2404('AppNavigation');
   const { c, mode } = useTheme();
   const base = mode === 'light' ? DefaultTheme : DarkTheme;
 
@@ -74,7 +76,7 @@ function AppNavigation({ analyticsEnabled }: { analyticsEnabled: boolean }) {
         navigationIntegration.registerNavigationContainer(navigationRef);
         reportSection();
       }}
-      onStateChange={reportSection}
+      onStateChange={(st) => { console.log(`QZ2404 nav ${describeState2404(st as never)}`); reportSection(); }}
     >
       <StatusBar style={mode === 'light' ? 'dark' : 'light'} />
       <RootNavigator />

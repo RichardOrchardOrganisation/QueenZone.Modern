@@ -1,3 +1,4 @@
+import { useMountLog2404 } from '../../diag2404';
 import type { ReactNode } from 'react';
 import { testIds } from '../../test/testIds';
 import { useCallback, useLayoutEffect, useState } from 'react';
@@ -19,6 +20,7 @@ import { type, useTheme } from '../../theme';
 
 type Props = NativeStackScreenProps<ArchiveStackParamList, 'CrosswordPlay'>;
 export function CrosswordPlayScreen({ route, navigation }: Props) {
+  useMountLog2404('CrosswordPlayScreen', route.key);
   const { slug } = route.params;
   const { accessToken, profile } = useSession();
   const load = useCallback((signal: AbortSignal) => fetchJsonWithOfflineCache<CrosswordDetail>(`/crosswords/by-slug/${encodeURIComponent(slug)}`,
@@ -33,6 +35,7 @@ export function CrosswordPlayScreen({ route, navigation }: Props) {
 
 type SolverProps = { puzzle: CrosswordDetail; memberId: string | null; accessToken: string | null; onReload: () => void; onNext: () => void };
 export function CrosswordSolver({ puzzle, memberId, accessToken, onReload, onNext }: SolverProps) {
+  useMountLog2404('CrosswordSolver', puzzle.slug);
   const { c } = useTheme();
   const play = useCrosswordPlay(puzzle, memberId, accessToken);
   const [showClues, setShowClues] = useState(false);

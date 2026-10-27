@@ -109,6 +109,7 @@ export function ThemeProvider(props: Props) {
   const systemMode: ThemeMode = systemScheme === 'light' ? 'light' : 'dark';
   const mode: ThemeMode = preference === 'system' ? systemMode : preference;
 
+  useEffect(() => { console.log(`QZ2404 theme mode=${mode}`); }, [mode]);
   const value = useMemo<ThemeContextValue>(
     () => ({
       c: mode === 'light' ? light : dark,
