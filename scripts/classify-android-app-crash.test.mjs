@@ -16,6 +16,7 @@ import {
   isOurCrashingProcess,
   isCrashReportLine,
   MAX_FRAMES,
+  main,
   mentionsOurPackage,
   parsePackageCrash,
   readOptional,
@@ -217,4 +218,57 @@ test('frames keep their order across the backtrace header and stop at blanks onl
     assert.deepEqual(parsed.frames, frames.slice(0, MAX_FRAMES).map((line) => line.trim()));
     assert.equal(parsed.faultCode, null);
   }
+});
+
+test('Java FATAL EXCEPTION fixture identifies our process and retains exception and top frames', () => {
+  const crashBuffer = readFileSync(path.join(fixtures, 'fabric-parentview-java-fatal-queenzone.crash-buffer'), 'utf8');
+  const result = classifyAndroidAppCrash({ crashBuffer });
+  assert.equal(result.class, APP_CRASH);
+  assert.equal(result.source, 'crash-buffer');
+  assert.equal(result.exception, 'java.lang.IllegalStateException: Unable to find parentView for tag 334');
+  assert.equal(result.frames.length, MAX_FRAMES);
+  assert.match(result.frames[0], /^at gp8\.a\(/);
+  assert.match(result.frames[1], /^at com\.facebook\.react\.fabric\.mounting\.SurfaceMountingManager\.removeViewAt\(/);
+  assert.match(result.frames[2], /^at com\.facebook\.react\.fabric\.mounting\.mountitems\.IntBufferBatchMountItem\.execute\(/);
+  for (const report of [formatAppCrashReport(result), formatAppCrashSummary(result)]) {
+    assert.ok(report.includes(result.exception));
+    for (const frame of result.frames.slice(0, 3)) {
+      assert.ok(report.includes(frame));
+    }
+  }
+});
+
+test('Java fatal crash file and CLI write-dir produce APP_CRASH artifacts', () => {
+  const crashBuffer = path.join(fixtures, 'fabric-parentview-java-fatal-queenzone.crash-buffer');
+  const result = classifyFromFiles({ crashBuffer });
+  assert.equal(result.class, APP_CRASH);
+  assert.equal(result.source, 'crash-buffer');
+  const directory = mkdtempSync(path.join(tmpdir(), 'qz-java-app-crash-'));
+  try {
+    const reports = [];
+    const cli = main([
+      '--crash-buffer', crashBuffer, '--write-dir', directory, '--print-report',
+    ], { stderr: (report) => reports.push(report) });
+    assert.equal(cli.class, APP_CRASH);
+    assert.match(reports[0], /Maestro failing cause: APP_CRASH/);
+    assert.ok(reports[0].includes(result.exception));
+    assert.match(reports[0], /SurfaceMountingManager\.removeViewAt/);
+    const marker = readFileSync(path.join(directory, 'android-app-crash'), 'utf8');
+    assert.match(marker, /^class=APP_CRASH$/m);
+    assert.match(marker, /^source=crash-buffer$/m);
+    assert.equal(readFileSync(path.join(directory, 'android-app-crash-frames.txt'), 'utf8'), `${result.frames.join('\n')}\n`);
+    assert.ok(readFileSync(path.join(directory, 'android-app-crash-summary.md'), 'utf8').includes(result.exception));
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('Java FATAL EXCEPTION for another process is not APP_CRASH', () => {
+  const crashBuffer = path.join(fixtures, 'java-fatal-other-process.crash-buffer');
+  assert.equal(classifyFromFiles({ crashBuffer }).class, NO_CRASH);
+  const text = readFileSync(crashBuffer, 'utf8');
+  assert.equal(classifyAndroidAppCrash({ crashBuffer: text, logcat: noCrashLogcat }).class, NO_CRASH);
+  assert.equal(classifyAndroidAppCrash({
+    crashBuffer: text.replace('com.android.systemui', 'org.queenzone.mobile.other'),
+  }).class, NO_CRASH);
 });
