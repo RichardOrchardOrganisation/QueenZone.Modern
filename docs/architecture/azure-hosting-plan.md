@@ -226,8 +226,9 @@ See `QueenZone.NewsAgent.OutboundUrlSafety` and `SsrfSafeSocketsHttpHandler`.
 Application Insights telemetry is enabled in `QueenZone.Web` only when
 `APPLICATIONINSIGHTS_CONNECTION_STRING` is configured. The app uses Azure Monitor
 OpenTelemetry with conservative defaults in `ApplicationInsights`: 0.2 traces per
-second, warning-or-higher exported logs, trace-based log sampling, and Live
-Metrics disabled. In Azure, configure a small daily cap on both Application
+second, warning-or-higher exported logs (plus Information from the startup
+warm-up service, so cold-start timings are queryable: search `AppTraces` for
+`Startup warmup`), trace-based log sampling, and Live Metrics disabled. In Azure, configure a small daily cap on both Application
 Insights and the backing Log Analytics workspace so unexpected telemetry volume
 is budget-contained.
 
