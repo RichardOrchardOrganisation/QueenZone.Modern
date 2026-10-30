@@ -81,7 +81,7 @@ public sealed class IndexModel(
         {
             SprintBoard = await quizSprintService.GetBoardAsync(null, 3, cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // Optional chrome: a missing QuizSprintRuns table or other SQL/schema failure on
             // the RealData Express mirror must not take down GET / (empty board is still 200).
@@ -185,7 +185,7 @@ public sealed class IndexModel(
         {
             return await publicQueryCache.GetLiveActivityNewForumRepliesTodayAsync(cancellationToken);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // Optional chrome, like the sprint board: the strip simply drops the count.
             logger.LogWarning(exception, "Homepage forum replies-today count failed to load.");

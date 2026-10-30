@@ -35,14 +35,15 @@ internal sealed class WarmupThrowingNewsRepository : INewsRepository
         Task.FromResult(new NewsSearchPage([], 0, page, pageSize));
 }
 
-internal sealed class ThrowingSprintBoardQuizRepository : IQuizRepository
+internal sealed class ThrowingSprintBoardQuizRepository(Func<CancellationToken, Exception>? failure = null) : IQuizRepository
 {
     public Task<QuizSprintBoardResult> GetSprintBoardAsync(
         QuizSprintBoardScope scope,
         Guid? viewerMemberId,
         int top = 10,
         CancellationToken cancellationToken = default) =>
-        throw new InvalidOperationException("Simulated QuizSprintRuns lookup failure.");
+        throw failure?.Invoke(cancellationToken)
+            ?? new InvalidOperationException("Simulated QuizSprintRuns lookup failure.");
 
     public Task<IReadOnlyList<QuizAdminItem>> GetAllAsync(CancellationToken cancellationToken = default) =>
         Unsupported<IReadOnlyList<QuizAdminItem>>();
