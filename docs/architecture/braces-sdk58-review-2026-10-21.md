@@ -1,5 +1,11 @@
 # Braces exposure review: Expo SDK 58, 21 October 2026
 
+> **31 October 2026 status:** GitHub [withdrew this advisory on 23 October](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+> as not practically exploitable. The current full-graph npm audit no longer reports
+> braces, so the obsolete exception has been removed without extending its expiry.
+> The assessment and decision below describe **21 October** and are retained as
+> historical evidence. See the [current policy](../../src/QueenZone.Mobile/npm-advisory-allowlist.md#braces-recursion-denial-of-service-2016).
+
 Part of [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016).
 Reviewed on Veronica against main **88b0fe6c49f7c3663b3b9eb57296f6dad9a917f1**
 (SDK 58 upgrade #2353). Node 24.19.0, npm 11.17.0; fresh locked `npm ci`.

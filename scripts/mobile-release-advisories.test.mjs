@@ -12,29 +12,44 @@ const mobile = path.join(root, 'src/QueenZone.Mobile');
 const validator = path.join(mobile, 'scripts/check-npm-advisories.mjs');
 const allowlist = JSON.parse(readFileSync(path.join(mobile, 'npm-advisory-allowlist.json'), 'utf8'));
 const bracesGhsa = 'GHSA-vfj7-8cjw-p6xm';
-const auditFor = (ghsa = bracesGhsa, severity = 'high') => ({
+const auditFor = (ghsa = bracesGhsa, severity = 'high', packageName = 'braces') => ({
   vulnerabilities: {
-    braces: {
+    [packageName]: {
       severity,
-      via: [{ name: 'braces', severity, url: `https://github.com/advisories/${ghsa}` }],
+      via: [{ name: packageName, severity, url: `https://github.com/advisories/${ghsa}` }],
     },
   },
 });
 
-test('committed braces exception accepts the final UTC millisecond and rejects the next midnight', () => {
-  const row = allowlist.advisories.find((entry) => entry.ghsa === bracesGhsa);
-  assert.equal(row.package, 'braces');
-  assert.equal(row.expires, '2026-10-31');
-  assert.equal(evaluatePolicy({ audit: auditFor(), allowlist, now: new Date('2026-10-31T23:59:59.999Z') }).ok, true);
-  assert.throws(
-    () => evaluatePolicy({ audit: auditFor(), allowlist, now: new Date('2026-11-01T00:00:00.000Z') }),
-    /Expired allowlist entry GHSA-VFJ7-8CJW-P6XM/,
-  );
-  // The same instant is 08:00 in Perth, not the end of the Perth calendar day.
-  assert.throws(
-    () => evaluatePolicy({ audit: auditFor(), allowlist, now: new Date('2026-11-01T08:00:00+08:00') }),
-    /Expired allowlist entry GHSA-VFJ7-8CJW-P6XM/,
-  );
+test('withdrawn braces exception is absent and cannot block the next UTC day', () => {
+  assert.equal(allowlist.advisories.some((entry) => entry.ghsa === bracesGhsa), false);
+  for (const now of ['2026-10-31T23:59:59.999Z', '2026-11-01T00:00:00.000Z', '2026-11-01T08:00:00+08:00']) {
+    assert.equal(evaluatePolicy({ audit: { vulnerabilities: {} }, allowlist, now: new Date(now) }).ok, true);
+    const result = evaluatePolicy({ audit: auditFor(), allowlist, now: new Date(now) });
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join('\n'), /Unallowlisted high GHSA-VFJ7-8CJW-P6XM/);
+  }
+});
+
+// Historical fixture: expiry enforcement must survive removal of the committed exception.
+const historicalAllowlist = { advisories: [{
+  ghsa: bracesGhsa,
+  package: 'braces',
+  via: 'historical tooling fixture',
+  exploitability: 'Historical exception for the release-policy regression test (#2016).',
+  owner: 'QueenZone maintainers',
+  expires: '2026-10-31',
+}] };
+
+test('expired entries fail even when the advisory is absent from the audit', () => {
+  const audit = { vulnerabilities: {} };
+  assert.equal(evaluatePolicy({ audit, allowlist: historicalAllowlist, now: new Date('2026-10-31T23:59:59.999Z') }).ok, true);
+  for (const now of ['2026-11-01T00:00:00.000Z', '2026-11-01T08:00:00+08:00']) {
+    assert.throws(
+      () => evaluatePolicy({ audit, allowlist: historicalAllowlist, now: new Date(now) }),
+      /Expired allowlist entry GHSA-VFJ7-8CJW-P6XM/,
+    );
+  }
 });
 
 function job(source, id) {
@@ -86,9 +101,11 @@ for (const [file, publicationJob] of [
   });
 }
 
-for (const [name, audit, now, expectedStatus, message] of [
-  ['approved advisory before deadline', auditFor(), '2026-10-31', 0, /ALLOW expires 2026-10-31/],
-  ['expired exception', auditFor(), '2026-11-01', 1, /Expired allowlist entry/],
+for (const [name, audit, now, expectedStatus, message, policy = allowlist] of [
+  ['remaining approved advisory', auditFor('GHSA-mrhx-c7xc-m3w5', 'high', 'zod'), '2026-11-01', 0, /ALLOW expires 2026-12-31/],
+  ['withdrawn advisory absent after deadline', { vulnerabilities: {} }, '2026-11-01', 0, /High\/critical advisories: 0/],
+  ['braces advisory reappears', auditFor(), '2026-11-01', 1, /Unallowlisted high GHSA-VFJ7-8CJW-P6XM/],
+  ['expired exception absent from audit', { vulnerabilities: {} }, '2026-11-01', 1, /Expired allowlist entry/, historicalAllowlist],
   ['different high advisory', auditFor('GHSA-aaaa-bbbb-cccc'), '2026-10-31', 1, /Unallowlisted high/],
   ['different critical advisory', auditFor('GHSA-aaaa-bbbb-cccc', 'critical'), '2026-10-31', 1, /Unallowlisted critical/],
   ['malformed audit', { error: { code: 'ECONNRESET' } }, '2026-10-31', 1, /Missing npm audit output/],
@@ -98,7 +115,9 @@ for (const [name, audit, now, expectedStatus, message] of [
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const auditPath = path.join(dir, 'audit.json');
     writeFileSync(auditPath, JSON.stringify(audit));
-    const result = spawnSync(process.execPath, [validator, '--audit-json', auditPath, '--now', now], {
+    const allowlistPath = path.join(dir, 'allowlist.json');
+    writeFileSync(allowlistPath, JSON.stringify(policy));
+    const result = spawnSync(process.execPath, [validator, '--audit-json', auditPath, '--allowlist', allowlistPath, '--now', now], {
       cwd: mobile,
       encoding: 'utf8',
     });
