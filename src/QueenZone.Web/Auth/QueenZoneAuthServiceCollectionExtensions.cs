@@ -323,6 +323,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 options.PrivateKey = (_, _) =>
                     Task.FromResult<ReadOnlyMemory<char>>(privateKey.AsMemory());
                 options.SaveTokens = true;
+                options.Events.OnRemoteFailure = AppleAuthenticationSupport.HandleRemoteFailureAsync;
                 options.Events.OnCreatingTicket = async context =>
                 {
                     if (!context.Request.HasFormContentType)
