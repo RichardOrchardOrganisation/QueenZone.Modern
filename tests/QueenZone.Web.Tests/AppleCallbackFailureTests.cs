@@ -216,6 +216,7 @@ public sealed class AppleCallbackFailureTests
                     ["Authentication:Apple:KeyId"] = "KEY1234567",
                     ["Authentication:Apple:PrivateKey"] = "test-private-key",
                 }).Build();
+                services.AddRouting();
                 services.AddDataProtection().UseEphemeralDataProtectionProvider();
                 services.AddQueenZoneAuth(configuration, context.HostingEnvironment);
                 services.PostConfigure<AppleAuthenticationOptions>(MemberAuthenticationSchemes.Apple, options =>
@@ -232,23 +233,21 @@ public sealed class AppleCallbackFailureTests
             })
             .Configure(app =>
             {
+                app.UseRouting();
                 app.UseAuthentication();
-                app.Run(async context =>
+                app.UseEndpoints(endpoints =>
                 {
-                    if (context.Request.Path == "/start")
+                    endpoints.MapGet("/start", async context =>
                     {
                         await context.ChallengeAsync(MemberAuthenticationSchemes.Apple,
                             new AuthenticationProperties { RedirectUri = "/complete" });
-                        return;
-                    }
-                    if (context.Request.Path == "/complete")
+                    });
+                    endpoints.MapGet("/complete", async context =>
                     {
                         var result = await context.AuthenticateAsync(MemberAuthenticationSchemes.ExternalCookie);
                         Assert.True(result.Succeeded);
                         await context.Response.WriteAsync(result.Principal!.Identity!.Name!);
-                        return;
-                    }
-                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    });
                 });
             })).Build();
         host.Start();
