@@ -31,6 +31,7 @@ public sealed class AppleAuthenticationSupportTests
         Assert.Equal("TEAM123456", options.TeamId);
         Assert.Equal("KEY1234567", options.KeyId);
         Assert.True(options.GenerateClientSecret);
+        Assert.True(options.ValidateTokens);
         Assert.NotNull(options.PrivateKey);
         var normalizedKey = await options.PrivateKey(options.KeyId!, CancellationToken.None);
         Assert.Equal(pem.Replace("\\n", "\n", StringComparison.Ordinal), normalizedKey.ToString());
