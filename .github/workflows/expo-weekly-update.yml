@@ -1,0 +1,116 @@
+# Weekly Expo SDK alignment (#2419 option a).
+# Not a required check. Do not add this job to any needs: graph.
+# Doctor uses Expo's remote version table; do not set EXPO_OFFLINE.
+name: Expo weekly update
+
+on:
+  schedule:
+    # Sunday 21:00 UTC = Monday 05:00 AWST, before the Perth work day.
+    - cron: "0 21 * * 0"
+  workflow_dispatch:
+
+concurrency:
+  group: expo-weekly-update
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  expo-weekly-update:
+    name: Expo weekly update
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions: {}
+    steps:
+      - name: Require EXPO_WEEKLY_PR_TOKEN
+        env:
+          EXPO_WEEKLY_PR_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
+        run: |
+          if [ -z "${EXPO_WEEKLY_PR_TOKEN}" ]; then
+            echo "::error::Repository secret EXPO_WEEKLY_PR_TOKEN is not set."
+            echo "Create a fine-grained PAT with Contents: Read and write and Pull requests: Read and write"
+            echo "on this repository only, then store it as EXPO_WEEKLY_PR_TOKEN."
+            echo "GITHUB_TOKEN cannot open a PR that triggers CI."
+            exit 1
+          fi
+          echo "EXPO_WEEKLY_PR_TOKEN is present (length ${#EXPO_WEEKLY_PR_TOKEN})."
+
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          token: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/QueenZone.Mobile/package-lock.json
+
+      - name: Install current lockfile
+        working-directory: src/QueenZone.Mobile
+        run: npm ci --no-audit
+
+      - name: Align packages to the installed Expo SDK
+        working-directory: src/QueenZone.Mobile
+        run: npx expo install --fix
+
+      - name: Regenerate lockfile
+        working-directory: src/QueenZone.Mobile
+        run: npm install --no-audit
+
+      - name: Guard expo-modules-core 58.0.24 pin
+        run: node scripts/expo-weekly-update.mjs check-pin --json > "${RUNNER_TEMP}/expo-pin.json"
+
+      - name: Expo Doctor (remote SDK version table)
+        working-directory: src/QueenZone.Mobile
+        run: |
+          set +e
+          npm run doctor
+          status=$?
+          set -e
+          if [ "${status}" -eq 0 ]; then
+            exit 0
+          fi
+          newer="$(jq -r .declaredRangeNewerThanPin "${RUNNER_TEMP}/expo-pin.json")"
+          if [ "${newer}" = "true" ]; then
+            echo "Doctor failed while expo declares a newer expo-modules-core than the #2408 pin. Continuing so the weekly PR can record #2407."
+            exit 0
+          fi
+          exit "${status}"
+
+      - name: Open or update the weekly PR
+        env:
+          GH_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json; then
+            echo "No Expo dependency changes; not opening a PR."
+            exit 0
+          fi
+
+          git show HEAD:src/QueenZone.Mobile/package.json > "${RUNNER_TEMP}/before-package.json"
+          git show HEAD:src/QueenZone.Mobile/package-lock.json > "${RUNNER_TEMP}/before-lock.json"
+          node scripts/expo-weekly-update.mjs write-pr-body \
+            --before-package "${RUNNER_TEMP}/before-package.json" \
+            --before-lock "${RUNNER_TEMP}/before-lock.json" \
+            --pin-json "${RUNNER_TEMP}/expo-pin.json" \
+            --out "${RUNNER_TEMP}/expo-weekly-pr.md"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B deps/expo-weekly
+          git add src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json
+          git commit -m "chore(mobile): weekly Expo SDK alignment"
+          git push --force origin deps/expo-weekly
+
+          number="$(gh pr list --head deps/expo-weekly --base main --state open --json number --jq '.[0].number // empty')"
+          if [ -n "${number}" ]; then
+            gh pr edit "${number}" --title "chore(mobile): weekly Expo SDK alignment" --body-file "${RUNNER_TEMP}/expo-weekly-pr.md"
+            gh pr edit "${number}" --add-label dependencies
+          else
+            gh pr create --base main --head deps/expo-weekly --title "chore(mobile): weekly Expo SDK alignment" --body-file "${RUNNER_TEMP}/expo-weekly-pr.md" --label dependencies
+          fi
