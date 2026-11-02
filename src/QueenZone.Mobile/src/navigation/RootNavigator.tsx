@@ -38,8 +38,12 @@ function TabGlyph({
     return icon;
   }
 
+  // collapsable={false}: the transparent (unfocused) pill would otherwise be
+  // flattened away by Fabric, re-parenting the icon on every tab focus change;
+  // that view-state churn crashed removeViewAt ("parentView for tag 334", #2404).
   return (
     <View
+      collapsable={false}
       style={{
         width: 64,
         height: 32,
