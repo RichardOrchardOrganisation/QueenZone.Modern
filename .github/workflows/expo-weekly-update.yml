@@ -1,6 +1,11 @@
 # Weekly Expo SDK alignment (#2419 option a).
 # Not a required check. Do not add this job to any needs: graph.
 # Doctor uses Expo's remote version table; do not set EXPO_OFFLINE.
+# Two jobs keep the write PAT away from npm:
+#   align      contents:read; persist-credentials: false; no PAT
+#   publish-pr no npm; EXPO_WEEKLY_PR_TOKEN only on the git/gh step
+# No-change runs close a stale open deps/expo-weekly PR (close-with-comment).
+# Commit author is the PAT owner's GitHub noreply identity (gh api user).
 name: Expo weekly update
 
 on:
@@ -16,31 +21,23 @@ concurrency:
 permissions: {}
 
 jobs:
-  expo-weekly-update:
-    name: Expo weekly update
+  align:
+    name: Align Expo packages
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    permissions: {}
+    permissions:
+      contents: read
+      actions: write
+    env:
+      npm_config_ignore_scripts: "true"
+    outputs:
+      has_changes: ${{ steps.bundle.outputs.has_changes }}
     steps:
-      - name: Require EXPO_WEEKLY_PR_TOKEN
-        env:
-          EXPO_WEEKLY_PR_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
-        run: |
-          if [ -z "${EXPO_WEEKLY_PR_TOKEN}" ]; then
-            echo "::error::Repository secret EXPO_WEEKLY_PR_TOKEN is not set."
-            echo "Create a fine-grained PAT with Contents: Read and write and Pull requests: Read and write"
-            echo "on this repository only, then store it as EXPO_WEEKLY_PR_TOKEN."
-            echo "GITHUB_TOKEN cannot open a PR that triggers CI."
-            exit 1
-          fi
-          echo "EXPO_WEEKLY_PR_TOKEN is present (length ${#EXPO_WEEKLY_PR_TOKEN})."
-
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
-          token: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
-          fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -56,52 +53,123 @@ jobs:
         run: node scripts/expo-weekly-update.mjs check-pin --json > "${RUNNER_TEMP}/expo-pin.json"
 
       - name: Expo Doctor (remote SDK version table)
-        working-directory: src/QueenZone.Mobile
         run: |
           set +e
-          npm run doctor
+          (cd src/QueenZone.Mobile && npm run doctor) > "${RUNNER_TEMP}/doctor.log" 2>&1
           status=$?
           set -e
+          cat "${RUNNER_TEMP}/doctor.log"
           if [ "${status}" -eq 0 ]; then
             exit 0
           fi
-          newer="$(jq -r .declaredRangeNewerThanPin "${RUNNER_TEMP}/expo-pin.json")"
-          if [ "${newer}" = "true" ]; then
-            echo "Doctor failed while expo declares a newer expo-modules-core than the #2408 pin. Continuing so the weekly PR can record #2407."
-            exit 0
-          fi
-          exit "${status}"
+          set +e
+          (cd src/QueenZone.Mobile && ./node_modules/.bin/expo install --check --json) \
+            > "${RUNNER_TEMP}/expo-check.json" 2>/dev/null
+          set -e
+          node scripts/expo-weekly-update.mjs excuse-doctor \
+            --pin-json "${RUNNER_TEMP}/expo-pin.json" \
+            --doctor-log "${RUNNER_TEMP}/doctor.log" \
+            --check-json "${RUNNER_TEMP}/expo-check.json"
 
-      - name: Open or update the weekly PR
-        env:
-          GH_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
-          GH_REPO: ${{ github.repository }}
+      - name: Bundle the weekly diff
+        id: bundle
         run: |
           set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/expo-weekly-bundle"
+          cp "${RUNNER_TEMP}/expo-pin.json" "${RUNNER_TEMP}/expo-weekly-bundle/expo-pin.json"
           if git diff --quiet -- src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json; then
-            echo "No Expo dependency changes; not opening a PR."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "false" > "${RUNNER_TEMP}/expo-weekly-bundle/has-changes.txt"
+            echo "No Expo dependency changes."
             exit 0
           fi
-
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "true" > "${RUNNER_TEMP}/expo-weekly-bundle/has-changes.txt"
           git show HEAD:src/QueenZone.Mobile/package.json > "${RUNNER_TEMP}/before-package.json"
           git show HEAD:src/QueenZone.Mobile/package-lock.json > "${RUNNER_TEMP}/before-lock.json"
+          git diff -- src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json \
+            > "${RUNNER_TEMP}/expo-weekly-bundle/expo-weekly.patch"
           node scripts/expo-weekly-update.mjs write-pr-body \
             --before-package "${RUNNER_TEMP}/before-package.json" \
             --before-lock "${RUNNER_TEMP}/before-lock.json" \
             --pin-json "${RUNNER_TEMP}/expo-pin.json" \
-            --out "${RUNNER_TEMP}/expo-weekly-pr.md"
+            --out "${RUNNER_TEMP}/expo-weekly-bundle/expo-weekly-pr.md"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B deps/expo-weekly
+      - name: Upload align artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: expo-weekly-align-${{ github.run_id }}
+          path: ${{ runner.temp }}/expo-weekly-bundle/
+          if-no-files-found: error
+
+  publish-pr:
+    name: Open or update the weekly PR
+    needs: align
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Download align artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: expo-weekly-align-${{ github.run_id }}
+          path: ${{ runner.temp }}/expo-weekly-bundle
+
+      - name: Publish or close the weekly PR
+        env:
+          GH_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
+          EXPO_WEEKLY_PR_TOKEN: ${{ secrets.EXPO_WEEKLY_PR_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          HAS_CHANGES: ${{ needs.align.outputs.has_changes }}
+        run: |
+          set -euo pipefail
+          if [ -z "${EXPO_WEEKLY_PR_TOKEN}" ]; then
+            echo "::error::Repository secret EXPO_WEEKLY_PR_TOKEN is not set."
+            echo "Create a fine-grained PAT with Contents: Read and write and Pull requests: Read and write"
+            echo "on this repository only, then store it as EXPO_WEEKLY_PR_TOKEN."
+            echo "GITHUB_TOKEN cannot open a PR that triggers CI."
+            exit 1
+          fi
+          echo "EXPO_WEEKLY_PR_TOKEN is present."
+          bundle="${RUNNER_TEMP}/expo-weekly-bundle"
+          number="$(
+            gh pr list --head deps/expo-weekly --base main --state open \
+              --json number --jq '.[0].number // empty'
+          )"
+          if [ "${HAS_CHANGES}" != "true" ]; then
+            echo "No Expo dependency changes; not opening a PR."
+            if [ -n "${number}" ]; then
+              gh pr close "${number}" --comment "No Expo dependency changes this week; closing the stale weekly PR."
+            fi
+            exit 0
+          fi
+
+          git apply -- "${bundle}/expo-weekly.patch"
           git add src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json
+          login="$(gh api user --jq .login)"
+          user_id="$(gh api user --jq .id)"
+          git config user.name "${login}"
+          git config user.email "${user_id}+${login}@users.noreply.github.com"
+          git checkout -B deps/expo-weekly
           git commit -m "chore(mobile): weekly Expo SDK alignment"
-          git push --force origin deps/expo-weekly
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${EXPO_WEEKLY_PR_TOKEN}" \
+            push --force origin HEAD:refs/heads/deps/expo-weekly
 
-          number="$(gh pr list --head deps/expo-weekly --base main --state open --json number --jq '.[0].number // empty')"
           if [ -n "${number}" ]; then
-            gh pr edit "${number}" --title "chore(mobile): weekly Expo SDK alignment" --body-file "${RUNNER_TEMP}/expo-weekly-pr.md"
+            gh pr edit "${number}" \
+              --title "chore(mobile): weekly Expo SDK alignment" \
+              --body-file "${bundle}/expo-weekly-pr.md"
             gh pr edit "${number}" --add-label dependencies
           else
-            gh pr create --base main --head deps/expo-weekly --title "chore(mobile): weekly Expo SDK alignment" --body-file "${RUNNER_TEMP}/expo-weekly-pr.md" --label dependencies
+            gh pr create --base main --head deps/expo-weekly \
+              --title "chore(mobile): weekly Expo SDK alignment" \
+              --body-file "${bundle}/expo-weekly-pr.md" \
+              --label dependencies
           fi

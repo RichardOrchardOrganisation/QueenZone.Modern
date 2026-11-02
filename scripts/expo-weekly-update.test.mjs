@@ -14,23 +14,45 @@ import {
   changedHigherBarPackages,
   compareSemver,
   expoCliPath,
+  failedDoctorCheckNames,
   inspectPin,
   inspectPinFromDir,
   isHigherBarPackage,
   isRangeNewerThanPin,
+  isSdkPackageVersionCheck,
   lockPackageName,
   lockfileVersionChanges,
   main,
+  mismatchedPackagesFromCheckJson,
+  mismatchedPackagesFromDoctorLog,
   nestedExpoModulesCoreKeys,
   packageJsonVersionChanges,
   parseArgs,
   parseSemver,
+  shouldExcuseDoctorFailure,
 } from './expo-weekly-update.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const workflow = readFileSync(path.join(repoRoot, WORKFLOW_PATH), 'utf8');
 const dependabot = readFileSync(path.join(repoRoot, '.github/dependabot.yml'), 'utf8');
 const ci = readFileSync(path.join(repoRoot, '.github/workflows/ci.yml'), 'utf8');
+const scriptsTests = readFileSync(path.join(repoRoot, '.github/workflows/scripts-tests.yml'), 'utf8');
+
+function workflowJob(name) {
+  const startRe = new RegExp(`^  ${name}:$`, 'm');
+  const start = startRe.exec(workflow);
+  assert.ok(start, `missing workflow job ${name}`);
+  const nextRe = /^  [a-z][-\w]*:$/gm;
+  nextRe.lastIndex = start.index + start[0].length;
+  const next = nextRe.exec(workflow);
+  return next ? workflow.slice(start.index, next.index) : workflow.slice(start.index);
+}
+
+const VERSION_CHECK_LOG = [
+  '✖ Check packages match versions required by installed Expo SDK',
+  '  expo-modules-core@58.0.24 - expected ~58.0.28',
+  '',
+].join('\n');
 
 function pinPackageJson(override = PINNED_EXPO_MODULES_CORE) {
   return { overrides: { 'expo-modules-core': override } };
@@ -273,12 +295,13 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
   assert.match(body, /^Relates to #2407$/m);
 });
 
-test('align runs npm ci, the lockfile-local expo CLI, then a full npm install', () => {
+test('align runs npm ci, the lockfile-local expo CLI, then a full npm install with scripts disabled', () => {
   const calls = [];
   const code = main(['node', 'scripts/expo-weekly-update.mjs', 'align', '--root', '/repo'], {
     execFile(command, argv, options) {
-      calls.push({ command, argv, cwd: options.cwd });
+      calls.push({ command, argv, cwd: options.cwd, env: options.env });
     },
+    env: { PATH: '/bin', EXPO_WEEKLY_PR_TOKEN: 'must-not-leak-into-requirement' },
   });
   assert.equal(code, 0);
   assert.deepEqual(alignCommands('/repo/src/QueenZone.Mobile'), [
@@ -294,13 +317,144 @@ test('align runs npm ci, the lockfile-local expo CLI, then a full npm install', 
       ['npm', 'install', '--no-audit', '--ignore-scripts'],
     ],
   );
+  assert.equal(calls[0].env.npm_config_ignore_scripts, 'true');
+  assert.equal(calls[1].env.npm_config_ignore_scripts, 'true');
+  assert.equal(calls[0].env.EXPO_WEEKLY_PR_TOKEN, undefined);
+  assert.equal(calls[0].env.GH_TOKEN, undefined);
+});
+
+test('excuse-doctor only covers the pinned expo-modules-core SDK version check', () => {
+  assert.equal(isSdkPackageVersionCheck('packages match versions required by installed Expo SDK'), true);
+  assert.equal(isSdkPackageVersionCheck('that packages match versions required by the installed Expo SDK'), true);
+  assert.equal(isSdkPackageVersionCheck('for common project setup issues'), false);
+  assert.deepEqual(failedDoctorCheckNames(VERSION_CHECK_LOG), [
+    'packages match versions required by installed Expo SDK',
+  ]);
+  assert.deepEqual(mismatchedPackagesFromDoctorLog(VERSION_CHECK_LOG), ['expo-modules-core']);
+  assert.deepEqual(mismatchedPackagesFromCheckJson('[{"packageName":"expo-modules-core"}]'), [
+    'expo-modules-core',
+  ]);
+  assert.deepEqual(
+    mismatchedPackagesFromCheckJson('{"dependencies":{"expo-image":{"version":"58.0.2"}}}'),
+    ['expo-image'],
+  );
+  assert.deepEqual(mismatchedPackagesFromCheckJson('not-json'), []);
+
+  const pin = { declaredRangeNewerThanPin: true };
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: VERSION_CHECK_LOG,
+      checkJson: '[{"packageName":"expo-modules-core"}]',
+      pinReport: pin,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: VERSION_CHECK_LOG,
+      pinReport: pin,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: VERSION_CHECK_LOG,
+      pinReport: { declaredRangeNewerThanPin: false },
+    }),
+    false,
+  );
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: `${VERSION_CHECK_LOG}✖ Check for common project setup issues\n`,
+      pinReport: pin,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: VERSION_CHECK_LOG,
+      checkJson: '[{"packageName":"expo-modules-core"},{"packageName":"expo-image"}]',
+      pinReport: pin,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldExcuseDoctorFailure({
+      doctorLog: '✖ Check packages match versions required by installed Expo SDK\n',
+      pinReport: pin,
+    }),
+    false,
+  );
+});
+
+test('excuse-doctor CLI returns 0 only for the pinned core-range finding', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'qz-expo-excuse-'));
+  const pinJson = path.join(dir, 'pin.json');
+  const doctorLog = path.join(dir, 'doctor.log');
+  const checkJson = path.join(dir, 'check.json');
+  writeFileSync(pinJson, JSON.stringify({ declaredRangeNewerThanPin: true }));
+  writeFileSync(doctorLog, VERSION_CHECK_LOG);
+  writeFileSync(checkJson, JSON.stringify([{ packageName: 'expo-modules-core' }]));
+  const logs = [];
+  const errors = [];
+  const ok = main(
+    [
+      'node',
+      'scripts/expo-weekly-update.mjs',
+      'excuse-doctor',
+      '--pin-json',
+      pinJson,
+      '--doctor-log',
+      doctorLog,
+      '--check-json',
+      checkJson,
+    ],
+    {
+      log: (line) => logs.push(String(line)),
+      error: (line) => errors.push(String(line)),
+    },
+  );
+  assert.equal(ok, 0, errors.join('\n'));
+  assert.match(logs.join('\n'), /expo-modules-core/);
+
+  writeFileSync(checkJson, JSON.stringify([{ packageName: 'expo-image' }]));
+  assert.equal(
+    main(
+      [
+        'node',
+        'scripts/expo-weekly-update.mjs',
+        'excuse-doctor',
+        '--pin-json',
+        pinJson,
+        '--doctor-log',
+        doctorLog,
+        '--check-json',
+        checkJson,
+      ],
+      { log() {}, error() {} },
+    ),
+    1,
+  );
 });
 
 test('parseArgs and unknown commands stay strict', () => {
-  const parsed = parseArgs(['node', 'script', 'check-pin', '--json', '--root', '/tmp']);
-  assert.equal(parsed.command, 'check-pin');
+  const parsed = parseArgs([
+    'node',
+    'script',
+    'excuse-doctor',
+    '--json',
+    '--root',
+    '/tmp',
+    '--doctor-log',
+    '/tmp/doctor.log',
+    '--check-json',
+    '/tmp/check.json',
+  ]);
+  assert.equal(parsed.command, 'excuse-doctor');
   assert.equal(parsed.json, true);
   assert.equal(parsed.root, '/tmp');
+  assert.equal(parsed.doctorLog, '/tmp/doctor.log');
+  assert.equal(parsed.checkJson, '/tmp/check.json');
   assert.throws(() => parseArgs(['node', 'script', 'check-pin', '--nope']), /Unknown argument/);
   const errors = [];
   assert.equal(main(['node', 'script', 'nope'], { error: (line) => errors.push(String(line)) }), 2);
@@ -312,12 +466,15 @@ test('the weekly workflow uses a PAT, remote doctor, the pin script, and is not 
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /scripts\/expo-weekly-update\.mjs align/);
   assert.match(workflow, /npm run doctor/);
+  assert.match(workflow, /scripts\/expo-weekly-update\.mjs excuse-doctor/);
   assert.doesNotMatch(workflow, /\bnpx\b/);
   assert.doesNotMatch(workflow, /npm ci|npm install/);
   assert.match(workflow, /do not set EXPO_OFFLINE/);
   assert.doesNotMatch(workflow, /EXPO_OFFLINE\s*=/);
   assert.match(workflow, new RegExp(TOKEN_SECRET_NAME));
   assert.match(workflow, /EXPO_WEEKLY_PR_TOKEN is not set/);
+  assert.match(workflow, /EXPO_WEEKLY_PR_TOKEN is present\./);
+  assert.doesNotMatch(workflow, /length \$\{#/);
   assert.match(workflow, /GITHUB_TOKEN cannot/);
   assert.match(workflow, new RegExp(WEEKLY_BRANCH));
   assert.match(workflow, /scripts\/expo-weekly-update\.mjs check-pin --json/);
@@ -327,6 +484,29 @@ test('the weekly workflow uses a PAT, remote doctor, the pin script, and is not 
   assert.doesNotMatch(workflow, /workflow_run:/);
   assert.doesNotMatch(ci, /expo-weekly-update/);
   assert.doesNotMatch(ci, /needs:[\s\S]*expo-weekly/);
+  assert.match(scriptsTests, /node --test scripts\/expo-weekly-update\.test\.mjs/);
+});
+
+test('the weekly workflow isolates the write PAT from npm and closes a stale PR', () => {
+  const align = workflowJob('align');
+  const publish = workflowJob('publish-pr');
+  assert.match(align, /contents: read/);
+  assert.match(align, /npm_config_ignore_scripts: "true"/);
+  assert.match(align, /persist-credentials: false/);
+  assert.doesNotMatch(align, /secrets\.EXPO_WEEKLY_PR_TOKEN/);
+  assert.doesNotMatch(align, /^\s+token:/m);
+  assert.doesNotMatch(workflow, /fetch-depth:\s*0/);
+  assert.match(publish, /needs: align/);
+  assert.match(publish, /persist-credentials: false/);
+  assert.match(publish, /secrets\.EXPO_WEEKLY_PR_TOKEN/);
+  assert.match(publish, /gh pr close/);
+  assert.match(publish, /closing the stale weekly PR/);
+  assert.match(publish, /gh api user/);
+  assert.match(publish, /users\.noreply\.github\.com/);
+  assert.doesNotMatch(workflow, /github-actions\[bot\]/);
+  assert.doesNotMatch(publish, /\bnpm\b/);
+  assert.doesNotMatch(publish, /\bnpx\b/);
+  assert.doesNotMatch(publish, /node scripts\/expo-weekly-update/);
 });
 
 test('Dependabot no longer groups Expo and ignores its patch and minor version updates', () => {

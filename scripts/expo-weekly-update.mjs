@@ -5,6 +5,7 @@
  *   node scripts/expo-weekly-update.mjs align
  *   node scripts/expo-weekly-update.mjs check-pin [--json]
  *   node scripts/expo-weekly-update.mjs write-pr-body --before-package <file> --before-lock <file> [--pin-json <file>] [--out <file>]
+ *   node scripts/expo-weekly-update.mjs excuse-doctor --pin-json <file> --doctor-log <file> [--check-json <file>]
  *
  * The pin guard fails unless src/QueenZone.Mobile still overrides
  * expo-modules-core to 58.0.24 and the lockfile resolves that version at
@@ -76,6 +77,67 @@ export function compareSemver(left, right) {
 export function isRangeNewerThanPin(range, pin = PINNED_EXPO_MODULES_CORE) {
   const minimum = parseSemver(range);
   return Boolean(minimum && compareSemver(minimum, pin) > 0);
+}
+
+export function isSdkPackageVersionCheck(name) {
+  const lowered = String(name || '').toLowerCase();
+  return lowered.includes('packages match versions') && lowered.includes('expo sdk');
+}
+
+export function failedDoctorCheckNames(output) {
+  return [...String(output || '').matchAll(/^✖ Check (.+)$/gm)].map((match) => match[1].trim());
+}
+
+export function mismatchedPackagesFromCheckJson(text) {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    return [];
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const rows = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray(parsed?.dependencies)
+      ? parsed.dependencies
+      : parsed?.dependencies && typeof parsed.dependencies === 'object'
+        ? Object.entries(parsed.dependencies).map(([name, value]) => ({
+            packageName: name,
+            ...(value && typeof value === 'object' ? value : {}),
+          }))
+        : [];
+  const names = [];
+  for (const row of rows) {
+    const name = row?.packageName ?? row?.package ?? row?.name;
+    if (name) {
+      names.push(String(name));
+    }
+  }
+  return [...new Set(names)].sort((left, right) => left.localeCompare(right));
+}
+
+export function mismatchedPackagesFromDoctorLog(output) {
+  const names = new Set();
+  for (const match of String(output || '').matchAll(/^\s+([@a-z0-9/._-]+)@\d+/gim)) {
+    names.add(match[1]);
+  }
+  return [...names].sort((left, right) => left.localeCompare(right));
+}
+
+export function shouldExcuseDoctorFailure({ doctorLog = '', checkJson = '', pinReport = {} } = {}) {
+  if (!pinReport.declaredRangeNewerThanPin) {
+    return false;
+  }
+  const failedChecks = failedDoctorCheckNames(doctorLog);
+  if (failedChecks.length === 0 || failedChecks.some((name) => !isSdkPackageVersionCheck(name))) {
+    return false;
+  }
+  const fromJson = mismatchedPackagesFromCheckJson(checkJson);
+  const packages = fromJson.length > 0 ? fromJson : mismatchedPackagesFromDoctorLog(doctorLog);
+  return packages.length > 0 && packages.every((name) => name === 'expo-modules-core');
 }
 
 export function readJson(filePath) {
@@ -246,6 +308,8 @@ export function parseArgs(argv) {
     beforeLock: null,
     afterPackage: null,
     afterLock: null,
+    doctorLog: null,
+    checkJson: null,
   };
   for (let index = 3; index < argv.length; index += 1) {
     const flag = argv[index];
@@ -289,6 +353,16 @@ export function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (flag === '--doctor-log' && next) {
+      args.doctorLog = next;
+      index += 1;
+      continue;
+    }
+    if (flag === '--check-json' && next) {
+      args.checkJson = next;
+      index += 1;
+      continue;
+    }
     throw new Error(`Unknown argument: ${flag}`);
   }
   return args;
@@ -310,11 +384,26 @@ export function alignCommands(mobileRoot) {
   ]);
 }
 
-export function runAlign(args, { execFile = execFileSync } = {}) {
+export function runAlign(args, { execFile = execFileSync, env = process.env } = {}) {
+  const childEnv = { ...env, npm_config_ignore_scripts: 'true' };
+  delete childEnv.EXPO_WEEKLY_PR_TOKEN;
+  delete childEnv.GH_TOKEN;
   for (const [command, argv, cwd] of alignCommands(mobileDir(args.root))) {
-    execFile(command, argv, { cwd, stdio: 'inherit' });
+    execFile(command, argv, { cwd, stdio: 'inherit', env: childEnv });
   }
   return 0;
+}
+
+export function runExcuseDoctor(args, { log = console.log, error = console.error } = {}) {
+  const pinReport = args.pinJson ? readJson(args.pinJson) : {};
+  const doctorLog = args.doctorLog ? readFileSync(args.doctorLog, 'utf8') : '';
+  const checkJson = args.checkJson ? readFileSync(args.checkJson, 'utf8') : '';
+  if (shouldExcuseDoctorFailure({ doctorLog, checkJson, pinReport })) {
+    log('Excusing doctor: only expo-modules-core is outside the #2408 pin range.');
+    return 0;
+  }
+  error('Doctor failed for a reason other than the pinned expo-modules-core range.');
+  return 1;
 }
 
 export function runCheckPin(args, { log = console.log, error = console.error } = {}) {
@@ -369,8 +458,11 @@ export function main(argv = process.argv, io = {}) {
   if (args.command === 'write-pr-body') {
     return runWritePrBody(args, io);
   }
+  if (args.command === 'excuse-doctor') {
+    return runExcuseDoctor(args, io);
+  }
   (io.error ?? console.error)(
-    'Usage: node scripts/expo-weekly-update.mjs align | check-pin [--json] | write-pr-body --before-package <file> --before-lock <file>',
+    'Usage: node scripts/expo-weekly-update.mjs align | check-pin [--json] | write-pr-body --before-package <file> --before-lock <file> | excuse-doctor --pin-json <file> --doctor-log <file>',
   );
   return 2;
 }
