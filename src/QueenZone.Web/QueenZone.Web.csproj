@@ -26,6 +26,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Identity.Web" />
     <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" />
   </ItemGroup>
 
   <PropertyGroup>
