@@ -2,6 +2,7 @@
 /**
  * Weekly Expo alignment helpers (#2419).
  *
+ *   node scripts/expo-weekly-update.mjs align
  *   node scripts/expo-weekly-update.mjs check-pin [--json]
  *   node scripts/expo-weekly-update.mjs write-pr-body --before-package <file> --before-lock <file> [--pin-json <file>] [--out <file>]
  *
@@ -11,6 +12,7 @@
  * copy under expo/. A newer range declared by upstream expo is recorded,
  * not treated as a pin failure (#2407).
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -296,6 +298,25 @@ function mobileDir(root) {
   return path.join(root, MOBILE_DIR);
 }
 
+export function expoCliPath(mobileRoot) {
+  return path.join(mobileRoot, 'node_modules', '.bin', 'expo');
+}
+
+export function alignCommands(mobileRoot) {
+  return Object.freeze([
+    ['npm', ['ci', '--no-audit', '--ignore-scripts'], mobileRoot],
+    [expoCliPath(mobileRoot), ['install', '--fix'], mobileRoot],
+    ['npm', ['install', '--no-audit', '--ignore-scripts'], mobileRoot],
+  ]);
+}
+
+export function runAlign(args, { execFile = execFileSync } = {}) {
+  for (const [command, argv, cwd] of alignCommands(mobileDir(args.root))) {
+    execFile(command, argv, { cwd, stdio: 'inherit' });
+  }
+  return 0;
+}
+
 export function runCheckPin(args, { log = console.log, error = console.error } = {}) {
   const report = inspectPinFromDir(mobileDir(args.root));
   if (args.json) {
@@ -339,6 +360,9 @@ export function runWritePrBody(args, { log = console.log } = {}) {
 
 export function main(argv = process.argv, io = {}) {
   const args = parseArgs(argv);
+  if (args.command === 'align') {
+    return runAlign(args, io);
+  }
   if (args.command === 'check-pin') {
     return runCheckPin(args, io);
   }
@@ -346,7 +370,7 @@ export function main(argv = process.argv, io = {}) {
     return runWritePrBody(args, io);
   }
   (io.error ?? console.error)(
-    'Usage: node scripts/expo-weekly-update.mjs check-pin [--json] | write-pr-body --before-package <file> --before-lock <file>',
+    'Usage: node scripts/expo-weekly-update.mjs align | check-pin [--json] | write-pr-body --before-package <file> --before-lock <file>',
   );
   return 2;
 }

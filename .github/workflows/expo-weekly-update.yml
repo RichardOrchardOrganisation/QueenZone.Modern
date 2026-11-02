@@ -49,17 +49,8 @@ jobs:
           cache: npm
           cache-dependency-path: src/QueenZone.Mobile/package-lock.json
 
-      - name: Install current lockfile
-        working-directory: src/QueenZone.Mobile
-        run: npm ci --no-audit
-
-      - name: Align packages to the installed Expo SDK
-        working-directory: src/QueenZone.Mobile
-        run: npx expo install --fix
-
-      - name: Regenerate lockfile
-        working-directory: src/QueenZone.Mobile
-        run: npm install --no-audit
+      - name: Align Expo packages and regenerate the lockfile
+        run: node scripts/expo-weekly-update.mjs align
 
       - name: Guard expo-modules-core 58.0.24 pin
         run: node scripts/expo-weekly-update.mjs check-pin --json > "${RUNNER_TEMP}/expo-pin.json"

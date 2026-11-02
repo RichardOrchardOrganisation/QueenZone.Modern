@@ -9,9 +9,11 @@ import {
   TOKEN_SECRET_NAME,
   WEEKLY_BRANCH,
   WORKFLOW_PATH,
+  alignCommands,
   buildWeeklyPrBody,
   changedHigherBarPackages,
   compareSemver,
+  expoCliPath,
   inspectPin,
   inspectPinFromDir,
   isHigherBarPackage,
@@ -271,6 +273,29 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
   assert.match(body, /^Relates to #2407$/m);
 });
 
+test('align runs npm ci, the lockfile-local expo CLI, then a full npm install', () => {
+  const calls = [];
+  const code = main(['node', 'scripts/expo-weekly-update.mjs', 'align', '--root', '/repo'], {
+    execFile(command, argv, options) {
+      calls.push({ command, argv, cwd: options.cwd });
+    },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(alignCommands('/repo/src/QueenZone.Mobile'), [
+    ['npm', ['ci', '--no-audit', '--ignore-scripts'], '/repo/src/QueenZone.Mobile'],
+    [expoCliPath('/repo/src/QueenZone.Mobile'), ['install', '--fix'], '/repo/src/QueenZone.Mobile'],
+    ['npm', ['install', '--no-audit', '--ignore-scripts'], '/repo/src/QueenZone.Mobile'],
+  ]);
+  assert.deepEqual(
+    calls.map((call) => [call.command, ...call.argv]),
+    [
+      ['npm', 'ci', '--no-audit', '--ignore-scripts'],
+      [expoCliPath('/repo/src/QueenZone.Mobile'), 'install', '--fix'],
+      ['npm', 'install', '--no-audit', '--ignore-scripts'],
+    ],
+  );
+});
+
 test('parseArgs and unknown commands stay strict', () => {
   const parsed = parseArgs(['node', 'script', 'check-pin', '--json', '--root', '/tmp']);
   assert.equal(parsed.command, 'check-pin');
@@ -285,9 +310,10 @@ test('parseArgs and unknown commands stay strict', () => {
 test('the weekly workflow uses a PAT, remote doctor, the pin script, and is not a required check', () => {
   assert.match(workflow, /cron: "0 21 \* \* 0"/);
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /npx expo install --fix/);
-  assert.match(workflow, /npm install --no-audit/);
+  assert.match(workflow, /scripts\/expo-weekly-update\.mjs align/);
   assert.match(workflow, /npm run doctor/);
+  assert.doesNotMatch(workflow, /\bnpx\b/);
+  assert.doesNotMatch(workflow, /npm ci|npm install/);
   assert.match(workflow, /do not set EXPO_OFFLINE/);
   assert.doesNotMatch(workflow, /EXPO_OFFLINE\s*=/);
   assert.match(workflow, new RegExp(TOKEN_SECRET_NAME));
