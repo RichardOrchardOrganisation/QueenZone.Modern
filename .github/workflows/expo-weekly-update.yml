@@ -27,7 +27,6 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      actions: write
     env:
       npm_config_ignore_scripts: "true"
     outputs:
@@ -108,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      actions: read
+      contents: read
     steps:
       - name: Checkout main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -139,9 +138,13 @@ jobs:
           fi
           echo "EXPO_WEEKLY_PR_TOKEN is present."
           bundle="${RUNNER_TEMP}/expo-weekly-bundle"
+          login="$(gh api user --jq .login)"
+          user_id="$(gh api user --jq .id)"
           number="$(
             gh pr list --head deps/expo-weekly --base main --state open \
-              --json number --jq '.[0].number // empty'
+              --json number,isCrossRepository,author \
+              | jq -r --arg login "${login}" \
+                '[.[] | select(.isCrossRepository == false and .author.login == $login)] | first | .number // empty'
           )"
           if [ "${HAS_CHANGES}" != "true" ]; then
             echo "No Expo dependency changes; not opening a PR."
@@ -153,8 +156,6 @@ jobs:
 
           git apply -- "${bundle}/expo-weekly.patch"
           git add src/QueenZone.Mobile/package.json src/QueenZone.Mobile/package-lock.json
-          login="$(gh api user --jq .login)"
-          user_id="$(gh api user --jq .id)"
           git config user.name "${login}"
           git config user.email "${user_id}+${login}@users.noreply.github.com"
           git checkout -B deps/expo-weekly

@@ -42,9 +42,6 @@ jobs:
       - name: Run node:test
         run: node --test $(find scripts -name '*.test.mjs' | sort)
 
-      - name: Test Expo weekly update helpers
-        run: node --test scripts/expo-weekly-update.test.mjs
-
       - name: Self-test live-site deploy-quiet gate
         run: bash ./scripts/Wait-DeployQuiet.sh --self-test
 

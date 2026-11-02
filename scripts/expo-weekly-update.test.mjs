@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
@@ -484,21 +485,33 @@ test('the weekly workflow uses a PAT, remote doctor, the pin script, and is not 
   assert.doesNotMatch(workflow, /workflow_run:/);
   assert.doesNotMatch(ci, /expo-weekly-update/);
   assert.doesNotMatch(ci, /needs:[\s\S]*expo-weekly/);
-  assert.match(scriptsTests, /node --test scripts\/expo-weekly-update\.test\.mjs/);
+  assert.match(scriptsTests, /node --test \$\(find scripts -name '\*\.test\.mjs' \| sort\)/);
+  assert.doesNotMatch(scriptsTests, /Test Expo weekly update helpers/);
+  assert.doesNotMatch(scriptsTests, /node --test scripts\/expo-weekly-update\.test\.mjs/);
+  const foundTests = execFileSync('find', ['scripts', '-name', '*.test.mjs'], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  });
+  assert.match(foundTests.replaceAll('\\', '/'), /(^|\/)scripts\/expo-weekly-update\.test\.mjs$/m);
 });
 
 test('the weekly workflow isolates the write PAT from npm and closes a stale PR', () => {
   const align = workflowJob('align');
   const publish = workflowJob('publish-pr');
   assert.match(align, /contents: read/);
+  assert.doesNotMatch(align, /actions: write/);
   assert.match(align, /npm_config_ignore_scripts: "true"/);
   assert.match(align, /persist-credentials: false/);
   assert.doesNotMatch(align, /secrets\.EXPO_WEEKLY_PR_TOKEN/);
   assert.doesNotMatch(align, /^\s+token:/m);
   assert.doesNotMatch(workflow, /fetch-depth:\s*0/);
   assert.match(publish, /needs: align/);
+  assert.match(publish, /contents: read/);
+  assert.doesNotMatch(publish, /actions: read/);
   assert.match(publish, /persist-credentials: false/);
   assert.match(publish, /secrets\.EXPO_WEEKLY_PR_TOKEN/);
+  assert.match(publish, /isCrossRepository == false/);
+  assert.match(publish, /author\.login == \$login/);
   assert.match(publish, /gh pr close/);
   assert.match(publish, /closing the stale weekly PR/);
   assert.match(publish, /gh api user/);
