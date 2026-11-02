@@ -13,6 +13,13 @@
           "queenzone-wallpaper"
         ]
       }
+    },
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          "expo-file-system"
+        ]
+      }
     }
   },
   "scripts": {
