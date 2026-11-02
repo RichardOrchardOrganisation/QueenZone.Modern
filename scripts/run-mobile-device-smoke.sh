@@ -739,6 +739,10 @@ cleanup() {
     kill "$host_pid" 2>/dev/null || true
     wait "$host_pid" 2>/dev/null || true
   fi
+  # Re-raise the original status. macOS /bin/bash 3.2 can otherwise exit with
+  # the trap's last command status after a fatal `set -u` error, which made
+  # iOS legs pass without launching the app (run 41408627952).
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -1076,7 +1080,8 @@ elif [[ "$suite" = "proof" ]]; then
   echo "Running feature-map proof for $feature."
 fi
 
-echo "Running Maestro ($flow ${proof_flows[*]}). Selector and assertion failures are not retried."
+# bash 3.2 (macOS) treats "${arr[*]}" on an empty array as unbound under set -u.
+echo "Running Maestro ($flow${proof_flows[*]+ ${proof_flows[*]}}). Selector and assertion failures are not retried."
 maestro_args=()
 if [[ "$platform" = "ios" ]] && [[ -n "${IOS_SIM_UDID:-}" ]]; then
   export MAESTRO_TARGET_DEVICE="$IOS_SIM_UDID"
@@ -1293,6 +1298,22 @@ write_proof_bundle() {
   echo "PROOF_DIR=$proof_dir" >> "$results_dir/harness.log"
   echo "Wrote proof bundle $proof_dir"
 }
+
+# A zero Maestro exit is only a pass when JUnit proves at least one flow ran
+# (01-launch.yaml is the first flow, so a testcase means the app launched).
+maestro_junit_testcases() {
+  local report="$1"
+  [[ -s "$report" ]] || { echo 0; return 0; }
+  awk '{ n += gsub(/<testcase[ >]/, "") } END { print n + 0 }' "$report"
+}
+if [[ "$maestro_status" -eq 0 ]]; then
+  maestro_flow_count="$(maestro_junit_testcases "$results_dir/junit.xml")"
+  echo "maestro_flow_count=$maestro_flow_count" >> "$results_dir/harness.log"
+  if [[ "$maestro_flow_count" -eq 0 ]]; then
+    echo "Maestro exited 0 but $results_dir/junit.xml records zero flows; the app never launched. Failing." >&2
+    maestro_status=3
+  fi
+fi
 
 if [[ "$suite" = "proof" ]]; then
   write_proof_bundle
