@@ -68,6 +68,41 @@ public sealed class QueenZoneDataCompositionTests
     }
 
     [Fact]
+    public void AddQueenZoneData_Production_with_empty_connection_string_throws_instead_of_using_sample_data()
+    {
+        var services = new ServiceCollection();
+        var environment = new FakeHostEnvironment(Environments.Production);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            services.AddQueenZoneData(BuildConfiguration(connectionString: null), environment));
+
+        Assert.Contains("ConnectionStrings:QueenZoneLegacy is required", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(services, sd => sd.ServiceType == typeof(INewsRepository));
+    }
+
+    [Theory]
+    [InlineData("Development", null)]
+    [InlineData("Production", "true")]
+    public void AddQueenZoneData_empty_connection_string_uses_sample_data_when_allowed(
+        string environmentName,
+        string? allowWithoutDatabase)
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:QueenZoneLegacy"] = null,
+                [SampleDataFallbackGuard.AllowWithoutDatabaseKey] = allowWithoutDatabase,
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        services.AddQueenZoneData(configuration, new FakeHostEnvironment(environmentName));
+
+        var registration = Assert.Single(services, sd => sd.ServiceType == typeof(INewsRepository));
+        Assert.Equal(typeof(InMemoryNewsRepository), registration.ImplementationType);
+    }
+
+    [Fact]
     public void AddQueenZoneData_registers_mirror_migrator_only_for_E2E()
     {
         var e2e = BuildServices(

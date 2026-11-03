@@ -476,6 +476,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         }
         else
         {
+            SampleDataFallbackGuard.EnsureAllowed(environment, configuration);
             services.AddQueenZoneInMemoryData();
             services.AddHostedService<Search.SearchIndexSeedHostedService>();
             services.AddHostedService<SampleGalleryImageSeedHostedService>();
