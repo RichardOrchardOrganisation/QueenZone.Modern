@@ -18,6 +18,13 @@
       "exclude": [
         "expo"
       ]
+    },
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          ".*"
+        ]
+      }
     }
   },
   "scripts": {
