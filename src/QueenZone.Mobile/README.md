@@ -73,10 +73,7 @@ just to silence Doctor. The one approved exception is `expo` itself:
 it is held at `~58.0.22` in `expo.install.exclude` because `expo@58.0.23`
 needs `expo-modules-core` 58.0.30 and the 58.0.24 override (#2404) must stay
 until the unpin (https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2407).
-Richard also approved a second hold: `expo-modules-autolinking` is pinned to 58.0.16 in
-`overrides`, because 58.0.17 breaks opening forum attachments on iOS (Maestro step 69,
-`forum-thread-attachment-opened`; see #2446). The unpin PR must remove both holds: the
-`expo` exclude and the autolinking override. Any other exclude needs Richard's approval. Typecheck + `npm test` alone is not a local
+The unpin PR must remove that exclude. Any other exclude needs Richard's approval. Typecheck + `npm test` alone is not a local
 substitute for the CI `mobile-js` job. Publish workflows still run
 `npm run preflight`. CI `mobile-js` runs the npm advisory gate, typecheck, lint,
 `npm run test:coverage`, the coverage gate, and Doctor so the same suites
