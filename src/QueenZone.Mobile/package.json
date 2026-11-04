@@ -14,6 +14,13 @@
         ]
       }
     },
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          ".*"
+        ]
+      }
+    },
     "install": {
       "exclude": [
         "expo"
