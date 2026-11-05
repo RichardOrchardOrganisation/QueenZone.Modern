@@ -87,7 +87,6 @@ export type { CachedResult, ForumPostReportCategory, ForumReplyWrite, ForumTopic
 export type { CacheSource } from '../cache/withOfflineCache';
 export {
   cacheForumAttachment,
-  fetchForumAttachment,
   isCookieGatedForumAttachmentPath,
   openForumAttachmentFile,
   openForumAttachmentImage,
@@ -95,7 +94,6 @@ export {
 } from './forumAttachment';
 export type {
   CachedForumAttachment,
-  ForumAttachmentBytes,
   OpenForumAttachmentFileOptions,
 } from './forumAttachment';
 export { createPhotoSubmission } from './photoSubmissions';
