@@ -11,6 +11,8 @@ appId: org.queenzone.mobile
     element:
       text: '.*Crosswords.*'
     direction: DOWN
+    # iOS reports rows behind the tab bar as visible; keep the tap above it.
+    centerElement: true
 - tapOn: '.*Crosswords.*'
 - extendedWaitUntil:
     visible:
