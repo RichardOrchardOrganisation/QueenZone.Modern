@@ -1,13 +1,15 @@
 appId: org.queenzone.mobile
 ---
 # Forum tab-root identity header (not the Home masthead). Badge is GET /api/v1/me/messages/unread-count only (#1074).
-- runFlow: open-smoke-auth.yaml
 - tapOn:
     id: tab-forum
 - extendedWaitUntil:
     visible:
       id: forum-screen
     timeout: 20000
+# Home can retain the hero's scroll position after the detail flow. Authenticate
+# from Forum's fixed header so the helper can see home-messages on small phones.
+- runFlow: open-smoke-auth.yaml
 - assertNotVisible:
     id: tab-masthead
 - extendedWaitUntil:
