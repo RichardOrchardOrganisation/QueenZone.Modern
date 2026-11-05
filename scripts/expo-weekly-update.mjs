@@ -7,11 +7,10 @@
  *   node scripts/expo-weekly-update.mjs write-pr-body --before-package <file> --before-lock <file> [--pin-json <file>] [--out <file>]
  *   node scripts/expo-weekly-update.mjs excuse-doctor --pin-json <file> --doctor-log <file> [--check-json <file>]
  *
- * The pin guard fails unless src/QueenZone.Mobile still overrides
- * expo-modules-core to 58.0.24 and the lockfile resolves that version at
- * the single top-level node_modules/expo-modules-core key, with no nested
- * copy under expo/. A newer range declared by upstream expo is recorded,
- * not treated as a pin failure (#2407).
+ * The 58.0.24 expo-modules-core pin was removed under #2407. The guard now
+ * fails if an expo-modules-core override comes back, or if the lockfile does
+ * not resolve a single top-level node_modules/expo-modules-core key with no
+ * nested copy under expo/.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -150,15 +149,13 @@ export function inspectPin({ packageJson, lockfile } = {}) {
   const nested = nestedExpoModulesCoreKeys(lockfile?.packages);
   const declaredRange = lockfile?.packages?.[EXPO_LOCK_KEY]?.dependencies?.['expo-modules-core'] ?? null;
   const errors = [];
-  if (override !== PINNED_EXPO_MODULES_CORE) {
+  if (override !== undefined) {
     errors.push(
-      `package.json overrides.expo-modules-core must stay ${PINNED_EXPO_MODULES_CORE} until ${PIN_ISSUE} (found ${override ?? 'missing'}).`,
+      `package.json must not override expo-modules-core; the ${PINNED_EXPO_MODULES_CORE} pin was removed under ${PIN_ISSUE} (found ${override}).`,
     );
   }
-  if (resolved !== PINNED_EXPO_MODULES_CORE) {
-    errors.push(
-      `package-lock.json must resolve ${TOP_LEVEL_LOCK_KEY} to ${PINNED_EXPO_MODULES_CORE} (found ${resolved ?? 'missing'}).`,
-    );
+  if (!resolved) {
+    errors.push(`package-lock.json must resolve ${TOP_LEVEL_LOCK_KEY} (found missing).`);
   }
   if (nested.length > 0) {
     errors.push(`package-lock.json must not nest expo-modules-core under expo/ (found ${nested.join(', ')}).`);
@@ -169,7 +166,8 @@ export function inspectPin({ packageJson, lockfile } = {}) {
     resolved: resolved ?? null,
     nested,
     declaredRange,
-    declaredRangeNewerThanPin: isRangeNewerThanPin(declaredRange),
+    // No pin since #2407, so nothing is excused against one.
+    declaredRangeNewerThanPin: false,
     errors,
   };
 }
@@ -262,7 +260,7 @@ export function buildWeeklyPrBody({
   lines.push(
     '## expo-modules-core pin',
     '',
-    `The \`overrides\` pin \`expo-modules-core@${PINNED_EXPO_MODULES_CORE}\` is still present, and \`package-lock.json\` resolves a single top-level \`${TOP_LEVEL_LOCK_KEY}\` at ${PINNED_EXPO_MODULES_CORE}.`,
+    `No \`overrides\` pin on \`expo-modules-core\` (the ${PINNED_EXPO_MODULES_CORE} pin was removed under ${PIN_ISSUE}); \`package-lock.json\` resolves a single top-level \`${TOP_LEVEL_LOCK_KEY}\` at ${pinReport.resolved ?? 'unknown'}.`,
     '',
   );
   if (pinReport.declaredRangeNewerThanPin) {
@@ -411,7 +409,7 @@ export function runCheckPin(args, { log = console.log, error = console.error } =
   if (args.json) {
     log(JSON.stringify(report, null, 2));
   } else if (report.ok) {
-    log(`expo-modules-core pin ${PINNED_EXPO_MODULES_CORE} is intact.`);
+    log(`expo-modules-core is unpinned and resolves ${report.resolved} at a single top-level key.`);
     if (report.declaredRangeNewerThanPin) {
       log(`Upstream expo declares ${report.declaredRange}; record ${PIN_ISSUE} in the weekly PR body.`);
     }
