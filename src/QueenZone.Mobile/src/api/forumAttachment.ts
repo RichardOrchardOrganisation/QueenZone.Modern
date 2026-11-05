@@ -114,6 +114,9 @@ async function downloadOnce(
   signal?.addEventListener('abort', onAbort);
   const task = File.createDownloadTask(url, destination, {
     headers: { Accept: '*/*', Authorization: `Bearer ${accessToken}` },
+    // iOS defaults to a background (nsurlsessiond) session, which can sit queued
+    // indefinitely. A tap-to-open download belongs in the app's foreground session.
+    sessionType: 'foreground',
     signal: controller.signal,
   });
   let timer: ReturnType<typeof setTimeout> | undefined;

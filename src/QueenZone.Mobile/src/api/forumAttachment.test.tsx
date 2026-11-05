@@ -19,7 +19,11 @@ jest.mock('../config', () => ({
   apiV1Url: (path: string) => `http://qz.test/api/v1${path.startsWith('/') ? path : `/${path}`}`,
 }));
 
-type TaskCall = { url: string; destination: { uri: string }; options: { headers?: Record<string, string>; signal?: AbortSignal } };
+type TaskCall = {
+  url: string;
+  destination: { uri: string };
+  options: { headers?: Record<string, string>; sessionType?: string; signal?: AbortSignal };
+};
 
 const fetchMock = jest.fn();
 const shareAsync = Sharing.shareAsync as jest.MockedFunction<typeof Sharing.shareAsync>;
@@ -95,6 +99,7 @@ describe('cacheForumAttachment', () => {
     expect(taskCalls[0]?.options.headers).toEqual(
       expect.objectContaining({ Authorization: 'Bearer tok' }),
     );
+    expect(taskCalls[0]?.options.sessionType).toBe('foreground');
     expect(cached.fileUri).toMatch(/^file:\/\/\/cache\/forum-attachments\/\d+\/brighton-rock-solo\.mp3$/);
     expect(cached.contentType).toBe('audio/mpeg');
     expect(fetchMock).not.toHaveBeenCalled();
