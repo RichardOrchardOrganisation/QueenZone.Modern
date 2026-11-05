@@ -11,8 +11,12 @@ export type CachedForumAttachment = {
   contentType: string;
 };
 
-/** Per-attempt download budget. Two attempts stay inside the 20s journeys wait. */
-export const FORUM_ATTACHMENT_TIMEOUT_MS = 8000;
+/**
+ * Idle budget per attempt: abort only when no bytes arrive for this long (reset on every
+ * progress event), so large attachments (up to 100 MB) on slow links still finish. Two stalled
+ * attempts stay inside the 20s journeys wait (#2451).
+ */
+export const FORUM_ATTACHMENT_IDLE_TIMEOUT_MS = 8000;
 const FORUM_ATTACHMENT_ATTEMPTS = 2;
 
 const OPEN_FAILED = 'This attachment cannot be opened from the app.';
@@ -64,7 +68,11 @@ export async function cacheForumAttachment(
   const cacheKey = `${downloadUrl}\0${fileName}`;
   const cached = fileCache.get(cacheKey);
   if (cached) {
-    return cached;
+    // iOS may purge Paths.cache; never hand the viewer a dead file:// URI.
+    if (new File(cached.fileUri).exists) {
+      return cached;
+    }
+    fileCache.delete(cacheKey);
   }
 
   if (isCookieGatedForumAttachmentPath(downloadUrl)) {
@@ -88,6 +96,10 @@ export async function cacheForumAttachment(
       return result;
     } catch (error: unknown) {
       lastError = error;
+      if (signal?.aborted || isAbortError(error)) {
+        // Caller cancelled (screen closed): final, never retried.
+        throw ApiError.http(499, SHARE_FAILED);
+      }
       // Client errors (401, 404, cookie-gated) are final; timeouts and network errors retry once.
       if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 408) {
         throw error;
@@ -110,30 +122,42 @@ async function downloadOnce(
 
   const controller = new AbortController();
   let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let rejectIdle: ((error: unknown) => void) | undefined;
+  const idle = new Promise<never>((_, reject) => {
+    rejectIdle = reject;
+  });
+  const armIdleTimer = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      rejectIdle?.(ApiError.http(408, DOWNLOAD_TIMED_OUT));
+    }, FORUM_ATTACHMENT_IDLE_TIMEOUT_MS);
+  };
   const onAbort = () => controller.abort();
   signal?.addEventListener('abort', onAbort);
+  // Note: the native task follows redirects and does not expose the final URL, so the old
+  // "redirected to a cookie-gated /forum/attachment path" check cannot run here. The API
+  // alias only redirects to the CDN; a cookie-gated redirect would surface as a 401/HTML
+  // download (401 is mapped below). A dedicated follow-up issue is still to be filed.
   const task = File.createDownloadTask(url, destination, {
     headers: { Accept: '*/*', Authorization: `Bearer ${accessToken}` },
     // iOS defaults to a background (nsurlsessiond) session, which can sit queued
     // indefinitely. A tap-to-open download belongs in the app's foreground session.
     sessionType: 'foreground',
     signal: controller.signal,
+    onProgress: armIdleTimer,
   });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-      reject(ApiError.http(408, DOWNLOAD_TIMED_OUT));
-    }, FORUM_ATTACHMENT_TIMEOUT_MS);
-  });
+  armIdleTimer();
   try {
-    const file = await Promise.race([task.downloadAsync(), timeout]);
+    const file = await Promise.race([task.downloadAsync(), idle]);
     if (!file) {
       throw ApiError.http(500, SHARE_FAILED);
     }
     return file.uri;
   } catch (error: unknown) {
+    removeQuietly(directory);
     if (timedOut) {
       throw ApiError.http(408, DOWNLOAD_TIMED_OUT);
     }
@@ -147,14 +171,42 @@ async function downloadOnce(
   }
 }
 
-function downloadError(error: unknown): ApiError {
+/** Drop a failed/aborted attempt's folder and any partial file in it. */
+function removeQuietly(directory: Directory): void {
+  try {
+    if (directory.exists) {
+      directory.delete();
+    }
+  } catch {
+    // Best effort: the OS purges Paths.cache anyway.
+  }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError';
+}
+
+/**
+ * expo-file-system 58 rejects non-2xx downloads with UnableToDownloadException and no
+ * structured status field; the code is only in the message. Match just the exact native
+ * formats (iOS task "server returned HTTP 404", iOS/Android "response has status[:] 404",
+ * Android task "HTTP 404") instead of any 3-digit number.
+ */
+const NATIVE_HTTP_STATUS = /(?:server returned HTTP|response has status:?|^HTTP|: HTTP) (\d{3})\b/;
+
+export function downloadStatus(error: unknown): number | undefined {
   const message = error instanceof Error ? error.message : String(error);
-  const status = /\b(4\d\d|5\d\d)\b/.exec(message)?.[1];
-  if (status === '401') {
+  const match = NATIVE_HTTP_STATUS.exec(message);
+  return match ? Number(match[1]) : undefined;
+}
+
+function downloadError(error: unknown): ApiError {
+  const status = downloadStatus(error);
+  if (status === 401) {
     return ApiError.http(401, 'Sign in to continue.');
   }
-  if (status) {
-    return ApiError.http(Number(status), `Request failed (${status}).`);
+  if (status !== undefined && status >= 400) {
+    return ApiError.http(status, `Request failed (${status}).`);
   }
   return ApiError.http(500, SHARE_FAILED);
 }
