@@ -139,12 +139,14 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 jest.mock('expo-file-system', () => {
+  const fakeUriPart = (part: unknown): string =>
+    typeof part === 'object' && part !== null && 'uri' in part ? String(part.uri) : String(part);
   class FakeFile {
     uri: string;
     exists = false;
     size = 0;
     constructor(...parts: unknown[]) {
-      this.uri = parts.map(String).join('/');
+      this.uri = parts.map(fakeUriPart).join('/');
     }
     create() {
       this.exists = true;
@@ -166,7 +168,7 @@ jest.mock('expo-file-system', () => {
     uri: string;
     exists = true;
     constructor(...parts: unknown[]) {
-      this.uri = parts.map(String).join('/');
+      this.uri = parts.map(fakeUriPart).join('/');
     }
     create() {
       this.exists = true;
