@@ -39,10 +39,11 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/src/QueenZone.Mobile"
-    # Expo SDK majors and SDK-pinned natives are manual via
-    # `npx expo install --fix` under #1782. This ignore list mirrors
-    # expo@58.0.16 bundledNativeModules.json (exact vs ~ split from that
-    # file, not memory) and is revisited at each SDK upgrade.
+    # Expo family patches and minors come from the weekly
+    # `npx expo install --fix` workflow (#2419), not Dependabot. This
+    # ignore list mirrors expo@58.0.16 bundledNativeModules.json (exact
+    # vs ~ split from that file, not memory) and is revisited at each
+    # SDK upgrade.
     #
     # Every ignore uses update-types to block only ordinary version updates.
     # Security PRs remain eligible and require SDK compatibility review.
@@ -54,25 +55,37 @@ updates:
     labels:
       - "dependencies"
     ignore:
-      # Expo family: in-SDK patches and minors still flow through expo-sdk.
+      # Expo family: weekly expo-weekly-update.yml owns in-SDK bumps (#2419).
       - dependency-name: "expo" # SDK 58 pin: ~58.0.16
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "expo-*" # SDK 58 family (bundledNativeModules ~58.x)
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "@expo/*" # SDK 58 family (e.g. @expo/ui ~58.0.20)
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "babel-preset-expo" # SDK 58 pin: ~58.0.0
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "jest-expo" # SDK 58 pin: ~58.0.11
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "eslint-config-expo" # SDK 58 pin: ~58.0.4
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
       # Exact bundledNativeModules pins: ignore all version updates.
       - dependency-name: "@react-native-async-storage/async-storage" # SDK 58 pin: 2.2.0
         update-types:
@@ -104,7 +117,7 @@ updates:
           - "version-update:semver-major"
           - "version-update:semver-minor"
           - "version-update:semver-patch"
-      # Tilde bundledNativeModules pins: ignore major and minor; patches still come.
+      # Tilde bundledNativeModules pins: weekly expo install --fix owns these (#2419).
       # @sentry/react-native is not ignored: SDK 58 bundles ~8.28.0.
       # PR 2 of #1782 removed expo.install.exclude; Dependabot may propose patches.
       # Do not re-add a 7.x ignore.
@@ -112,24 +125,18 @@ updates:
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native-safe-area-context" # SDK 58 pin: ~5.10.1
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+          - "version-update:semver-patch"
       - dependency-name: "react-native-screens" # SDK 58 pin: ~4.30.0
         update-types:
           - "version-update:semver-major"
           - "version-update:semver-minor"
+          - "version-update:semver-patch"
     groups:
-      expo-sdk:
-        applies-to: version-updates
-        patterns:
-          - "expo"
-          - "expo-*"
-          - "@expo/*"
-          - "babel-preset-expo"
-          - "jest-expo"
-          - "eslint-config-expo"
       mobile-npm-minor-patch:
         applies-to: version-updates
         patterns:

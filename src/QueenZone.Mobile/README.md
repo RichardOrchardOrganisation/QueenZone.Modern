@@ -69,7 +69,11 @@ Expo's current SDK 58 native-module list. A clean `npm ci` that passed
 Doctor this morning can fail CI later the same day when Expo publishes a
 patch. Fix with `npx expo install <package>` (or `npx expo install --fix`)
 and commit the lockfile. Do not add packages to `expo.install.exclude`
-just to silence Doctor. Typecheck + `npm test` alone is not a local
+just to silence Doctor. The one approved exception is `expo` itself:
+it is held at `~58.0.22` in `expo.install.exclude` because `expo@58.0.23`
+needs `expo-modules-core` 58.0.30 and the 58.0.24 override (#2404) must stay
+until the unpin (https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2407).
+The unpin PR must remove that exclude. Any other exclude needs Richard's approval. Typecheck + `npm test` alone is not a local
 substitute for the CI `mobile-js` job. Publish workflows still run
 `npm run preflight`. CI `mobile-js` runs the npm advisory gate, typecheck, lint,
 `npm run test:coverage`, the coverage gate, and Doctor so the same suites
