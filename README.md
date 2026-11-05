@@ -109,7 +109,7 @@ For feature-level web proof on Windows, run `pwsh -File scripts/Verify-Web.ps1 -
 
 Use an available browser tool to inspect the changed journey and screenshots, then run `pwsh -File .cursor/skills/verify-queenzone/scripts/control-queenzone.ps1 cleanup`. Omit `-KeepRunning` for automatic cleanup. See the [shared web verification guide](.cursor/skills/verify-queenzone/SKILL.md), which applies to every agent/editor; automated PASS does not imply visual inspection.
 
-Local secrets belong in `src/QueenZone.Web/appsettings.Local.json`, which is ignored by git. You can also set `ConnectionStrings__QueenZoneLegacy` in your shell or a local `.env` file for tooling that loads dotenv values. If no `ConnectionStrings:QueenZoneLegacy` value is present, the site uses sample news data so the first slice can still run locally.
+Local secrets belong in `src/QueenZone.Web/appsettings.Local.json`, which is ignored by git. You can also set `ConnectionStrings__QueenZoneLegacy` in your shell or a local `.env` file for tooling that loads dotenv values. If no `ConnectionStrings:QueenZoneLegacy` value is present, the site uses sample news data so the first slice can still run locally. Production-like environments (`Production`, `Staging`, `Preview`) refuse to start without it unless `SampleData__AllowWithoutDatabase=true` is set; only the dev App Service sets that, while it runs sample data before its curated snapshot is ready.
 
 Bitwarden **Secrets Manager** (`bws` CLI — not the password vault `bw`) is the shared local secret store for development agents. Use machine account **`windows-codex`** on Windows or **`mac-codex`** on Macs; project **`Queenzone Development`**. Auth is user-scoped **`BWS_ACCESS_TOKEN`**. Do not commit or print that token.
 
