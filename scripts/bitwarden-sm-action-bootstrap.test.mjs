@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const bootstrapPath = new URL('../.github/actions/bitwarden-retry/bootstrap/index.cjs', import.meta.url);
 const {
   loadPin, getTargetTriple, binaryFileName, sha256File, findSmActionDir,
-  cachePath, stagePath, assetUrl, bootstrap,
+  cachePath, stagePath, assetUrl, bootstrap, downloadToFile, isValidBinary,
 } = require(bootstrapPath.pathname);
 
 const ACTION_SHA = '1238aae8fc64b212641190a9227c8a734ab1a793';
@@ -244,6 +244,132 @@ test('CLI subprocess exhausted 503 fails closed and names the rustup refusal', a
   assert.match(result.stderr, /Refusing source-build\/rustup fallback/);
   assert.doesNotMatch(result.stdout + result.stderr, /cargo build|rustup target list/);
   assert.equal(existsSync(stagePath(fixture.actionDir, 'aarch64-apple-darwin', 'sm-action')), false);
+});
+
+test('truncated HTTP 200 socket FIN rejects without hanging and removes the partial', { timeout: 5000 }, async () => {
+  const fixture = layout();
+  const dest = join(fixture.root, 'partial-download');
+  const { server, base } = await listen((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
+    res.write(payload.subarray(0, 8));
+    req.socket.end();
+  });
+  const started = Date.now();
+  try {
+    await assert.rejects(
+      () => Promise.race([
+        downloadToFile(`${base}/sm-action-aarch64-apple-darwin`, dest, { timeoutMs: 2000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('download hung past 1s')), 1000)),
+      ]),
+      /closed before|truncated|socket hang up|ECONNRESET/i,
+    );
+    const elapsed = Date.now() - started;
+    console.log(`truncated_fin elapsed_ms=${elapsed} rustup=never partial=${existsSync(dest)}`);
+    assert.ok(elapsed < 1000, `elapsed ${elapsed}ms; truncated close must not wait for inactivity timeout`);
+    assert.equal(existsSync(dest), false);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test('truncated HTTP 200 body retries and stages the pinned binary without hanging', { timeout: 5000 }, async () => {
+  const started = Date.now();
+  const fixture = layout();
+  let hits = 0;
+  const { server, base } = await listen((req, res) => {
+    hits += 1;
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
+    if (hits === 1) {
+      res.write(payload.subarray(0, 8));
+      req.socket.end();
+      return;
+    }
+    res.end(payload);
+  });
+  try {
+    const result = await bootstrap({
+      env: { ...fixture.env, SM_ACTION_DOWNLOAD_BASE: base },
+      pin,
+      retryDelaysMs: [0, 0, 0],
+    });
+    const elapsed = Date.now() - started;
+    console.log(`interrupted_body elapsed_ms=${elapsed} source=${result.source} rustup=never downloadAttempts=${result.downloadAttempts} hits=${hits}`);
+    assert.ok(elapsed < 300000, `elapsed ${elapsed}ms`);
+    assert.ok(elapsed < 5000, `interrupted body must recover well under 5 minutes (${elapsed}ms)`);
+    assert.equal(result.source, 'download');
+    assert.equal(result.downloadAttempts, 2);
+    assert.equal(hits, 2);
+    assert.equal(sha256File(result.dest), sha256);
+    assert.equal(sha256File(result.cached), sha256);
+    assert.equal(isValidBinary(result.cached, sha256), true);
+    assert.equal(existsSync(`${result.cached}.download`), false);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test('exhausted truncated HTTP 200 fails closed without a partial cache hit', { timeout: 5000 }, async () => {
+  const started = Date.now();
+  const fixture = layout();
+  let hits = 0;
+  const { server, base } = await listen((req, res) => {
+    hits += 1;
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
+    res.write(payload.subarray(0, 8));
+    req.socket.end();
+  });
+  try {
+    await assert.rejects(
+      () => bootstrap({
+        env: { ...fixture.env, SM_ACTION_DOWNLOAD_BASE: base },
+        pin,
+        retryDelaysMs: [0, 0, 0],
+      }),
+      /closed before|truncated|socket hang up|ECONNRESET/i,
+    );
+    const elapsed = Date.now() - started;
+    const cached = cachePath(fixture.env, pin.version, 'aarch64-apple-darwin', 'sm-action');
+    const staged = stagePath(fixture.actionDir, 'aarch64-apple-darwin', 'sm-action');
+    console.log(`exhausted_truncated elapsed_ms=${elapsed} rustup=never source_build=false hits=${hits} cache=${existsSync(cached)} stage=${existsSync(staged)}`);
+    assert.ok(elapsed < 300000, `elapsed ${elapsed}ms`);
+    assert.equal(hits, 4);
+    assert.equal(existsSync(staged), false);
+    assert.equal(existsSync(cached), false);
+    assert.equal(existsSync(`${cached}.download`), false);
+    assert.equal(isValidBinary(cached, sha256), false);
+  } finally {
+    await closeServer(server);
+  }
+});
+
+test('slow trickle still hits the overall download deadline', { timeout: 5000 }, async () => {
+  const started = Date.now();
+  const fixture = layout();
+  const { server, base } = await listen((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
+    const timer = setInterval(() => {
+      try { res.write('x'); } catch { clearInterval(timer); }
+    }, 40);
+    req.on('close', () => clearInterval(timer));
+  });
+  try {
+    await assert.rejects(
+      () => bootstrap({
+        env: { ...fixture.env, SM_ACTION_DOWNLOAD_BASE: base, SM_ACTION_DOWNLOAD_TIMEOUT_MS: '250' },
+        pin,
+        retryDelaysMs: [],
+      }),
+      /timeout/i,
+    );
+    const elapsed = Date.now() - started;
+    const cached = cachePath(fixture.env, pin.version, 'aarch64-apple-darwin', 'sm-action');
+    console.log(`trickle_deadline elapsed_ms=${elapsed} rustup=never cache=${existsSync(cached)}`);
+    assert.ok(elapsed < 2000, `overall deadline must cut a trickle off (${elapsed}ms)`);
+    assert.equal(existsSync(cached), false);
+    assert.equal(existsSync(stagePath(fixture.actionDir, 'aarch64-apple-darwin', 'sm-action')), false);
+  } finally {
+    await closeServer(server);
+  }
 });
 
 test('auth-style 404 fails immediately without retries, rustup, or secret output', async () => {

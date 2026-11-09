@@ -86,59 +86,125 @@ function copyAtomic(from, to) {
   if (process.platform !== 'win32') fs.chmodSync(to, 0o700);
 }
 
-function downloadToFile(url, dest, { timeoutMs = 30000, maxBytes = 20 * 1024 * 1024, redirects = 0 } = {}) {
+function timeoutError() {
+  const error = new BootstrapError('Download timeout');
+  error.statusCode = 408;
+  error.code = 'ETIMEDOUT';
+  return error;
+}
+
+function incompleteDownloadError(reason) {
+  const error = new BootstrapError(reason);
+  error.statusCode = 408;
+  error.code = 'ECONNRESET';
+  return error;
+}
+
+function wrapDownloadError(error) {
+  if (error instanceof BootstrapError) return error;
+  const wrapped = new BootstrapError(String(error?.message || error));
+  wrapped.statusCode = error?.statusCode;
+  wrapped.code = error?.code;
+  return wrapped;
+}
+
+function destroyDownload({ request, response, file, dest } = {}) {
+  if (response) {
+    response.unpipe();
+    response.destroy();
+  }
+  if (request) request.destroy();
+  if (file) file.destroy();
+  if (dest) fs.rmSync(dest, { force: true });
+}
+
+function downloadToFile(url, dest, options = {}) {
+  const timeoutMs = options.timeoutMs ?? 30000;
+  const maxBytes = options.maxBytes ?? 20 * 1024 * 1024;
+  const redirects = options.redirects ?? 0;
+  const startedAt = options.startedAt ?? Date.now();
+  const remaining = timeoutMs - (Date.now() - startedAt);
+  if (remaining <= 0) return Promise.reject(timeoutError());
   return new Promise((resolve, reject) => {
+    let settled = false;
+    let request;
+    let response;
+    let file;
+    let timer;
+    const succeed = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      destroyDownload({ request, response, file, dest });
+      reject(wrapDownloadError(error));
+    };
+    timer = setTimeout(() => fail(timeoutError()), remaining);
     const lib = url.startsWith('https:') ? https : http;
-    const request = lib.get(url, { headers: { 'User-Agent': 'QueenZone.Modern-bitwarden-retry' } }, (response) => {
-      const status = response.statusCode || 0;
-      if ([301, 302, 303, 307, 308].includes(status) && response.headers.location) {
-        response.resume();
-        if (redirects >= 5) return reject(new BootstrapError('Too many redirects while downloading sm-action binary.'));
-        return downloadToFile(response.headers.location, dest, { timeoutMs, maxBytes, redirects: redirects + 1 }).then(resolve, reject);
+    request = lib.get(url, { headers: { 'User-Agent': 'QueenZone.Modern-bitwarden-retry' } }, (incoming) => {
+      response = incoming;
+      const status = incoming.statusCode || 0;
+      if ([301, 302, 303, 307, 308].includes(status) && incoming.headers.location) {
+        incoming.resume();
+        if (redirects >= 5) return fail(new BootstrapError('Too many redirects while downloading sm-action binary.'));
+        settled = true;
+        clearTimeout(timer);
+        request.destroy();
+        return downloadToFile(incoming.headers.location, dest, {
+          timeoutMs, maxBytes, redirects: redirects + 1, startedAt,
+        }).then(resolve, reject);
       }
       if (status !== 200) {
-        response.resume();
-        const error = new BootstrapError(`Failed to download: ${status} ${response.statusMessage || ''}`.trim());
+        incoming.resume();
+        const error = new BootstrapError(`Failed to download: ${status} ${incoming.statusMessage || ''}`.trim());
         error.statusCode = status;
-        return reject(error);
+        return fail(error);
       }
-      fs.mkdirSync(path.dirname(dest), { recursive: true });
-      const file = fs.createWriteStream(dest);
-      let received = 0;
-      response.on('data', (chunk) => {
-        received += chunk.length;
-        if (received > maxBytes) {
-          request.destroy();
-          file.destroy();
-          fs.rmSync(dest, { force: true });
-          reject(new BootstrapError('sm-action binary download exceeded the size cap.'));
-        }
-      });
-      response.pipe(file);
-      file.on('finish', () => { file.close(); resolve(); });
-      file.on('error', (error) => {
-        fs.rmSync(dest, { force: true });
-        reject(error);
-      });
+      try {
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        file = fs.createWriteStream(dest);
+        let received = 0;
+        const expectedLength = Number(incoming.headers['content-length']);
+        const failIncomplete = () => fail(incompleteDownloadError(
+          'Download closed before the sm-action binary completed.',
+        ));
+        incoming.on('data', (chunk) => {
+          received += chunk.length;
+          if (received > maxBytes) fail(new BootstrapError('sm-action binary download exceeded the size cap.'));
+        });
+        incoming.on('error', fail);
+        incoming.on('aborted', failIncomplete);
+        incoming.on('close', () => {
+          if (!settled && !incoming.complete) failIncomplete();
+        });
+        file.on('error', fail);
+        file.on('finish', () => {
+          if (Number.isFinite(expectedLength) && expectedLength >= 0 && received !== expectedLength) {
+            return fail(incompleteDownloadError(
+              `Download truncated: received ${received} of ${expectedLength} bytes.`,
+            ));
+          }
+          succeed();
+        });
+        incoming.pipe(file);
+      } catch (error) {
+        fail(error);
+      }
     });
-    request.on('error', (error) => {
-      fs.rmSync(dest, { force: true });
-      reject(error);
-    });
-    request.setTimeout(timeoutMs, () => {
-      request.destroy();
-      fs.rmSync(dest, { force: true });
-      const error = new BootstrapError('Download timeout');
-      error.statusCode = 408;
-      reject(error);
-    });
+    request.on('error', fail);
   });
 }
 
 function isTransient(error) {
   if (TRANSIENT_STATUS.has(error?.statusCode)) return true;
   const code = error?.code;
-  return code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'EAI_AGAIN' || code === 'ENOTFOUND';
+  if (code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'EAI_AGAIN' || code === 'ENOTFOUND') return true;
+  return /timeout|aborted|closed before|truncated|socket hang up/i.test(String(error?.message || ''));
 }
 
 async function downloadWithRetry({ url, dest, expectedSha, retryDelaysMs, download, wait, attempt = 1 }) {
