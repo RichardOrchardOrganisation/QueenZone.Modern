@@ -83,7 +83,7 @@ function copyAtomic(from, to) {
   const temp = `${to}.${process.pid}.partial`;
   fs.copyFileSync(from, temp);
   fs.renameSync(temp, to);
-  if (!String(to).endsWith('.exe')) fs.chmodSync(to, 0o755);
+  if (process.platform !== 'win32') fs.chmodSync(to, 0o700);
 }
 
 function downloadToFile(url, dest, { timeoutMs = 30000, maxBytes = 20 * 1024 * 1024, redirects = 0 } = {}) {
@@ -136,37 +136,35 @@ function downloadToFile(url, dest, { timeoutMs = 30000, maxBytes = 20 * 1024 * 1
 }
 
 function isTransient(error) {
-  if (error && TRANSIENT_STATUS.has(error.statusCode)) return true;
-  const code = error && error.code;
+  if (TRANSIENT_STATUS.has(error?.statusCode)) return true;
+  const code = error?.code;
   return code === 'ECONNRESET' || code === 'ETIMEDOUT' || code === 'EAI_AGAIN' || code === 'ENOTFOUND';
 }
 
-async function downloadWithRetry({ url, dest, expectedSha, retryDelaysMs, download, wait }) {
+async function downloadWithRetry({ url, dest, expectedSha, retryDelaysMs, download, wait, attempt = 1 }) {
   const attempts = retryDelaysMs.length + 1;
-  let lastError;
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    const partial = `${dest}.download`;
-    fs.rmSync(partial, { force: true });
-    try {
-      console.log(`Downloading pinned sm-action binary (attempt ${attempt} of ${attempts}).`);
-      await download(url, partial);
-      if (!isValidBinary(partial, expectedSha)) {
-        fs.rmSync(partial, { force: true });
-        throw new BootstrapError('Downloaded sm-action binary failed checksum verification.');
-      }
-      copyAtomic(partial, dest);
+  const partial = `${dest}.download`;
+  fs.rmSync(partial, { force: true });
+  try {
+    console.log(`Downloading pinned sm-action binary (attempt ${attempt} of ${attempts}).`);
+    await download(url, partial);
+    if (!isValidBinary(partial, expectedSha)) {
       fs.rmSync(partial, { force: true });
-      return attempt;
-    } catch (error) {
-      lastError = error;
-      fs.rmSync(partial, { force: true });
-      const transient = isTransient(error) || /checksum/.test(error.message || '');
-      console.log(`Pinned sm-action binary download failed on attempt ${attempt}: ${error.message || error}`);
-      if (!transient || attempt === attempts) break;
-      await wait(retryDelaysMs[attempt - 1]);
+      throw new BootstrapError('Downloaded sm-action binary failed checksum verification.');
     }
+    copyAtomic(partial, dest);
+    fs.rmSync(partial, { force: true });
+    return attempt;
+  } catch (error) {
+    fs.rmSync(partial, { force: true });
+    const transient = isTransient(error) || /checksum/.test(error?.message || '');
+    console.log(`Pinned sm-action binary download failed on attempt ${attempt}: ${error?.message || error}`);
+    if (!transient || attempt === attempts) {
+      throw error instanceof BootstrapError ? error : new BootstrapError(String(error?.message || error));
+    }
+    await wait(retryDelaysMs[attempt - 1]);
+    return downloadWithRetry({ url, dest, expectedSha, retryDelaysMs, download, wait, attempt: attempt + 1 });
   }
-  throw lastError instanceof BootstrapError ? lastError : new BootstrapError(String(lastError && lastError.message || lastError));
 }
 
 async function bootstrap(options = {}) {

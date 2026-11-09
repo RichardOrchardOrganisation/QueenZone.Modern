@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -127,6 +127,7 @@ test('simulated GitHub Releases 503 recovers from runner cache without rustup wi
     assert.equal(result.downloadAttempts, 0);
     assert.equal(requests.length, 0);
     assert.equal(sha256File(result.dest), sha256);
+    assert.equal(statSync(result.dest).mode & 0o777, 0o700);
     assert.equal(existsSync(join(fixture.actionDir, 'target', 'aarch64-apple-darwin', 'release', 'sm-action')), true);
   } finally {
     await closeServer(server);
