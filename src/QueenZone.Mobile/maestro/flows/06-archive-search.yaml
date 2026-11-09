@@ -6,8 +6,7 @@ appId: org.queenzone.mobile
     visible:
       id: archive-hub-screen
     timeout: 15000
-- tapOn:
-    id: tab-home
+- runFlow: common/home-top.yaml
 - tapOn:
     id: home-search
 - extendedWaitUntil:

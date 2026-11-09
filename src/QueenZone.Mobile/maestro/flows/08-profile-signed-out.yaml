@@ -1,7 +1,6 @@
 appId: org.queenzone.mobile
 ---
-- tapOn:
-    id: tab-home
+- runFlow: common/home-top.yaml
 - tapOn:
     id: home-profile
 # Release smoke embeds skip SecureStore restore (#1393). If a leftover
