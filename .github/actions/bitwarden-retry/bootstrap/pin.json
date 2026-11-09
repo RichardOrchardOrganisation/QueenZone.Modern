@@ -1,0 +1,31 @@
+{
+  "actionSha": "1238aae8fc64b212641190a9227c8a734ab1a793",
+  "version": "3.0.1",
+  "downloadBase": "https://github.com/bitwarden/sm-action/releases/download",
+  "binaries": {
+    "aarch64-apple-darwin": {
+      "asset": "sm-action-aarch64-apple-darwin",
+      "sha256": "a426480977db65e7ae0d50c5e0ba70508ff15bb1fc803a9b9048e5ccda8d1b73"
+    },
+    "aarch64-pc-windows-msvc": {
+      "asset": "sm-action-aarch64-pc-windows-msvc.exe",
+      "sha256": "be716878c305707b7141e9581cdbf292c785f3aa3f7fbb42ac9c5e5460c09dba"
+    },
+    "aarch64-unknown-linux-gnu": {
+      "asset": "sm-action-aarch64-unknown-linux-gnu",
+      "sha256": "35dde396e46be03c2b8f711d8ea4c3c75a3b42ab6681a260d614b17fca726989"
+    },
+    "x86_64-apple-darwin": {
+      "asset": "sm-action-x86_64-apple-darwin",
+      "sha256": "9dfeab4d83b0347f9b5a04e8ca57f816c390b0f1c58a3d3bd7919ebfd3ab1124"
+    },
+    "x86_64-pc-windows-msvc": {
+      "asset": "sm-action-x86_64-pc-windows-msvc.exe",
+      "sha256": "ae9cf1f9c400200cf889f17a44d7b3c9c525b9f462c0acd3cda76efab74e0174"
+    },
+    "x86_64-unknown-linux-gnu": {
+      "asset": "sm-action-x86_64-unknown-linux-gnu",
+      "sha256": "fa998e9db775d5c7bdbc0fd8840ac6474a8348cdc989176c5ce24c3d09045752"
+    }
+  }
+}

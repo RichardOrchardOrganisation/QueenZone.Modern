@@ -134,6 +134,35 @@ jobs:
           assert.equal(process.env.MOBILE_AUTH_SIGNING_KEY, 'unchanged-fixture-canary');
           JS
 
+  # Credential-free simulation of the #2458 GitHub Releases 503. Not a required
+  # check and not a production/nightly dispatch. timeout-minutes: 5 is the AC.
+  bitwarden-binary-bootstrap:
+    name: Bitwarden sm-action binary bootstrap (simulated 503)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Simulate GitHub Releases 503 without rustup/source-build
+        run: |
+          set -euo pipefail
+          start=$(date +%s%3N)
+          node --test --test-concurrency=1 scripts/bitwarden-sm-action-bootstrap.test.mjs scripts/bitwarden-retry.test.mjs
+          end=$(date +%s%3N)
+          elapsed=$((end - start))
+          echo "elapsed_ms=${elapsed}"
+          if [ "${elapsed}" -ge 300000 ]; then
+            echo "::error::Simulated sm-action binary download test exceeded 5 minutes (${elapsed}ms)."
+            exit 1
+          fi
+          echo "Simulated 503 recovered or failed closed without rustup/source-build in ${elapsed}ms (limit 300000ms)."
+
   # Own non-required job: do not fold this into `scripts-tests` (that name is a
   # required check on main). Live required contexts checked 2026-10-17:
   # build, test (0-5), sql-server-tests, coverage, smoke-test, e2e-test,
