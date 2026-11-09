@@ -17,6 +17,9 @@ for (const line of lines) {
   if (line.trim() === 'run: Start-Sleep -Seconds 20' || line.trim() === 'run: Start-Sleep -Seconds 60') {
     result = line.replace('Start-Sleep -Seconds', 'Write-Output Fixture simulated wait seconds'); replacements++;
   }
+  if (line === '      uses: ./.github/actions/bitwarden-retry/bootstrap') {
+    result = '      uses: ./.github/actions/bitwarden-fake-bootstrap';
+  }
   if (publishing && line === '      uses: ./.github/actions/bitwarden-retry/guard') {
     result = '      uses: ./.github/actions/bitwarden-fake-publication';
   }
@@ -29,6 +32,11 @@ function write(name, file, text) {
   writeFileSync(path.join(dir, file), text);
 }
 write('bitwarden-contract-fixture', 'action.yml', fixture.join('\n'));
+write('bitwarden-fake-bootstrap', 'action.yml', `name: Credential-free fake binary bootstrap\ndescription: Contract test only; no network, rustup, or credentials.\noutputs:\n  source:\n    description: Synthetic bootstrap source\nruns:\n  using: node24\n  main: index.cjs\n`);
+write('bitwarden-fake-bootstrap', 'index.cjs', `
+const fs = require('node:fs');
+if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'source=fixture\\n');
+`);
 write('bitwarden-fake-fetch', 'action.yml', `name: Credential-free fake fetch\ndescription: Contract test only; no network or credentials.\ninputs:\n  access_token:\n    description: Ignored synthetic input\n  secrets:\n    description: Synthetic mapping\n  set_env:\n    description: Verify global export stays disabled\n  attempt:\n    description: Synthetic attempt number\nruns:\n  using: node24\n  main: index.cjs\n`);
 write('bitwarden-fake-fetch', 'index.cjs', `
 const fs = require('node:fs');

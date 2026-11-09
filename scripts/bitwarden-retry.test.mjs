@@ -37,7 +37,7 @@ function readAction(text) {
     const child = /^        ([A-Za-z_-]+): (.+)$/.exec(line);
     if (child && nested) step[nested][child[1]] = scalar(child[2]);
   }
-  assert.equal(action.runs.steps.length, 10);
+  assert.equal(action.runs.steps.length, 11);
   return action;
 }
 const action = readAction(readFileSync(actionPath, 'utf8'));
@@ -52,7 +52,7 @@ function evaluate(expression, steps, cancelled, inputs = {}) {
   const source = expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '');
   return Function('steps', 'cancelled', 'inputs', 'toJSON', `return (${source});`)(steps, () => cancelled, inputs, JSON.stringify);
 }
-function simulate(replies, { cancelledAt = '', publicationFailure = false, checkFailure = false, inputMapping = mapping } = {}) {
+function simulate(replies, { cancelledAt = '', publicationFailure = false, checkFailure = false, bootstrapFailed = false, inputMapping = mapping } = {}) {
   const steps = new Proxy({}, { get: (target, key) => target[key] || { outputs: {}, outcome: 'skipped' } });
   const attempts = []; const waits = []; const publications = []; const environmentWrites = [];
   let cancelled = false; let failed = false;
@@ -63,6 +63,9 @@ function simulate(replies, { cancelledAt = '', publicationFailure = false, check
     let payload = '';
     try {
       if (step.run) { assert.equal(step.shell, 'pwsh'); waits.push(Number(/^Start-Sleep -Seconds (\d+)$/.exec(step.run)[1])); }
+      else if (step.uses?.includes('bitwarden-retry/bootstrap')) {
+        if (bootstrapFailed) throw new Error('fake bootstrap failure');
+      }
       else if (step.uses.startsWith('bitwarden/')) {
         const reply = replies[attempts.length] || { failed: true };
         attempts.push(step.id);
@@ -205,6 +208,18 @@ test('CLI failure logs only fixed diagnostics, never malformed output payloads',
     encoding: 'utf8', stdio: 'pipe',
   }); } catch (caught) { error = caught; }
   assert.equal(error.status, 1); assert.doesNotMatch(error.stderr, /PRIVATE_TEST_PAYLOAD/); assert.equal(readFileSync(output, 'utf8'), '');
+});
+test('failed binary bootstrap skips official fetches, never rustup, and exports nothing', () => {
+  const result = simulate([{}], { bootstrapFailed: true });
+  assert.equal(result.attempts.length, 0); assert.deepEqual(result.waits, []);
+  assert.equal(result.failed, true); assert.equal(result.publications.length, 0);
+  assert.ok(Object.values(result.exported).every((value) => value === ''));
+  const source = readFileSync(new URL('../.github/actions/bitwarden-retry/action.yml', import.meta.url), 'utf8');
+  assert.match(source, /bitwarden-retry\/bootstrap/);
+  assert.equal(action.runs.steps.filter((step) => step.uses?.includes('bitwarden-retry/bootstrap')).length, 1);
+  for (const step of action.runs.steps.filter((step) => step.uses?.startsWith('bitwarden/'))) {
+    assert.match(step.if, /steps\.bootstrap\.outcome == 'success'/);
+  }
 });
 test('only scoped consumers change; pinned action, input mappings and permissions remain', () => {
   assert.equal(action.runs.steps.filter((step) => step.uses?.startsWith('bitwarden/')).length, 3);
