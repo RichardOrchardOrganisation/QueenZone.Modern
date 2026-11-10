@@ -16,10 +16,12 @@ internal static class MemberBrowserFixture
         var members = scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>();
         if (members is not InMemoryMemberAccountRepository)
             throw new InvalidOperationException("Member browser fixtures require an in-memory Testing member store.");
+        // Sequential awaits keep seeding idempotent; the existence check is async, so LINQ Where cannot express it.
         foreach (var member in BrowserFixtureMembers.All)
         {
-            if (await members.FindByIdAsync(member.Id, cancellationToken) is null)
-                await members.CreateAsync(member.ToAccount(), cancellationToken);
+            var existing = await members.FindByIdAsync(member.Id, cancellationToken);
+            if (existing is not null) continue;
+            await members.CreateAsync(member.ToAccount(), cancellationToken);
         }
     }
 }
