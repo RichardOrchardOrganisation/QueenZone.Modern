@@ -608,55 +608,14 @@ public static class MessagesApiEndpoints
 
     private static IResult MapSendFailure(PrivateMessageSendResult result)
     {
-        var message = result.ErrorMessage ?? PrivateMessageService.UnableToSendMessage;
-        if (IsConversationMissing(message))
-        {
-            return ConversationNotFound();
-        }
-
-        if (string.Equals(message, PrivateMessageService.RateLimitedMessage, StringComparison.Ordinal))
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status429TooManyRequests,
-                title: "Too Many Requests",
-                detail: message);
-        }
-
-        if (string.Equals(message, PrivateMessageService.UnableToSendMessage, StringComparison.Ordinal))
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "Forbidden",
-                detail: message);
-        }
-
-        return Results.Problem(
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Bad Request",
-            detail: message);
+        var statusCode = ApiOutcomeStatusCodes.For(result.Outcome);
+        return statusCode == StatusCodes.Status404NotFound
+            ? ConversationNotFound()
+            : ApiOutcomeStatusCodes.Problem(statusCode, result.ErrorMessage ?? PrivateMessageService.UnableToSendMessage);
     }
 
-    private static IResult MapReportFailure(PrivateMessageReportResult result)
-    {
-        var message = result.ErrorMessage ?? PrivateMessageReportText.MessageNotFound;
-        if (string.Equals(message, PrivateMessageReportText.NotAParticipant, StringComparison.Ordinal)
-            || string.Equals(message, PrivateMessageReportText.MessageNotFound, StringComparison.Ordinal))
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: message);
-        }
-
-        return Results.Problem(
-            statusCode: StatusCodes.Status400BadRequest,
-            title: "Bad Request",
-            detail: message);
-    }
-
-    private static bool IsConversationMissing(string message) =>
-        string.Equals(message, "You are not a participant in this conversation.", StringComparison.Ordinal)
-        || string.Equals(message, "Conversation not found.", StringComparison.Ordinal);
+    private static IResult MapReportFailure(PrivateMessageReportResult result) =>
+        ApiOutcomeStatusCodes.Problem(ApiOutcomeStatusCodes.For(result.Outcome), result.ErrorMessage);
 
     private static IResult ConversationNotFound() =>
         Results.Problem(

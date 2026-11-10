@@ -22,7 +22,7 @@ public sealed class EfFanPerformanceReportRepository(QueenZoneDbContext dbContex
             .FirstOrDefaultAsync(cancellationToken);
         if (existing != Guid.Empty)
         {
-            return new FanPerformanceReportCreateResult(true, existing, AlreadyReported: true, Error: null);
+            return FanPerformanceReportCreateResult.Duplicate(existing);
         }
 
         var entity = new FanPerformanceReportEntity
@@ -54,13 +54,13 @@ public sealed class EfFanPerformanceReportRepository(QueenZoneDbContext dbContex
                 .FirstOrDefaultAsync(cancellationToken);
             if (raced != Guid.Empty)
             {
-                return new FanPerformanceReportCreateResult(true, raced, AlreadyReported: true, Error: null);
+                return FanPerformanceReportCreateResult.Duplicate(raced);
             }
 
             throw;
         }
 
-        return new FanPerformanceReportCreateResult(true, entity.Id, AlreadyReported: false, Error: null);
+        return FanPerformanceReportCreateResult.Created(entity.Id);
     }
 
     public async Task<FanPerformanceReport?> GetByIdAsync(

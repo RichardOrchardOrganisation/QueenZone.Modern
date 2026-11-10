@@ -27,11 +27,7 @@ public sealed class InMemoryFanPerformanceReportRepository : IFanPerformanceRepo
                 && FanPerformanceReportStatus.IsOpen(row.Status));
             if (existing is not null)
             {
-                return Task.FromResult(new FanPerformanceReportCreateResult(
-                    true,
-                    existing.Id,
-                    AlreadyReported: true,
-                    Error: null));
+                return Task.FromResult(FanPerformanceReportCreateResult.Duplicate(existing.Id));
             }
 
             var entity = new FanPerformanceReportEntity
@@ -46,11 +42,7 @@ public sealed class InMemoryFanPerformanceReportRepository : IFanPerformanceRepo
                 PerformedBySnapshot = report.PerformedBySnapshot,
             };
             reports.Add(entity);
-            return Task.FromResult(new FanPerformanceReportCreateResult(
-                true,
-                entity.Id,
-                AlreadyReported: false,
-                Error: null));
+            return Task.FromResult(FanPerformanceReportCreateResult.Created(entity.Id));
         }
     }
 

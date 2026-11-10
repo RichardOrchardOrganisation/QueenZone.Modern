@@ -34,6 +34,7 @@ public sealed class MemberFollowServiceTests
 
         var missing = await service.FollowAsync(alice.Id, Guid.NewGuid());
         Assert.False(missing.Succeeded);
+        Assert.Equal(MemberRelationshipOutcome.MemberNotFound, missing.Outcome);
         Assert.Contains("not found", missing.ErrorMessage, StringComparison.OrdinalIgnoreCase);
 
         var deleted = await members.CreateAsync(new MemberAccount
@@ -46,6 +47,7 @@ public sealed class MemberFollowServiceTests
         await members.RequestDeletionAsync(deleted.Id, DateTime.UtcNow);
         var followDeleted = await service.FollowAsync(alice.Id, deleted.Id);
         Assert.False(followDeleted.Succeeded);
+        Assert.Equal(MemberRelationshipOutcome.MemberNotFound, followDeleted.Outcome);
         Assert.Contains("not found", followDeleted.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 

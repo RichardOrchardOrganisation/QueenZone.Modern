@@ -51,18 +51,18 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
             .SingleOrDefaultAsync(cancellationToken);
         if (existing != Guid.Empty)
         {
-            return new ForumPostReportResult(true, existing, null, AlreadyReported: true);
+            return ForumPostReportResult.Duplicate(existing);
         }
 
         var post = await GetVisiblePostAsync(postId, cancellationToken);
         if (post is null)
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.PostNotFound);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.PostNotFound, ForumPostReportText.PostNotFound);
         }
 
         if (post.AuthorMemberId == reporterMemberId)
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.CannotReportOwn);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.CannotReportOwn, ForumPostReportText.CannotReportOwn);
         }
 
         var entity = new ForumPostReportEntity
@@ -95,10 +95,10 @@ public sealed class EfForumPostReportRepository(QueenZoneDbContext dbContext) : 
                 .Where(report => report.ReporterMemberId == reporterMemberId && report.PostId == postId)
                 .Select(report => report.Id)
                 .SingleAsync(cancellationToken);
-            return new ForumPostReportResult(true, existing, null, AlreadyReported: true);
+            return ForumPostReportResult.Duplicate(existing);
         }
 
-        return new ForumPostReportResult(true, entity.Id, null);
+        return ForumPostReportResult.Created(entity.Id);
     }
 
     public async Task<IReadOnlySet<int>> GetReportedPostIdsAsync(Guid reporterMemberId, IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default)

@@ -52,7 +52,7 @@ public sealed class MemberAccountService(
         var existing = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
         if (existing is not null)
         {
-            return MemberAccountResult.Failure("An account with that email already exists.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Conflict, "An account with that email already exists.");
         }
 
         var account = new MemberAccount
@@ -73,7 +73,7 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByEmailAsync(email, cancellationToken);
         if (account is null || account.PasswordHash is null)
         {
-            return MemberAccountResult.Failure(InvalidPasswordSignInError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.InvalidCredentials, InvalidPasswordSignInError);
         }
 
         var now = clock.GetUtcNow().UtcDateTime;
@@ -102,7 +102,7 @@ public sealed class MemberAccountService(
                     cancellationToken);
             }
 
-            return MemberAccountResult.Failure(InvalidPasswordSignInError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.InvalidCredentials, InvalidPasswordSignInError);
         }
 
         var rehashedPassword = verification == PasswordVerificationResult.SuccessRehashNeeded
@@ -196,33 +196,33 @@ public sealed class MemberAccountService(
         var normalizedProvider = MemberAuthenticationSchemes.NormalizeExternalProvider(provider);
         if (normalizedProvider is null)
         {
-            return MemberAccountResult.Failure(ExternalLoginMessages.UnknownProvider);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, ExternalLoginMessages.UnknownProvider);
         }
 
         if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email))
         {
-            return MemberAccountResult.Failure(ExternalLoginMessages.UnverifiedEmail);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, ExternalLoginMessages.UnverifiedEmail);
         }
 
         var account = await memberAccountRepository.FindByIdAsync(authenticatedMemberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.IsSuspended)
         {
-            return MemberAccountResult.Failure(SuspendedSignInError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Suspended, SuspendedSignInError);
         }
 
         if (!ExternalLoginEmail.EmailsMatch(account.Email, email))
         {
-            return MemberAccountResult.Failure(ExternalLoginMessages.EmailMismatch);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, ExternalLoginMessages.EmailMismatch);
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         var existingLogin = await memberAccountRepository.FindByExternalLoginAsync(
@@ -231,7 +231,7 @@ public sealed class MemberAccountService(
             cancellationToken);
         if (existingLogin is not null && existingLogin.Id != account.Id)
         {
-            return MemberAccountResult.Failure(ExternalLoginMessages.AlreadyLinked);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Conflict, ExternalLoginMessages.AlreadyLinked);
         }
 
         if (existingLogin is null)
@@ -342,7 +342,7 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.LinkedLegacyUserId is not null)
@@ -355,6 +355,7 @@ public sealed class MemberAccountService(
         if (match is null)
         {
             return MemberAccountResult.Failure(
+                MemberAccountOutcome.Invalid,
                 "That legacy account does not match your email, or was not found.");
         }
 
@@ -362,13 +363,14 @@ public sealed class MemberAccountService(
         if (takenBy is not null && takenBy.Id != memberId)
         {
             return MemberAccountResult.Failure(
+                MemberAccountOutcome.Conflict,
                 "That legacy account is already linked to another modern member.");
         }
 
         var linked = await memberAccountRepository.LinkLegacyUserIdAsync(memberId, match.UserId, cancellationToken);
         if (linked is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (adoptLegacyDisplayName && !string.IsNullOrWhiteSpace(match.Username))
@@ -394,7 +396,7 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.LinkedLegacyUserId is null)
@@ -405,7 +407,7 @@ public sealed class MemberAccountService(
         var unlinked = await memberAccountRepository.UnlinkLegacyUserIdAsync(memberId, cancellationToken);
         if (unlinked is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         return MemberAccountResult.Success(unlinked);
@@ -467,29 +469,29 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account?.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         var trimmed = displayName?.Trim() ?? string.Empty;
         if (trimmed.Length == 0)
         {
-            return MemberAccountResult.Failure("Display name is required.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, "Display name is required.");
         }
 
         if (trimmed.Length < MinDisplayNameLength)
         {
-            return MemberAccountResult.Failure($"Display name must be at least {MinDisplayNameLength} characters.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, $"Display name must be at least {MinDisplayNameLength} characters.");
         }
 
         if (trimmed.Length > MaxDisplayNameLength)
         {
-            return MemberAccountResult.Failure($"Display name must be at most {MaxDisplayNameLength} characters.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, $"Display name must be at most {MaxDisplayNameLength} characters.");
         }
 
         var updated = await memberAccountRepository.UpdateDisplayNameAsync(memberId, trimmed, cancellationToken);
         if (updated is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         return MemberAccountResult.Success(updated);
@@ -506,17 +508,17 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         if (!Enum.IsDefined(messagePrivacy))
         {
-            return MemberAccountResult.Failure("Choose a valid messaging privacy option.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, "Choose a valid messaging privacy option.");
         }
 
         var updated = await memberAccountRepository.UpdateMessagePrivacyAsync(
@@ -525,7 +527,7 @@ public sealed class MemberAccountService(
             cancellationToken);
         if (updated is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         return MemberAccountResult.Success(updated);
@@ -542,17 +544,17 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         if (!Enum.IsDefined(themePreference))
         {
-            return MemberAccountResult.Failure("Choose a valid appearance option.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, "Choose a valid appearance option.");
         }
 
         var updated = await memberAccountRepository.UpdateThemePreferenceAsync(
@@ -561,7 +563,7 @@ public sealed class MemberAccountService(
             cancellationToken);
         if (updated is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         return MemberAccountResult.Success(updated);
@@ -584,12 +586,12 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberSocialLinksUpdateResult.Failure("Account not found.");
+            return MemberSocialLinksUpdateResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberSocialLinksUpdateResult.Failure(PendingDeletionEditError);
+            return MemberSocialLinksUpdateResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         var fieldErrors = new List<MemberSocialLinkFieldError>();
@@ -635,12 +637,12 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         MemberAvatarImageProcessor.ProcessedAvatar processed;
@@ -648,16 +650,16 @@ public sealed class MemberAccountService(
         {
             processed = await MemberAvatarImageProcessor.ProcessAsync(image, originalFileName, cancellationToken);
         }
-        catch (InvalidOperationException ex)
+        catch (MemberAvatarRejectedException ex)
         {
-            return MemberAccountResult.Failure(ex.Message);
+            return MemberAccountResult.Failure(MemberAccountOutcome.Invalid, ex.Message);
         }
 
         var principalKey = MemberUploadQuotaService.PrincipalKeyFromMemberId(memberId);
         var quotaBytes = Math.Max(processed.FullImage.Length, 1);
         if (!uploadQuota.TryConsume(principalKey, quotaBytes, out var quotaError))
         {
-            return MemberAccountResult.Failure(quotaError ?? "Daily upload limit reached.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.QuotaExceeded, quotaError ?? "Daily upload limit reached.");
         }
 
         await using (processed.FullImage)
@@ -706,7 +708,7 @@ public sealed class MemberAccountService(
                 if (updated is null)
                 {
                     await SafeDeleteAsync(uploadedAvatar, uploadedThumb, cancellationToken);
-                    return MemberAccountResult.Failure("Account not found.");
+                    return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
                 }
 
                 // Delete previous blobs only after the DB write succeeds.
@@ -724,12 +726,12 @@ public sealed class MemberAccountService(
             catch (NotSupportedException ex)
             {
                 await SafeDeleteAsync(uploadedAvatar, uploadedThumb, cancellationToken);
-                return MemberAccountResult.Failure(ex.Message);
+                return MemberAccountResult.Failure(MemberAccountOutcome.UploadFailed, ex.Message);
             }
             catch (BlobUploadException ex)
             {
                 await SafeDeleteAsync(uploadedAvatar, uploadedThumb, cancellationToken);
-                return MemberAccountResult.Failure(ex.Message);
+                return MemberAccountResult.Failure(MemberAccountOutcome.UploadFailed, ex.Message);
             }
             catch (Exception)
             {
@@ -746,12 +748,12 @@ public sealed class MemberAccountService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure(PendingDeletionEditError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PendingDeletion, PendingDeletionEditError);
         }
 
         if (string.IsNullOrWhiteSpace(account.AvatarUrl))
@@ -763,7 +765,7 @@ public sealed class MemberAccountService(
         var updated = await memberAccountRepository.UpdateAvatarUrlAsync(memberId, null, cancellationToken);
         if (updated is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         await SafeDeleteAsync(
@@ -784,7 +786,7 @@ public sealed class MemberAccountService(
             cancellationToken);
         if (requested is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         return MemberAccountResult.Success(requested.Account);
@@ -804,17 +806,17 @@ public sealed class MemberAccountService(
             cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         if (account.PersonalDataPurgedAt is not null)
         {
-            return MemberAccountResult.Failure("Account deletion can no longer be cancelled.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "Account deletion can no longer be cancelled.");
         }
 
         if (account.DeletionRequestedAt is not null)
         {
-            return MemberAccountResult.Failure("The 30-day cooling-off period has ended.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "The 30-day cooling-off period has ended.");
         }
 
         return MemberAccountResult.Success(account);
@@ -877,31 +879,51 @@ public sealed class MemberAccountService(
     public const string InvalidPasswordSignInError = "Incorrect email or password.";
 }
 
-public sealed record MemberAccountResult(bool Succeeded, MemberAccount? Account, string? Error)
+/// <summary>Typed outcome of a member account operation so callers never branch on message text (#2436).</summary>
+public enum MemberAccountOutcome
 {
-    public static MemberAccountResult Success(MemberAccount account) => new(true, account, null);
+    Succeeded,
+    NotFound,
+    Invalid,
+    InvalidCredentials,
+    Suspended,
+    PendingDeletion,
+    Conflict,
+    QuotaExceeded,
+    UploadFailed,
+    DeletionNotCancellable,
+    PurgeIncomplete,
+}
 
-    public static MemberAccountResult Failure(string error) => new(false, null, error);
+public sealed record MemberAccountResult(MemberAccountOutcome Outcome, MemberAccount? Account, string? Error)
+{
+    public bool Succeeded => Outcome == MemberAccountOutcome.Succeeded;
+
+    public static MemberAccountResult Success(MemberAccount account) => new(MemberAccountOutcome.Succeeded, account, null);
+
+    public static MemberAccountResult Failure(MemberAccountOutcome outcome, string error) => new(outcome, null, error);
 }
 
 public sealed record MemberSocialLinkFieldError(MemberSocialChannel Channel, string Message);
 
 public sealed record MemberSocialLinksUpdateResult(
-    bool Succeeded,
+    MemberAccountOutcome Outcome,
     string? Error,
     IReadOnlyList<MemberSocialLink> Links,
     IReadOnlyList<MemberSocialLinkFieldError> FieldErrors)
 {
-    public static MemberSocialLinksUpdateResult Success(IReadOnlyList<MemberSocialLink> links) =>
-        new(true, null, links, []);
+    public bool Succeeded => Outcome == MemberAccountOutcome.Succeeded;
 
-    public static MemberSocialLinksUpdateResult Failure(string error) =>
-        new(false, error, [], []);
+    public static MemberSocialLinksUpdateResult Success(IReadOnlyList<MemberSocialLink> links) =>
+        new(MemberAccountOutcome.Succeeded, null, links, []);
+
+    public static MemberSocialLinksUpdateResult Failure(MemberAccountOutcome outcome, string error) =>
+        new(outcome, error, [], []);
 
     public static MemberSocialLinksUpdateResult Invalid(
         IReadOnlyList<MemberSocialLink> existing,
         IReadOnlyList<MemberSocialLinkFieldError> fieldErrors) =>
-        new(false, null, existing, fieldErrors);
+        new(MemberAccountOutcome.Invalid, null, existing, fieldErrors);
 }
 
 public enum LegacyAccountLinkKind

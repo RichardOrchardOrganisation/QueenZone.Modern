@@ -112,7 +112,7 @@ public sealed class ProfileModel(
             cancellationToken);
         if (!result.Succeeded)
         {
-            if (string.Equals(result.ErrorMessage, "Member was not found.", StringComparison.Ordinal))
+            if (result.Outcome == MemberRelationshipOutcome.MemberNotFound)
             {
                 return NotFound();
             }
@@ -158,7 +158,7 @@ public sealed class ProfileModel(
             cancellationToken);
         if (!result.Succeeded)
         {
-            if (string.Equals(result.ErrorMessage, "Member was not found.", StringComparison.Ordinal))
+            if (result.Outcome == MemberRelationshipOutcome.MemberNotFound)
             {
                 return NotFound();
             }

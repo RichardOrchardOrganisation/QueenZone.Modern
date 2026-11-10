@@ -39,19 +39,19 @@ public sealed class InMemoryForumPostReportRepository(
             var existing = reports.SingleOrDefault(item => item.ReporterMemberId == reporterMemberId && item.PostId == postId);
             if (existing is not null)
             {
-                return new ForumPostReportResult(true, existing.Id, null, AlreadyReported: true);
+                return ForumPostReportResult.Duplicate(existing.Id);
             }
         }
 
         var post = await GetVisiblePostAsync(postId, cancellationToken);
         if (post is null)
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.PostNotFound);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.PostNotFound, ForumPostReportText.PostNotFound);
         }
 
         if (post.AuthorMemberId == reporterMemberId)
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.CannotReportOwn);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.CannotReportOwn, ForumPostReportText.CannotReportOwn);
         }
 
         var report = new ForumPostReport(Guid.NewGuid(), post.PostId, post.TopicId, reporterMemberId,
@@ -62,11 +62,11 @@ public sealed class InMemoryForumPostReportRepository(
             var existing = reports.SingleOrDefault(item => item.ReporterMemberId == reporterMemberId && item.PostId == postId);
             if (existing is not null)
             {
-                return new ForumPostReportResult(true, existing.Id, null, AlreadyReported: true);
+                return ForumPostReportResult.Duplicate(existing.Id);
             }
             reports.Add(report);
         }
-        return new ForumPostReportResult(true, report.Id, null);
+        return ForumPostReportResult.Created(report.Id);
     }
 
     public Task<IReadOnlySet<int>> GetReportedPostIdsAsync(Guid reporterMemberId, IReadOnlyCollection<int> postIds, CancellationToken cancellationToken = default)

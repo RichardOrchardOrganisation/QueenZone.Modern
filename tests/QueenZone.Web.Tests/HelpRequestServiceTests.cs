@@ -272,6 +272,7 @@ public sealed class HelpRequestServiceTests
             });
 
         Assert.False(result.Succeeded);
+        Assert.Equal(HelpRequestSubmitOutcome.RateLimited, result.Outcome);
         Assert.Contains("Too many", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 

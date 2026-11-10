@@ -25,7 +25,7 @@ public sealed class MemberAccountDeletionService(
             immediate: true);
         if (requested is null)
         {
-            return MemberAccountResult.Failure("Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
         }
 
         var recipientEmail = requested.Account.Email;
@@ -42,7 +42,7 @@ public sealed class MemberAccountDeletionService(
         var purged = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (purged?.PersonalDataPurgedAt is null)
         {
-            return MemberAccountResult.Failure(MemberAccountService.ImmediatePurgeIncompleteError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PurgeIncomplete, MemberAccountService.ImmediatePurgeIncompleteError);
         }
 
         if (emailSender is not null)

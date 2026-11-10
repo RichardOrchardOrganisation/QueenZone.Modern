@@ -66,11 +66,34 @@ public sealed record ForumPostReport(
     IReadOnlyList<ForumPostReportContextItem> Context,
     int PreviousAuthorReportCount = 0);
 
+/// <summary>Typed outcome of a forum post report so callers never branch on message text (#2436).</summary>
+public enum ForumPostReportOutcome
+{
+    Created,
+    AlreadyReported,
+    PostNotFound,
+    CannotReportOwn,
+    Invalid,
+}
+
 public sealed record ForumPostReportResult(
-    bool Succeeded,
+    ForumPostReportOutcome Outcome,
     Guid? ReportId,
-    string? ErrorMessage,
-    bool AlreadyReported = false);
+    string? ErrorMessage)
+{
+    public bool Succeeded => Outcome is ForumPostReportOutcome.Created or ForumPostReportOutcome.AlreadyReported;
+
+    public bool AlreadyReported => Outcome == ForumPostReportOutcome.AlreadyReported;
+
+    public static ForumPostReportResult Created(Guid reportId) =>
+        new(ForumPostReportOutcome.Created, reportId, null);
+
+    public static ForumPostReportResult Duplicate(Guid reportId) =>
+        new(ForumPostReportOutcome.AlreadyReported, reportId, null);
+
+    public static ForumPostReportResult Failure(ForumPostReportOutcome outcome, string errorMessage) =>
+        new(outcome, null, errorMessage);
+}
 
 public sealed record ForumPostReportListItem(
     Guid Id,

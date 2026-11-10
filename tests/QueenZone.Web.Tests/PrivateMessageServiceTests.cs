@@ -79,6 +79,7 @@ public sealed class PrivateMessageServiceTests
 
         var missing = await service.ComposeAsync(alice.Id, Guid.NewGuid(), "hi");
         Assert.False(missing.Succeeded);
+        Assert.Equal(PrivateMessageSendOutcome.RecipientNotFound, missing.Outcome);
         Assert.Contains("not found", missing.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -589,6 +590,7 @@ public sealed class PrivateMessageServiceTests
 
         var missing = await service.BlockAsync(alice.Id, Guid.NewGuid());
         Assert.False(missing.Succeeded);
+        Assert.Equal(MemberRelationshipOutcome.MemberNotFound, missing.Outcome);
         Assert.Contains("not found", missing.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
 

@@ -22,13 +22,13 @@ public sealed class MemberFollowService(
     {
         if (followerMemberId == followedMemberId)
         {
-            return new MemberFollowResult(false, "You cannot follow yourself.");
+            return MemberFollowResult.Failure(MemberRelationshipOutcome.Invalid, "You cannot follow yourself.");
         }
 
         var target = await memberAccountRepository.FindByIdAsync(followedMemberId, cancellationToken);
         if (target is null || target.DeletionRequestedAt is not null)
         {
-            return new MemberFollowResult(false, "Member was not found.");
+            return MemberFollowResult.Failure(MemberRelationshipOutcome.MemberNotFound, "Member was not found.");
         }
 
         await memberFollowRepository.FollowAsync(
@@ -36,7 +36,7 @@ public sealed class MemberFollowService(
             followedMemberId,
             timeProvider.GetUtcNow(),
             cancellationToken);
-        return new MemberFollowResult(true, null);
+        return MemberFollowResult.Success();
     }
 
     public Task<bool> UnfollowAsync(

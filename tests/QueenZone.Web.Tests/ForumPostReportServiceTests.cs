@@ -53,6 +53,8 @@ public sealed class ForumPostReportServiceTests
 
         Assert.Equal(ForumPostReportText.CannotReportOwn, own.ErrorMessage);
         Assert.Equal(ForumPostReportText.PostNotFound, missing.ErrorMessage);
+        Assert.Equal(ForumPostReportOutcome.CannotReportOwn, own.Outcome);
+        Assert.Equal(ForumPostReportOutcome.PostNotFound, missing.Outcome);
     }
 
     [Fact]

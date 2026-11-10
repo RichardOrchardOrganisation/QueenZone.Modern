@@ -37,11 +37,35 @@ public sealed record PrivateMessageReport(
     long MessageSortKeySnapshot,
     IReadOnlyList<PrivateMessageReportContextItem> PrecedingMessages);
 
+/// <summary>Typed outcome of a private message report so callers never branch on message text (#2436).</summary>
+public enum PrivateMessageReportOutcome
+{
+    Created,
+    AlreadyReported,
+    MessageNotFound,
+    NotAParticipant,
+    CannotReportOwn,
+    Invalid,
+}
+
 public sealed record PrivateMessageReportResult(
-    bool Succeeded,
+    PrivateMessageReportOutcome Outcome,
     Guid? ReportId,
-    string? ErrorMessage,
-    bool AlreadyReported = false);
+    string? ErrorMessage)
+{
+    public bool Succeeded => Outcome is PrivateMessageReportOutcome.Created or PrivateMessageReportOutcome.AlreadyReported;
+
+    public bool AlreadyReported => Outcome == PrivateMessageReportOutcome.AlreadyReported;
+
+    public static PrivateMessageReportResult Created(Guid reportId) =>
+        new(PrivateMessageReportOutcome.Created, reportId, null);
+
+    public static PrivateMessageReportResult Duplicate(Guid reportId) =>
+        new(PrivateMessageReportOutcome.AlreadyReported, reportId, null);
+
+    public static PrivateMessageReportResult Failure(PrivateMessageReportOutcome outcome, string errorMessage) =>
+        new(outcome, null, errorMessage);
+}
 
 /// <summary>Row shown on the admin moderation queue (issue #470).</summary>
 public sealed record PrivateMessageReportListItem(
