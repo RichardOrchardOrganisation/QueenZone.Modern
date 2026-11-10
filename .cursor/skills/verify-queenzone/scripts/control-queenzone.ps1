@@ -201,6 +201,8 @@ switch ($Command) {
         $env:ASPNETCORE_ENVIRONMENT = "Testing"
         $env:ASPNETCORE_URLS = "http://127.0.0.1:$Port"
         $env:Site__PublicBaseUrl = "http://127.0.0.1:$Port"
+        # Fixed in-memory members for Deterministic profile and conversation specs.
+        $env:MemberBrowserFixture__Enabled = "true"
         Remove-Item Env:ConnectionStrings__QueenZoneLegacy -ErrorAction SilentlyContinue
         Remove-Item Env:ConnectionStrings__BlobStorage -ErrorAction SilentlyContinue
 

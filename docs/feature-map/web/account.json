@@ -101,7 +101,9 @@
       "sources": [
         "src/QueenZone.Web/Pages/Members/Profile.cshtml"
       ],
-      "specs": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/MemberProfileActionsTests.cs"
+      ],
       "selectors": [],
       "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "none",
