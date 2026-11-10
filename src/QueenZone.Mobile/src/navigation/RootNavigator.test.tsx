@@ -2,7 +2,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createNavigationContainerRef, NavigationContainer } from '@react-navigation/native';
 import { fireEvent, screen } from '@testing-library/react-native';
-import { Pressable, Text } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text } from 'react-native';
 import { createMockSession } from '../test/mockSession';
 import { testIds } from '../test/testIds';
 import { renderWithProviders } from '../test/render';
@@ -50,6 +50,42 @@ jest.mock('./stacks', () => {
 });
 
 describe('RootNavigator', () => {
+  it('keeps every Android tab pill as a real native view across focus changes (#2404)', async () => {
+    const originalOs = Platform.OS;
+    Object.defineProperty(Platform, 'OS', { configurable: true, value: 'android' });
+    try {
+      await renderWithProviders(<RootNavigator />);
+      type HostNode = { type: string; props: Record<string, unknown>; children: (HostNode | string)[] | null };
+      const pills = () => {
+        const found: HostNode[] = [];
+        const visit = (node: HostNode | HostNode[] | string | null) => {
+          if (!node || typeof node === 'string') return;
+          if (Array.isArray(node)) return node.forEach(visit);
+          const style = StyleSheet.flatten(node.props.style as never) as { width?: number; height?: number } | undefined;
+          if (node.type === 'View' && style?.width === 64 && style?.height === 32) found.push(node);
+          node.children?.forEach(visit);
+        };
+        visit(screen.toJSON() as HostNode | HostNode[] | null);
+        return found;
+      };
+      // A transparent, unfocused pill must not be flattenable, or Fabric
+      // re-parents the icon on focus change (removeViewAt crash, #2404).
+      const assertPillsKeepNativeView = () => {
+        // Bottom tabs render each icon twice (active + inactive layers): 5 tabs x 2.
+        expect(pills()).toHaveLength(10);
+        expect(pills().some((pill) => StyleSheet.flatten(pill.props.style as never)?.backgroundColor === 'transparent')).toBe(true);
+        for (const pill of pills()) expect(pill.props.collapsable).toBe(false);
+      };
+      assertPillsKeepNativeView();
+      await fireEvent.press(screen.getByLabelText('Archive'));
+      assertPillsKeepNativeView();
+      await fireEvent.press(screen.getByLabelText('Home'));
+      assertPillsKeepNativeView();
+    } finally {
+      Object.defineProperty(Platform, 'OS', { configurable: true, value: originalOs });
+    }
+  });
+
   it('shows the five public tabs and keeps home/forum Maestro testIDs after commonScreens', async () => {
     await renderWithProviders(<RootNavigator />);
     for (const name of ['Home', 'News', 'Photography', 'Archive', 'Forum']) {

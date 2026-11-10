@@ -4,8 +4,7 @@ appId: org.queenzone.mobile
 # exports SMOKE_AUTH_URL. Debug or Release-embedded smoke builds handle
 # queenzone://smoke-auth when appEnv is development.
 - runFlow: open-smoke-auth.yaml
-- tapOn:
-    id: tab-home
+- runFlow: common/home-top.yaml
 - tapOn:
     id: home-profile
 - extendedWaitUntil:

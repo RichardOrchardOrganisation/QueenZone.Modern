@@ -25,6 +25,7 @@ public static class ProductionHostSettings
         ["QueenZoneHostFiltering:AllowedHosts"] = "localhost;127.0.0.1",
         ["DataProtection:KeysPath"] = DataProtectionKeysPath,
         ["ConnectionStrings:QueenZoneLegacy"] = string.Empty,
+        [SampleDataFallbackGuard.AllowWithoutDatabaseKey] = "true",
         ["ConnectionStrings:BlobStorage"] = BlobConnectionString,
         ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
         ["AzureAd:TenantId"] = "22222222-3333-4444-5555-666666666666",

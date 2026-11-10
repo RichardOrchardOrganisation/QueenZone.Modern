@@ -435,13 +435,14 @@ jobs:
             "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
             "SmtpEmail__FromAddress=support@queenzone.org" \
             "QueenZoneHostFiltering__AllowedHosts=dev.queenzone.org;queenzone-devbox.azurewebsites.net" \
+            "SampleData__AllowWithoutDatabase=true" \
             "Site__PublicBaseUrl=https://dev.queenzone.org" \
             "WEBSITE_WARMUP_PATH=/health" | sort)
 
           current=$(az webapp config appsettings list \
             --name queenzone-devbox \
             --resource-group Queenzone-Dev-RG \
-            --query "[?name=='Admin__AllowedEmails__0' || name=='APPLICATIONINSIGHTS_CONNECTION_STRING' || name=='Authentication__Microsoft__ClientId' || name=='Authentication__Microsoft__ClientSecret' || name=='AzureAd__CallbackPath' || name=='AzureAd__ClientId' || name=='AzureAd__ClientSecret' || name=='AzureAd__Instance' || name=='AzureAd__TenantId' || name=='BlobUpload__PublicBaseUrl' || name=='ConnectionStrings__BlobStorage' || name=='MobileAuth__SigningKey' || name=='SmtpEmail__Username' || name=='SmtpEmail__AppPassword' || name=='SmtpEmail__FromAddress' || name=='QueenZoneHostFiltering__AllowedHosts' || name=='Site__PublicBaseUrl' || name=='WEBSITE_WARMUP_PATH'].[join('=', [name, value])]" \
+            --query "[?name=='Admin__AllowedEmails__0' || name=='APPLICATIONINSIGHTS_CONNECTION_STRING' || name=='Authentication__Microsoft__ClientId' || name=='Authentication__Microsoft__ClientSecret' || name=='AzureAd__CallbackPath' || name=='AzureAd__ClientId' || name=='AzureAd__ClientSecret' || name=='AzureAd__Instance' || name=='AzureAd__TenantId' || name=='BlobUpload__PublicBaseUrl' || name=='ConnectionStrings__BlobStorage' || name=='MobileAuth__SigningKey' || name=='SmtpEmail__Username' || name=='SmtpEmail__AppPassword' || name=='SmtpEmail__FromAddress' || name=='QueenZoneHostFiltering__AllowedHosts' || name=='SampleData__AllowWithoutDatabase' || name=='Site__PublicBaseUrl' || name=='WEBSITE_WARMUP_PATH'].[join('=', [name, value])]" \
             -o tsv | tr -d '\r' | sort)
 
           database_connection=$(az webapp config appsettings list \
@@ -513,6 +514,7 @@ jobs:
                 "SmtpEmail__AppPassword=$GMAIL_APP_PASSWORD" \
                 "SmtpEmail__FromAddress=support@queenzone.org" \
                 "QueenZoneHostFiltering__AllowedHosts=dev.queenzone.org;queenzone-devbox.azurewebsites.net" \
+                "SampleData__AllowWithoutDatabase=true" \
                 "Site__PublicBaseUrl=https://dev.queenzone.org" \
                 "WEBSITE_WARMUP_PATH=/health" \
               --output none

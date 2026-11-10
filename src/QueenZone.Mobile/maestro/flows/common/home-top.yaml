@@ -1,0 +1,13 @@
+appId: org.queenzone.mobile
+---
+# Home keeps FlatList scroll across tab switches. 01-launch scrolls down to
+# home-hero, which pushes TabRootMasthead (home-search / home-profile /
+# home-messages) off the top. Call this before tapping a masthead control (#2457).
+- tapOn:
+    id: tab-home
+- scrollUntilVisible:
+    element:
+      id: tab-masthead
+    direction: UP
+- assertVisible:
+    id: home-search

@@ -1,0 +1,8 @@
+name: Stage pinned sm-action binary
+description: Cache the official sm-action native binary and refuse rustup source builds.
+outputs:
+  source:
+    description: How the binary was obtained (already-staged, cache, or download)
+runs:
+  using: node24
+  main: index.cjs
