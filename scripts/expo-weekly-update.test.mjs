@@ -105,36 +105,30 @@ test('semver helpers treat the first version in a range as the floor', () => {
   assert.equal(isRangeNewerThanPin('not-a-range'), false);
 });
 
-test('inspectPin accepts the #2408 override and a single top-level 58.0.24 resolve', () => {
+test('inspectPin accepts no override and a single top-level resolve (#2407 unpin)', () => {
   const report = inspectPin({
-    packageJson: pinPackageJson(),
-    lockfile: pinLockfile({ declaredRange: '~58.0.28' }),
+    packageJson: { overrides: {} },
+    lockfile: pinLockfile({ resolved: '58.0.30', declaredRange: '~58.0.30' }),
   });
   assert.equal(report.ok, true);
-  assert.equal(report.resolved, PINNED_EXPO_MODULES_CORE);
-  assert.equal(report.declaredRange, '~58.0.28');
-  assert.equal(report.declaredRangeNewerThanPin, true);
+  assert.equal(report.override, null);
+  assert.equal(report.resolved, '58.0.30');
+  assert.equal(report.declaredRange, '~58.0.30');
+  assert.equal(report.declaredRangeNewerThanPin, false);
   assert.deepEqual(report.errors, []);
 });
 
-test('inspectPin fails when the override, top-level resolve, or a nested expo/ copy is wrong', () => {
-  const missingOverride = inspectPin({
-    packageJson: { overrides: {} },
+test('inspectPin fails when the override returns, the top-level resolve is missing, or expo/ nests a copy', () => {
+  const pinned = inspectPin({
+    packageJson: pinPackageJson(),
     lockfile: pinLockfile(),
   });
-  assert.equal(missingOverride.ok, false);
-  assert.match(missingOverride.errors[0], /overrides.expo-modules-core/);
+  assert.equal(pinned.ok, false);
+  assert.match(pinned.errors[0], /must not override expo-modules-core/);
 
-  const wrongResolve = inspectPin({
-    packageJson: pinPackageJson(),
-    lockfile: pinLockfile({ resolved: '58.0.28' }),
-  });
-  assert.equal(wrongResolve.ok, false);
-  assert.match(wrongResolve.errors[0], /node_modules\/expo-modules-core/);
-
-  const nestedLock = pinLockfile({ nested: true });
+  const nestedLock = pinLockfile({ resolved: '58.0.30', nested: true });
   const nested = inspectPin({
-    packageJson: pinPackageJson(),
+    packageJson: { overrides: {} },
     lockfile: nestedLock,
   });
   assert.equal(nested.ok, false);
@@ -144,7 +138,7 @@ test('inspectPin fails when the override, top-level resolve, or a nested expo/ c
   assert.match(nested.errors.join('\n'), /nest expo-modules-core under expo\//);
 
   const nestedOnly = inspectPin({
-    packageJson: pinPackageJson(),
+    packageJson: {},
     lockfile: pinLockfile({ nested: true, topLevel: false }),
   });
   assert.equal(nestedOnly.ok, false);
@@ -152,13 +146,13 @@ test('inspectPin fails when the override, top-level resolve, or a nested expo/ c
   assert.match(nestedOnly.errors.join('\n'), /nest expo-modules-core under expo\//);
 });
 
-test('inspectPinFromDir passes on the current mobile tree and notes the newer declared range', () => {
+test('inspectPinFromDir passes on the current mobile tree with no override', () => {
   const report = inspectPinFromDir(path.join(repoRoot, 'src/QueenZone.Mobile'));
   assert.equal(report.ok, true, report.errors.join('\n'));
-  assert.equal(report.override, PINNED_EXPO_MODULES_CORE);
-  assert.equal(report.resolved, PINNED_EXPO_MODULES_CORE);
+  assert.equal(report.override, null);
+  assert.ok(report.resolved);
   assert.deepEqual(report.nested, []);
-  assert.equal(report.declaredRangeNewerThanPin, isRangeNewerThanPin(report.declaredRange));
+  assert.equal(report.declaredRangeNewerThanPin, false);
 });
 
 test('package and lockfile change helpers name only version moves', () => {
