@@ -20,7 +20,15 @@ public sealed class HelpRequestService(
     public const int MinMessageLength = 20;
     public const int MaxMessageLength = 4000;
 
-    public sealed record SubmitResult(bool Succeeded, HelpRequest? Request, string? Error, bool SilentlyDropped);
+    public sealed record SubmitResult(HelpRequestSubmitOutcome Outcome, HelpRequest? Request, string? Error)
+    {
+        /// <summary>True when the visitor should see the confirmation, including silently dropped spam.</summary>
+        public bool Succeeded => Outcome is HelpRequestSubmitOutcome.Submitted or HelpRequestSubmitOutcome.SilentlyDropped;
+
+        public bool SilentlyDropped => Outcome == HelpRequestSubmitOutcome.SilentlyDropped;
+
+        public static SubmitResult Failure(HelpRequestSubmitOutcome outcome, string error) => new(outcome, null, error);
+    }
 
     public string IssueFormStamp() => formStamp.Issue();
 
@@ -41,21 +49,19 @@ public sealed class HelpRequestService(
         if (!string.IsNullOrWhiteSpace(websiteHoneypot)
             || !formStamp.IsAcceptable(issuedStamp, options.Value.MinimumDwellSeconds))
         {
-            return new SubmitResult(true, null, null, SilentlyDropped: true);
+            return new SubmitResult(HelpRequestSubmitOutcome.SilentlyDropped, null, null);
         }
 
         if (!rateLimiter.IsAllowed(memberId, clientIp))
         {
-            return new SubmitResult(
-                false,
-                null,
-                "Too many messages from this network. Please try again later.",
-                false);
+            return SubmitResult.Failure(
+                HelpRequestSubmitOutcome.RateLimited,
+                "Too many messages from this network. Please try again later.");
         }
 
         if (!HelpRequestTopic.IsKnown(topic))
         {
-            return new SubmitResult(false, null, "Please choose a topic.", false);
+            return SubmitResult.Failure(HelpRequestSubmitOutcome.Invalid, "Please choose a topic.");
         }
 
         var normalizedTopic = HelpRequestTopic.Normalize(topic);
@@ -65,13 +71,13 @@ public sealed class HelpRequestService(
         var contentError = ValidateContent(trimmedSubject, trimmedMessage);
         if (contentError is not null)
         {
-            return new SubmitResult(false, null, contentError, false);
+            return SubmitResult.Failure(HelpRequestSubmitOutcome.Invalid, contentError);
         }
 
         var contact = await ResolveContactSnapshotAsync(memberId, name, email, cancellationToken);
         if (contact.Error is not null)
         {
-            return new SubmitResult(false, null, contact.Error, false);
+            return SubmitResult.Failure(HelpRequestSubmitOutcome.Invalid, contact.Error);
         }
         var snapshotName = contact.Name;
         var snapshotEmail = contact.Email;
@@ -83,7 +89,7 @@ public sealed class HelpRequestService(
         var limitError = await CheckDailyLimitAsync(storedMemberId, normalizedEmail, sinceUtc, cancellationToken);
         if (limitError is not null)
         {
-            return new SubmitResult(false, null, limitError, false);
+            return SubmitResult.Failure(HelpRequestSubmitOutcome.DailyLimitReached, limitError);
         }
 
         var created = await helpRequestRepository.CreateAsync(
@@ -115,7 +121,7 @@ public sealed class HelpRequestService(
                 cancellationToken);
         }
 
-        return new SubmitResult(true, created, null, false);
+        return new SubmitResult(HelpRequestSubmitOutcome.Submitted, created, null);
     }
 
     private sealed record ContactSnapshot(string Name, string Email, Guid? MemberId, string? Error);
@@ -294,4 +300,14 @@ public sealed record HelpRequestSubmission(
     public string? WebsiteHoneypot { get; init; }
     public string? IssuedStamp { get; init; }
     public string? ClientIp { get; init; }
+}
+
+/// <summary>Typed outcome of a contact/help submission so callers never branch on message text (#2436).</summary>
+public enum HelpRequestSubmitOutcome
+{
+    Submitted,
+    SilentlyDropped,
+    RateLimited,
+    DailyLimitReached,
+    Invalid,
 }

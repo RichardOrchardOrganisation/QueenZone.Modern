@@ -1022,6 +1022,7 @@ public sealed class MemberAccountServiceTests
         var result = await service.UpdateAvatarAsync(registered.Account!.Id, oversized, "huge.png");
 
         Assert.False(result.Succeeded);
+        Assert.Equal(MemberAccountOutcome.Invalid, result.Outcome);
         Assert.Contains("MB", result.Error, StringComparison.OrdinalIgnoreCase);
         Assert.Null(result.Account);
         var reloaded = await service.FindByIdAsync(registered.Account.Id);
@@ -1040,6 +1041,7 @@ public sealed class MemberAccountServiceTests
         var result = await service.UpdateAvatarAsync(registered.Account!.Id, notImage, "notes.txt");
 
         Assert.False(result.Succeeded);
+        Assert.Equal(MemberAccountOutcome.Invalid, result.Outcome);
         Assert.Contains("JPEG", result.Error, StringComparison.OrdinalIgnoreCase);
         var reloaded = await service.FindByIdAsync(registered.Account.Id);
         Assert.Null(reloaded!.AvatarUrl);

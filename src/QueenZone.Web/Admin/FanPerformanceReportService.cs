@@ -15,28 +15,26 @@ public sealed class FanPerformanceReportService(
     {
         if (reporterMemberId == Guid.Empty)
         {
-            return new FanPerformanceReportCreateResult(false, null, false, "Sign in is required to report a fan performance.");
+            return FanPerformanceReportCreateResult.Failure(FanPerformanceReportOutcome.Invalid, "Sign in is required to report a fan performance.");
         }
 
         if (string.IsNullOrWhiteSpace(reason))
         {
-            return new FanPerformanceReportCreateResult(false, null, false, "A reason is required.");
+            return FanPerformanceReportCreateResult.Failure(FanPerformanceReportOutcome.Invalid, "A reason is required.");
         }
 
         var trimmed = reason.Trim();
         if (trimmed.Length > FanPerformanceReportLimits.MaxReasonLength)
         {
-            return new FanPerformanceReportCreateResult(
-                false,
-                null,
-                false,
+            return FanPerformanceReportCreateResult.Failure(
+                FanPerformanceReportOutcome.Invalid,
                 $"Reason must be {FanPerformanceReportLimits.MaxReasonLength} characters or fewer.");
         }
 
         var performance = await fanPerformanceRepository.GetByIdAsync(stageId, cancellationToken);
         if (performance is null)
         {
-            return new FanPerformanceReportCreateResult(false, null, false, "Fan performance was not found.");
+            return FanPerformanceReportCreateResult.Failure(FanPerformanceReportOutcome.NotFound, "Fan performance was not found.");
         }
 
         return await reportRepository.CreateAsync(

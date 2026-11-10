@@ -83,7 +83,7 @@ public static class ContactApiEndpoints
             },
             cancellationToken);
 
-        if (result.SilentlyDropped || result.Succeeded)
+        if (result.Succeeded)
         {
             return Results.Ok(new ContactSubmitResponse(
                 Submitted: true,
@@ -91,15 +91,7 @@ public static class ContactApiEndpoints
                 ContactCopy.ConfirmationMessage));
         }
 
-        var status = result.Error is not null
-            && result.Error.StartsWith("Too many", StringComparison.OrdinalIgnoreCase)
-            ? StatusCodes.Status429TooManyRequests
-            : StatusCodes.Status400BadRequest;
-
-        return Results.Problem(
-            statusCode: status,
-            title: status == StatusCodes.Status429TooManyRequests ? "Too Many Requests" : "Bad Request",
-            detail: result.Error);
+        return ApiOutcomeStatusCodes.Problem(ApiOutcomeStatusCodes.For(result.Outcome), result.Error);
     }
 
     internal static ContactFormDto CreateFormDto(

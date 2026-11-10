@@ -78,18 +78,73 @@ public sealed record PrivateConversationDetail(
             : (TotalCount + PageSize - 1) / PageSize;
 }
 
+public static class PrivateMessageSendText
+{
+    public const string NotAParticipant = "You are not a participant in this conversation.";
+
+    public const string ConversationNotFound = "Conversation not found.";
+
+    public const string RecipientNotFound = "Recipient was not found.";
+}
+
+/// <summary>Typed outcome of sending a private message so callers never branch on message text (#2436).</summary>
+public enum PrivateMessageSendOutcome
+{
+    Sent,
+    NotAParticipant,
+    ConversationNotFound,
+    RecipientNotFound,
+    Forbidden,
+    RateLimited,
+    Invalid,
+    Failed,
+}
+
 public sealed record PrivateMessageSendResult(
-    bool Succeeded,
+    PrivateMessageSendOutcome Outcome,
     Guid? ConversationId,
-    string? ErrorMessage);
+    string? ErrorMessage)
+{
+    public bool Succeeded => Outcome == PrivateMessageSendOutcome.Sent;
+
+    public static PrivateMessageSendResult Sent(Guid conversationId) =>
+        new(PrivateMessageSendOutcome.Sent, conversationId, null);
+
+    public static PrivateMessageSendResult Failure(PrivateMessageSendOutcome outcome, string errorMessage) =>
+        new(outcome, null, errorMessage);
+}
+
+/// <summary>Typed outcome of a block or follow request between members (#2436).</summary>
+public enum MemberRelationshipOutcome
+{
+    Succeeded,
+    MemberNotFound,
+    Invalid,
+}
 
 public sealed record PrivateMessageBlockResult(
-    bool Succeeded,
-    string? ErrorMessage);
+    MemberRelationshipOutcome Outcome,
+    string? ErrorMessage)
+{
+    public bool Succeeded => Outcome == MemberRelationshipOutcome.Succeeded;
+
+    public static PrivateMessageBlockResult Success() => new(MemberRelationshipOutcome.Succeeded, null);
+
+    public static PrivateMessageBlockResult Failure(MemberRelationshipOutcome outcome, string errorMessage) =>
+        new(outcome, errorMessage);
+}
 
 public sealed record MemberFollowResult(
-    bool Succeeded,
-    string? ErrorMessage);
+    MemberRelationshipOutcome Outcome,
+    string? ErrorMessage)
+{
+    public bool Succeeded => Outcome == MemberRelationshipOutcome.Succeeded;
+
+    public static MemberFollowResult Success() => new(MemberRelationshipOutcome.Succeeded, null);
+
+    public static MemberFollowResult Failure(MemberRelationshipOutcome outcome, string errorMessage) =>
+        new(outcome, errorMessage);
+}
 
 public sealed record MemberRecipientMatch(
     Guid MemberId,

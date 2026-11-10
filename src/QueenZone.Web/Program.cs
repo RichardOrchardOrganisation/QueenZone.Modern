@@ -103,6 +103,8 @@ var app = builder.Build();
 
 await CrosswordBrowserFixture.SeedAsync(app.Environment,
     app.Configuration.GetValue<bool>("CrosswordBrowserFixture:Enabled"), app.Services);
+await MemberBrowserFixture.SeedAsync(app.Environment,
+    app.Configuration.GetValue<bool>("MemberBrowserFixture:Enabled"), app.Services);
 
 // Registered before literally everything else. Mapped endpoints only execute at the
 // position of the implicit UseEndpoints() — always the very end of the pipeline,

@@ -324,7 +324,7 @@ public sealed class InMemoryPrivateMessageRepository
                     message.SortKey);
             }
 
-            return Task.FromResult(new PrivateMessageSendResult(true, conversation.Id, null));
+            return Task.FromResult(PrivateMessageSendResult.Sent(conversation.Id));
         }
     }
 
@@ -341,16 +341,15 @@ public sealed class InMemoryPrivateMessageRepository
         {
             if (!participants.Any(p => p.ConversationId == conversationId && p.MemberId == senderMemberId))
             {
-                return Task.FromResult(new PrivateMessageSendResult(
-                    false,
-                    null,
-                    "You are not a participant in this conversation."));
+                return Task.FromResult(PrivateMessageSendResult.Failure(
+                    PrivateMessageSendOutcome.NotAParticipant,
+                    PrivateMessageSendText.NotAParticipant));
             }
 
             var conversation = conversations.SingleOrDefault(c => c.Id == conversationId);
             if (conversation is null)
             {
-                return Task.FromResult(new PrivateMessageSendResult(false, null, "Conversation not found."));
+                return Task.FromResult(PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.ConversationNotFound, PrivateMessageSendText.ConversationNotFound));
             }
 
             var message = new PrivateMessageEntity
@@ -373,7 +372,7 @@ public sealed class InMemoryPrivateMessageRepository
             ReactivateParticipant(conversationId, conversation.MemberLowId);
             ReactivateParticipant(conversationId, conversation.MemberHighId);
 
-            return Task.FromResult(new PrivateMessageSendResult(true, conversationId, null));
+            return Task.FromResult(PrivateMessageSendResult.Sent(conversationId));
         }
     }
 
@@ -573,37 +572,24 @@ public sealed class InMemoryPrivateMessageRepository
             var message = messages.SingleOrDefault(m => m.Id == messageId);
             if (message is null || message.ConversationId != conversationId)
             {
-                return Task.FromResult(new PrivateMessageReportResult(
-                    false,
-                    null,
-                    PrivateMessageReportText.MessageNotFound));
+                return Task.FromResult(PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.MessageNotFound, PrivateMessageReportText.MessageNotFound));
             }
 
             if (!participants.Any(p => p.ConversationId == conversationId && p.MemberId == reporterMemberId))
             {
-                return Task.FromResult(new PrivateMessageReportResult(
-                    false,
-                    null,
-                    PrivateMessageReportText.NotAParticipant));
+                return Task.FromResult(PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.NotAParticipant, PrivateMessageReportText.NotAParticipant));
             }
 
             if (message.SenderMemberId == reporterMemberId)
             {
-                return Task.FromResult(new PrivateMessageReportResult(
-                    false,
-                    null,
-                    PrivateMessageReportText.CannotReportOwn));
+                return Task.FromResult(PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.CannotReportOwn, PrivateMessageReportText.CannotReportOwn));
             }
 
             var existing = reports.SingleOrDefault(
                 r => r.ReporterMemberId == reporterMemberId && r.MessageId == messageId);
             if (existing is not null)
             {
-                return Task.FromResult(new PrivateMessageReportResult(
-                    true,
-                    existing.Id,
-                    null,
-                    AlreadyReported: true));
+                return Task.FromResult(PrivateMessageReportResult.Duplicate(existing.Id));
             }
 
             var senderName = resolveMember?.Invoke(message.SenderMemberId)?.DisplayName ?? "Unknown member";
@@ -628,7 +614,7 @@ public sealed class InMemoryPrivateMessageRepository
                 reason,
                 createdAt);
             reports.Add(entity);
-            return Task.FromResult(new PrivateMessageReportResult(true, entity.Id, null));
+            return Task.FromResult(PrivateMessageReportResult.Created(entity.Id));
         }
     }
 

@@ -282,6 +282,7 @@ function Start-AppWindows {
     )
     if ($EnvironmentName -eq "Testing") {
         $envAssignments += "set CrosswordBrowserFixture__Enabled=true"
+        $envAssignments += "set MemberBrowserFixture__Enabled=true"
     }
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
         $envAssignments += "set ConnectionStrings__QueenZoneLegacy=$ConnectionString"
@@ -353,6 +354,7 @@ function Start-AppMacOS {
     $psi.EnvironmentVariables["ASPNETCORE_CONTENTROOT"] = $AppDir
     if ($EnvironmentName -eq "Testing") {
         $psi.EnvironmentVariables["CrosswordBrowserFixture__Enabled"] = "true"
+        $psi.EnvironmentVariables["MemberBrowserFixture__Enabled"] = "true"
     }
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
         $psi.EnvironmentVariables["ConnectionStrings__QueenZoneLegacy"] = $ConnectionString

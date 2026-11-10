@@ -14,7 +14,7 @@ public static class MemberAvatarImageProcessor
 
     /// <summary>
     /// Validates size and magic-byte MIME type, then crops/resizes to square WebP outputs.
-    /// Throws <see cref="InvalidOperationException"/> for validation failures (expected client errors).
+    /// Throws <see cref="MemberAvatarRejectedException"/> for validation failures (expected client errors).
     /// </summary>
     public static async Task<ProcessedAvatar> ProcessAsync(
         Stream source,
@@ -27,12 +27,12 @@ public static class MemberAvatarImageProcessor
         await source.CopyToAsync(buffer, cancellationToken);
         if (buffer.Length <= 0)
         {
-            throw new InvalidOperationException("An image file is required.");
+            throw new MemberAvatarRejectedException("An image file is required.");
         }
 
         if (buffer.Length > MemberAvatarPaths.MaxUploadBytes)
         {
-            throw new InvalidOperationException(
+            throw new MemberAvatarRejectedException(
                 $"Avatar must be {MemberAvatarPaths.MaxUploadBytes / (1024 * 1024)} MB or smaller.");
         }
 
@@ -45,7 +45,7 @@ public static class MemberAvatarImageProcessor
         var sniffed = BlobContentSniffer.TryDetectContentType(header.AsSpan(0, read));
         if (sniffed is null || !MemberAvatarPaths.AllowedContentTypes.Contains(sniffed))
         {
-            throw new InvalidOperationException("Avatar must be a JPEG, PNG, or WebP image.");
+            throw new MemberAvatarRejectedException("Avatar must be a JPEG, PNG, or WebP image.");
         }
 
         // Extension must agree when present (same policy as blob upload validator).
@@ -56,7 +56,7 @@ public static class MemberAvatarImageProcessor
             if (fromExt is not null
                 && !string.Equals(fromExt, sniffed, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException("File extension does not match the image content.");
+                throw new MemberAvatarRejectedException("File extension does not match the image content.");
             }
         }
 
@@ -69,11 +69,11 @@ public static class MemberAvatarImageProcessor
         }
         catch (UnknownImageFormatException)
         {
-            throw new InvalidOperationException("Avatar must be a JPEG, PNG, or WebP image.");
+            throw new MemberAvatarRejectedException("Avatar must be a JPEG, PNG, or WebP image.");
         }
         catch (InvalidImageContentException)
         {
-            throw new InvalidOperationException("Avatar image could not be read.");
+            throw new MemberAvatarRejectedException("Avatar image could not be read.");
         }
     }
 
@@ -98,3 +98,9 @@ public static class MemberAvatarImageProcessor
         return output;
     }
 }
+
+/// <summary>
+/// An avatar upload failed validation. The message is written for the member and is safe to show;
+/// other exceptions are never surfaced to the member as rejections (#2436).
+/// </summary>
+public sealed class MemberAvatarRejectedException(string message) : Exception(message);

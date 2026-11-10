@@ -67,7 +67,7 @@ public sealed class ReportModel(ForumPostReportService reportService) : PageMode
         var result = await reportService.ReportAsync(memberId.Value, postId, Category, Details, cancellationToken);
         if (!result.Succeeded)
         {
-            if (result.ErrorMessage == ForumPostReportText.PostNotFound)
+            if (result.Outcome == ForumPostReportOutcome.PostNotFound)
             {
                 return NotFound();
             }

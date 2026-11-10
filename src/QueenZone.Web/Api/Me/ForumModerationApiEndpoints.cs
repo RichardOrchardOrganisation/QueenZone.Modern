@@ -68,11 +68,7 @@ public static class ForumModerationApiEndpoints
         var result = await reportService.ReportAsync(memberId.Value, postId, request.Category, request.Details, cancellationToken);
         if (!result.Succeeded)
         {
-            var notFound = result.ErrorMessage == ForumPostReportText.PostNotFound;
-            return Results.Problem(
-                statusCode: notFound ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest,
-                title: notFound ? "Not Found" : "Bad Request",
-                detail: result.ErrorMessage);
+            return ApiOutcomeStatusCodes.Problem(ApiOutcomeStatusCodes.For(result.Outcome), result.ErrorMessage);
         }
 
         var dto = new ForumPostReportResponseDto(result.ReportId!.Value, PrivateMessageReportStatus.Open, result.AlreadyReported);

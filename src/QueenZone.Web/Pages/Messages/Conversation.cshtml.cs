@@ -244,8 +244,7 @@ public sealed class ConversationModel(PrivateMessageService privateMessageServic
             cancellationToken);
         if (!result.Succeeded)
         {
-            if (string.Equals(result.ErrorMessage, PrivateMessageReportText.NotAParticipant, StringComparison.Ordinal)
-                || string.Equals(result.ErrorMessage, PrivateMessageReportText.MessageNotFound, StringComparison.Ordinal))
+            if (result.Outcome is PrivateMessageReportOutcome.NotAParticipant or PrivateMessageReportOutcome.MessageNotFound)
             {
                 return NotFound();
             }

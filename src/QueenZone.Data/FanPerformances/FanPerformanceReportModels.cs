@@ -36,8 +36,30 @@ public sealed record NewFanPerformanceReport(
     string? TitleSnapshot,
     string? PerformedBySnapshot);
 
+/// <summary>Typed outcome of reporting a fan performance so callers never branch on message text (#2436).</summary>
+public enum FanPerformanceReportOutcome
+{
+    Created,
+    AlreadyReported,
+    NotFound,
+    Invalid,
+}
+
 public sealed record FanPerformanceReportCreateResult(
-    bool Succeeded,
+    FanPerformanceReportOutcome Outcome,
     Guid? ReportId,
-    bool AlreadyReported,
-    string? Error);
+    string? Error)
+{
+    public bool Succeeded => Outcome is FanPerformanceReportOutcome.Created or FanPerformanceReportOutcome.AlreadyReported;
+
+    public bool AlreadyReported => Outcome == FanPerformanceReportOutcome.AlreadyReported;
+
+    public static FanPerformanceReportCreateResult Created(Guid reportId) =>
+        new(FanPerformanceReportOutcome.Created, reportId, null);
+
+    public static FanPerformanceReportCreateResult Duplicate(Guid reportId) =>
+        new(FanPerformanceReportOutcome.AlreadyReported, reportId, null);
+
+    public static FanPerformanceReportCreateResult Failure(FanPerformanceReportOutcome outcome, string error) =>
+        new(outcome, null, error);
+}

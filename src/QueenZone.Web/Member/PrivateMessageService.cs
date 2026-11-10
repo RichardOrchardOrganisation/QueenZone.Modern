@@ -106,19 +106,19 @@ public sealed class PrivateMessageService(
     {
         if (senderMemberId == recipientMemberId)
         {
-            return new PrivateMessageSendResult(false, null, CannotMessageYourselfMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Invalid, CannotMessageYourselfMessage);
         }
 
         var sender = await memberAccountRepository.FindByIdAsync(senderMemberId, cancellationToken);
         if (sender is null || sender.IsSuspended)
         {
-            return new PrivateMessageSendResult(false, null, UnableToSendMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Forbidden, UnableToSendMessage);
         }
 
         var recipient = await memberAccountRepository.FindByIdAsync(recipientMemberId, cancellationToken);
         if (recipient is null || recipient.DeletionRequestedAt is not null)
         {
-            return new PrivateMessageSendResult(false, null, "Recipient was not found.");
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.RecipientNotFound, PrivateMessageSendText.RecipientNotFound);
         }
 
         if (await privateMessageModerationRepository.IsMessagingBlockedAsync(
@@ -126,7 +126,7 @@ public sealed class PrivateMessageService(
                 recipientMemberId,
                 cancellationToken))
         {
-            return new PrivateMessageSendResult(false, null, UnableToSendMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Forbidden, UnableToSendMessage);
         }
 
         var hasConversation = await privateMessageRepository.HasConversationBetweenAsync(
@@ -136,7 +136,7 @@ public sealed class PrivateMessageService(
         if (!hasConversation
             && !await CanStartNewConversationAsync(senderMemberId, recipient, cancellationToken))
         {
-            return new PrivateMessageSendResult(false, null, UnableToSendMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Forbidden, UnableToSendMessage);
         }
 
         if (!await privateMessageRateLimiter.IsSendAllowedAsync(
@@ -146,7 +146,7 @@ public sealed class PrivateMessageService(
                 isNewConversation: !hasConversation,
                 cancellationToken))
         {
-            return new PrivateMessageSendResult(false, null, RateLimitedMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.RateLimited, RateLimitedMessage);
         }
 
         if (RejectInvalidBody(body, out var composeBody) is { } invalidCompose)
@@ -184,16 +184,13 @@ public sealed class PrivateMessageService(
             cancellationToken);
         if (!isParticipant)
         {
-            return new PrivateMessageSendResult(
-                false,
-                null,
-                "You are not a participant in this conversation.");
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.NotAParticipant, PrivateMessageSendText.NotAParticipant);
         }
 
         var sender = await memberAccountRepository.FindByIdAsync(senderMemberId, cancellationToken);
         if (sender is null || sender.IsSuspended)
         {
-            return new PrivateMessageSendResult(false, null, UnableToSendMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Forbidden, UnableToSendMessage);
         }
 
         var otherParticipantId = await privateMessageRepository.GetOtherParticipantIdAsync(
@@ -209,7 +206,7 @@ public sealed class PrivateMessageService(
                     other,
                     cancellationToken))
             {
-                return new PrivateMessageSendResult(false, null, UnableToSendMessage);
+                return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Forbidden, UnableToSendMessage);
             }
         }
 
@@ -220,7 +217,7 @@ public sealed class PrivateMessageService(
                 isNewConversation: false,
                 cancellationToken))
         {
-            return new PrivateMessageSendResult(false, null, RateLimitedMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.RateLimited, RateLimitedMessage);
         }
 
         if (RejectInvalidBody(body, out var replyBody) is { } invalidReply)
@@ -251,12 +248,12 @@ public sealed class PrivateMessageService(
         normalized = string.IsNullOrWhiteSpace(body) ? string.Empty : body.Trim();
         if (normalized.Length == 0)
         {
-            return new PrivateMessageSendResult(false, null, BodyRequiredMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Invalid, BodyRequiredMessage);
         }
 
         if (normalized.Length > PrivateMessageLimits.MaxBodyLength)
         {
-            return new PrivateMessageSendResult(false, null, BodyTooLongMessage);
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Invalid, BodyTooLongMessage);
         }
 
         return null;
@@ -301,13 +298,13 @@ public sealed class PrivateMessageService(
     {
         if (blockerMemberId == blockedMemberId)
         {
-            return new PrivateMessageBlockResult(false, "You cannot block yourself.");
+            return PrivateMessageBlockResult.Failure(MemberRelationshipOutcome.Invalid, "You cannot block yourself.");
         }
 
         var target = await memberAccountRepository.FindByIdAsync(blockedMemberId, cancellationToken);
         if (target is null || target.DeletionRequestedAt is not null)
         {
-            return new PrivateMessageBlockResult(false, "Member was not found.");
+            return PrivateMessageBlockResult.Failure(MemberRelationshipOutcome.MemberNotFound, "Member was not found.");
         }
 
         await privateMessageModerationRepository.BlockAsync(
@@ -319,7 +316,7 @@ public sealed class PrivateMessageService(
             blockerMemberId,
             blockedMemberId,
             cancellationToken);
-        return new PrivateMessageBlockResult(true, null);
+        return PrivateMessageBlockResult.Success();
     }
 
     public Task<bool> UnblockAsync(
@@ -427,7 +424,7 @@ public sealed class PrivateMessageService(
         var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         if (normalizedReason is { Length: > PrivateMessageLimits.MaxReportReasonLength })
         {
-            return new PrivateMessageReportResult(false, null, PrivateMessageReportText.ReasonTooLong);
+            return PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.Invalid, PrivateMessageReportText.ReasonTooLong);
         }
 
         return await privateMessageModerationRepository.CreateReportAsync(

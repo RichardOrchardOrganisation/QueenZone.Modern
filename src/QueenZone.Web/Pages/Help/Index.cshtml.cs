@@ -107,12 +107,12 @@ public sealed class IndexModel(HelpRequestService helpRequestService) : PageMode
             },
             cancellationToken);
 
-        if (result.SilentlyDropped || result.Succeeded)
+        if (result.Succeeded)
         {
             return Redirect("/contact/confirmation");
         }
 
-        if (result.Error?.StartsWith("Too many", StringComparison.OrdinalIgnoreCase) == true)
+        if (result.Outcome == HelpRequestSubmitOutcome.RateLimited)
         {
             Response.StatusCode = StatusCodes.Status429TooManyRequests;
         }

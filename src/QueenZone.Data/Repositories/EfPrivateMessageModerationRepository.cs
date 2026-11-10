@@ -102,18 +102,18 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
             .SingleOrDefaultAsync(m => m.Id == messageId, cancellationToken);
         if (message is null || message.ConversationId != conversationId)
         {
-            return new PrivateMessageReportResult(false, null, PrivateMessageReportText.MessageNotFound);
+            return PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.MessageNotFound, PrivateMessageReportText.MessageNotFound);
         }
 
         var isParticipant = await IsParticipantAsync(conversationId, reporterMemberId, cancellationToken);
         if (!isParticipant)
         {
-            return new PrivateMessageReportResult(false, null, PrivateMessageReportText.NotAParticipant);
+            return PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.NotAParticipant, PrivateMessageReportText.NotAParticipant);
         }
 
         if (message.SenderMemberId == reporterMemberId)
         {
-            return new PrivateMessageReportResult(false, null, PrivateMessageReportText.CannotReportOwn);
+            return PrivateMessageReportResult.Failure(PrivateMessageReportOutcome.CannotReportOwn, PrivateMessageReportText.CannotReportOwn);
         }
 
         var existing = await dbContext.PrivateMessageReports
@@ -123,7 +123,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
                 cancellationToken);
         if (existing is not null)
         {
-            return new PrivateMessageReportResult(true, existing.Id, null, AlreadyReported: true);
+            return PrivateMessageReportResult.Duplicate(existing.Id);
         }
 
         var senderName = await dbContext.MemberAccounts
@@ -149,7 +149,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);
-            return new PrivateMessageReportResult(true, entity.Id, null);
+            return PrivateMessageReportResult.Created(entity.Id);
         }
         catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation())
         {
@@ -161,7 +161,7 @@ public sealed class EfPrivateMessageModerationRepository(QueenZoneDbContext dbCo
                     cancellationToken);
             if (raced is not null)
             {
-                return new PrivateMessageReportResult(true, raced.Id, null, AlreadyReported: true);
+                return PrivateMessageReportResult.Duplicate(raced.Id);
             }
 
             throw;

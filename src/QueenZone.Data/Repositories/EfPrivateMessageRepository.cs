@@ -280,7 +280,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             .AnyAsync(m => m.Id == recipientMemberId, cancellationToken);
         if (!recipientExists)
         {
-            return new PrivateMessageSendResult(false, null, "Recipient was not found.");
+            return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.RecipientNotFound, PrivateMessageSendText.RecipientNotFound);
         }
 
         var preview = TruncatePreview(body);
@@ -295,7 +295,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
                     preview,
                     sentAt,
                     cancellationToken);
-                return new PrivateMessageSendResult(true, conversationId, null);
+                return PrivateMessageSendResult.Sent(conversationId);
             }
             catch (DbUpdateException ex) when (ex.IsUniqueConstraintViolation() && attempt < MaxUniqueConflictRetries)
             {
@@ -303,7 +303,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
             }
         }
 
-        return new PrivateMessageSendResult(false, null, "Unable to start the conversation. Please try again.");
+        return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.Failed, "Unable to start the conversation. Please try again.");
     }
 
     public async Task<PrivateMessageSendResult> ReplyAsync(
@@ -318,10 +318,9 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
         var isParticipant = await IsParticipantAsync(conversationId, senderMemberId, cancellationToken);
         if (!isParticipant)
         {
-            return new PrivateMessageSendResult(
-                false,
-                null,
-                "You are not a participant in this conversation.");
+            return PrivateMessageSendResult.Failure(
+                PrivateMessageSendOutcome.NotAParticipant,
+                PrivateMessageSendText.NotAParticipant);
         }
 
         var preview = TruncatePreview(body);
@@ -335,7 +334,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
                 var conversation = await LockConversationForWriteAsync(conversationId, innerCt);
                 if (conversation is null)
                 {
-                    return new PrivateMessageSendResult(false, null, "Conversation not found.");
+                    return PrivateMessageSendResult.Failure(PrivateMessageSendOutcome.ConversationNotFound, PrivateMessageSendText.ConversationNotFound);
                 }
 
                 var message = new PrivateMessageEntity
@@ -361,7 +360,7 @@ public sealed class EfPrivateMessageRepository(QueenZoneDbContext dbContext) : I
                     message.SortKey,
                     innerCt);
 
-                return new PrivateMessageSendResult(true, conversationId, null);
+                return PrivateMessageSendResult.Sent(conversationId);
             },
             cancellationToken);
     }

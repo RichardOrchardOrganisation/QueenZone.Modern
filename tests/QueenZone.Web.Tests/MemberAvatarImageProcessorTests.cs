@@ -34,7 +34,7 @@ public sealed class MemberAvatarImageProcessorTests
     public async Task ProcessAsync_RejectsOversizedPayload()
     {
         await using var oversized = new MemoryStream(new byte[MemberAvatarPaths.MaxUploadBytes + 10]);
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<MemberAvatarRejectedException>(() =>
             MemberAvatarImageProcessor.ProcessAsync(oversized, "big.png"));
         Assert.Contains("MB", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -43,7 +43,7 @@ public sealed class MemberAvatarImageProcessorTests
     public async Task ProcessAsync_RejectsNonImageBytes()
     {
         await using var junk = new MemoryStream("hello"u8.ToArray());
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<MemberAvatarRejectedException>(() =>
             MemberAvatarImageProcessor.ProcessAsync(junk, "hello.png"));
         Assert.Contains("JPEG", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

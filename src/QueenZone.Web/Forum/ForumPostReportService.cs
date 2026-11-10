@@ -18,13 +18,13 @@ public sealed class ForumPostReportService(
     {
         if (!ForumPostReportCategories.IsKnown(category))
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.CategoryRequired);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.Invalid, ForumPostReportText.CategoryRequired);
         }
 
         var normalizedDetails = string.IsNullOrWhiteSpace(details) ? null : details.Trim();
         if (normalizedDetails is { Length: > ForumPostReportLimits.MaxDetailsLength })
         {
-            return new ForumPostReportResult(false, null, ForumPostReportText.DetailsTooLong);
+            return ForumPostReportResult.Failure(ForumPostReportOutcome.Invalid, ForumPostReportText.DetailsTooLong);
         }
 
         return await repository.CreateAsync(reporterMemberId, postId, category!, normalizedDetails,

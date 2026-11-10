@@ -53,11 +53,7 @@ public static class FanPerformanceReportApiEndpoints
             cancellationToken);
         if (!result.Succeeded || result.ReportId is null)
         {
-            var notFound = string.Equals(result.Error, "Fan performance was not found.", StringComparison.Ordinal);
-            return Results.Problem(
-                statusCode: notFound ? StatusCodes.Status404NotFound : StatusCodes.Status400BadRequest,
-                title: notFound ? "Not Found" : "Bad Request",
-                detail: result.Error);
+            return ApiOutcomeStatusCodes.Problem(ApiOutcomeStatusCodes.For(result.Outcome), result.Error);
         }
 
         httpContext.Response.Headers.CacheControl = "no-store";
