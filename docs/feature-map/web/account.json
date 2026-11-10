@@ -11,7 +11,9 @@
         "src/QueenZone.Web/Pages/Shared/_AccountSocialProfilesSettings.cshtml",
         "src/QueenZone.Web/Pages/Shared/_AccountMessagePrivacySettings.cshtml"
       ],
-      "specs": [],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AccountSettingsAvatarTests.cs"
+      ],
       "selectors": [],
       "selectorsReason": "No stable identifier mapped. Use role/text locators for headings, links and inputs; add a selector if an interaction needs a stable hook.",
       "signIn": "member",

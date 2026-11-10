@@ -194,6 +194,7 @@ public static class MeApiEndpoints
         ClaimsPrincipal user,
         HttpRequest request,
         MemberAccountService memberAccountService,
+        MemberAvatarService memberAvatarService,
         CancellationToken cancellationToken)
     {
         var memberId = RequireMemberId(user, out var unauthorized);
@@ -232,7 +233,7 @@ public static class MeApiEndpoints
         }
 
         await using var stream = file.OpenReadStream();
-        var result = await memberAccountService.UpdateAvatarAsync(
+        var result = await memberAvatarService.UpdateAvatarAsync(
             memberId,
             stream,
             file.FileName,
@@ -248,6 +249,7 @@ public static class MeApiEndpoints
     internal static async Task<IResult> RemoveAvatarAsync(
         ClaimsPrincipal user,
         MemberAccountService memberAccountService,
+        MemberAvatarService memberAvatarService,
         CancellationToken cancellationToken)
     {
         var memberId = RequireMemberId(user, out var unauthorized);
@@ -256,7 +258,7 @@ public static class MeApiEndpoints
             return unauthorized;
         }
 
-        var result = await memberAccountService.RemoveAvatarAsync(memberId, cancellationToken);
+        var result = await memberAvatarService.RemoveAvatarAsync(memberId, cancellationToken);
         if (!result.Succeeded)
         {
             return BadRequest(result.Error ?? "Could not remove avatar.");

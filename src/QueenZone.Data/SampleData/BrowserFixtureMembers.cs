@@ -21,8 +21,11 @@ public static class BrowserFixtureMembers
     public static readonly BrowserFixtureMember ConversationRecipient =
         new(Guid.Parse("e2e0a000-0000-4000-8000-000000000004"), "E2E Conversation Recipient");
 
+    public static readonly BrowserFixtureMember SettingsAvatarOwner =
+        new(Guid.Parse("e2e0a000-0000-4000-8000-000000000005"), "E2E Settings Avatar Owner");
+
     public static IReadOnlyList<BrowserFixtureMember> All { get; } =
-        [ProfileViewer, ProfileSubject, ConversationSender, ConversationRecipient];
+        [ProfileViewer, ProfileSubject, ConversationSender, ConversationRecipient, SettingsAvatarOwner];
 }
 
 public sealed record BrowserFixtureMember(Guid Id, string DisplayName)
