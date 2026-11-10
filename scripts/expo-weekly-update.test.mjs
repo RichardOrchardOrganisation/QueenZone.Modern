@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  PINNED_EXPO_MODULES_CORE,
   TOKEN_SECRET_NAME,
   WEEKLY_BRANCH,
   WORKFLOW_PATH,
@@ -15,22 +14,17 @@ import {
   changedHigherBarPackages,
   compareSemver,
   expoCliPath,
-  failedDoctorCheckNames,
   inspectPin,
   inspectPinFromDir,
   isHigherBarPackage,
-  isRangeNewerThanPin,
-  isSdkPackageVersionCheck,
   lockPackageName,
   lockfileVersionChanges,
   main,
-  mismatchedPackagesFromCheckJson,
-  mismatchedPackagesFromDoctorLog,
   nestedExpoModulesCoreKeys,
   packageJsonVersionChanges,
   parseArgs,
   parseSemver,
-  shouldExcuseDoctorFailure,
+  versionSatisfiesRange,
 } from './expo-weekly-update.mjs';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -49,24 +43,21 @@ function workflowJob(name) {
   return next ? workflow.slice(start.index, next.index) : workflow.slice(start.index);
 }
 
-const VERSION_CHECK_LOG = [
-  '✖ Check packages match versions required by installed Expo SDK',
-  '  expo-modules-core@58.0.24 - expected ~58.0.28',
-  '',
-].join('\n');
-
-function pinPackageJson(override = PINNED_EXPO_MODULES_CORE) {
+function pinPackageJson(override = '58.0.24') {
   return { overrides: { 'expo-modules-core': override } };
 }
 
 function pinLockfile({
-  resolved = PINNED_EXPO_MODULES_CORE,
-  declaredRange = '~58.0.24',
+  resolved = '58.0.30',
+  declaredRange = '~58.0.30',
   nested = false,
   topLevel = true,
+  includeDeclaredRange = true,
 } = {}) {
   const packages = {
-    'node_modules/expo': { dependencies: { 'expo-modules-core': declaredRange } },
+    'node_modules/expo': includeDeclaredRange
+      ? { dependencies: { 'expo-modules-core': declaredRange } }
+      : {},
   };
   if (topLevel) {
     packages['node_modules/expo-modules-core'] = { version: resolved };
@@ -96,16 +87,24 @@ test('isHigherBarPackage matches expo, expo-modules-*, and the Fabric-sensitive 
   assert.equal(isHigherBarPackage('react-native-svg'), false);
 });
 
-test('semver helpers treat the first version in a range as the floor', () => {
-  assert.deepEqual(parseSemver('~58.0.28'), { major: 58, minor: 0, patch: 28 });
-  assert.equal(compareSemver('58.0.28', '58.0.24'), 4);
-  assert.equal(isRangeNewerThanPin('~58.0.28'), true);
-  assert.equal(isRangeNewerThanPin('~58.0.24'), false);
-  assert.equal(isRangeNewerThanPin('~58.0.20'), false);
-  assert.equal(isRangeNewerThanPin('not-a-range'), false);
+test('versionSatisfiesRange understands tilde, caret, and exact versions', () => {
+  assert.deepEqual(parseSemver('~58.0.30'), { major: 58, minor: 0, patch: 30 });
+  assert.equal(compareSemver('58.0.30', '58.0.24'), 6);
+  assert.equal(versionSatisfiesRange('58.0.30', '~58.0.30'), true);
+  assert.equal(versionSatisfiesRange('58.0.31', '~58.0.30'), true);
+  assert.equal(versionSatisfiesRange('58.0.29', '~58.0.30'), false);
+  assert.equal(versionSatisfiesRange('58.1.0', '~58.0.30'), false);
+  assert.equal(versionSatisfiesRange('58.0.30', '^58.0.30'), true);
+  assert.equal(versionSatisfiesRange('58.1.0', '^58.0.30'), true);
+  assert.equal(versionSatisfiesRange('59.0.0', '^58.0.30'), false);
+  assert.equal(versionSatisfiesRange('58.0.30', '58.0.30'), true);
+  assert.equal(versionSatisfiesRange('58.0.31', '58.0.30'), false);
+  assert.equal(versionSatisfiesRange('58.0.30', ''), false);
+  assert.equal(versionSatisfiesRange('', '~58.0.30'), false);
+  assert.equal(versionSatisfiesRange('58.0.30', 'not-a-range'), false);
 });
 
-test('inspectPin accepts no override and a single top-level resolve (#2407 unpin)', () => {
+test('inspectPin accepts no override when the resolved version satisfies expo\'s declared range (#2407 unpin)', () => {
   const report = inspectPin({
     packageJson: { overrides: {} },
     lockfile: pinLockfile({ resolved: '58.0.30', declaredRange: '~58.0.30' }),
@@ -114,14 +113,14 @@ test('inspectPin accepts no override and a single top-level resolve (#2407 unpin
   assert.equal(report.override, null);
   assert.equal(report.resolved, '58.0.30');
   assert.equal(report.declaredRange, '~58.0.30');
-  assert.equal(report.declaredRangeNewerThanPin, false);
+  assert.equal('declaredRangeNewerThanPin' in report, false);
   assert.deepEqual(report.errors, []);
 });
 
 test('inspectPin fails when the override returns, the top-level resolve is missing, or expo/ nests a copy', () => {
   const pinned = inspectPin({
     packageJson: pinPackageJson(),
-    lockfile: pinLockfile(),
+    lockfile: pinLockfile({ resolved: '58.0.24', declaredRange: '~58.0.30' }),
   });
   assert.equal(pinned.ok, false);
   assert.match(pinned.errors[0], /must not override expo-modules-core/);
@@ -146,13 +145,32 @@ test('inspectPin fails when the override returns, the top-level resolve is missi
   assert.match(nestedOnly.errors.join('\n'), /nest expo-modules-core under expo\//);
 });
 
-test('inspectPinFromDir passes on the current mobile tree with no override', () => {
+test('inspectPin fails when the resolved version is outside expo\'s declared range or the range is missing', () => {
+  const stale = inspectPin({
+    packageJson: {},
+    lockfile: pinLockfile({ resolved: '58.0.24', declaredRange: '~58.0.30' }),
+  });
+  assert.equal(stale.ok, false);
+  assert.match(stale.errors.join('\n'), /satisfies expo's declared range ~58\.0\.30/);
+  assert.match(stale.errors.join('\n'), /found 58\.0\.24/);
+
+  const missingRange = inspectPin({
+    packageJson: {},
+    lockfile: pinLockfile({ resolved: '58.0.30', includeDeclaredRange: false }),
+  });
+  assert.equal(missingRange.ok, false);
+  assert.match(missingRange.errors.join('\n'), /declared expo-modules-core range/);
+});
+
+test('inspectPinFromDir passes on the current mobile tree with no override and a satisfying resolve', () => {
   const report = inspectPinFromDir(path.join(repoRoot, 'src/QueenZone.Mobile'));
   assert.equal(report.ok, true, report.errors.join('\n'));
   assert.equal(report.override, null);
   assert.ok(report.resolved);
+  assert.ok(report.declaredRange);
+  assert.equal(versionSatisfiesRange(report.resolved, report.declaredRange), true);
   assert.deepEqual(report.nested, []);
-  assert.equal(report.declaredRangeNewerThanPin, false);
+  assert.equal('declaredRangeNewerThanPin' in report, false);
 });
 
 test('package and lockfile change helpers name only version moves', () => {
@@ -196,26 +214,27 @@ test('buildWeeklyPrBody always has Verification and Relates to #2407, and adds t
   const routine = buildWeeklyPrBody({
     packageChanges: [{ name: 'expo-image', from: '~58.0.1', to: '~58.0.2', section: 'dependencies' }],
     higherBarPackages: [],
-    pinReport: { declaredRangeNewerThanPin: false },
+    pinReport: { resolved: '58.0.30', declaredRange: '~58.0.30' },
   });
   assert.match(routine, /^## Verification$/m);
   assert.match(routine, /^Relates to #2407$/m);
   assert.match(routine, /suite=journeys/);
+  assert.match(routine, /satisfies expo's declared range `~58\.0\.30`/);
   assert.doesNotMatch(routine, /mobile.crosswords.play/);
   assert.doesNotMatch(routine, /Changelog note/);
+  assert.doesNotMatch(routine, /#2408 pin/);
 
   const higher = buildWeeklyPrBody({
     packageChanges: [{ name: 'expo', from: '~58.0.21', to: '~58.0.22', section: 'dependencies' }],
     higherBarPackages: ['expo', 'react-native-screens'],
-    pinReport: { declaredRangeNewerThanPin: true, declaredRange: '~58.0.28' },
+    pinReport: { resolved: '58.0.30', declaredRange: '~58.0.30' },
   });
   assert.match(higher, /detected: expo, react-native-screens/);
   assert.match(higher, /suite=proof/);
   assert.match(higher, /feature=mobile.crosswords.play/);
   assert.match(higher, /platform=android/);
   assert.match(higher, /Changelog note \(Fabric \/ view-removal\)/);
-  assert.match(higher, /~58.0.28/);
-  assert.match(higher, /#2408 pin/);
+  assert.match(higher, /satisfies expo's declared range `~58\.0\.30`/);
 });
 
 test('check-pin --json and write-pr-body CLI write the expected artifacts', () => {
@@ -228,6 +247,8 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
   assert.equal(pinCode, 0, errors.join('\n'));
   const report = JSON.parse(logs.join('\n'));
   assert.equal(report.ok, true);
+  assert.ok(report.declaredRange);
+  assert.equal(versionSatisfiesRange(report.resolved, report.declaredRange), true);
 
   const dir = mkdtempSync(path.join(tmpdir(), 'qz-expo-weekly-'));
   const beforePackage = path.join(dir, 'before-package.json');
@@ -241,8 +262,8 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
     beforeLock,
     JSON.stringify({
       packages: {
-        'node_modules/expo': { version: '58.0.21', dependencies: { 'expo-modules-core': '~58.0.24' } },
-        'node_modules/expo-modules-core': { version: PINNED_EXPO_MODULES_CORE },
+        'node_modules/expo': { version: '58.0.21', dependencies: { 'expo-modules-core': '~58.0.30' } },
+        'node_modules/expo-modules-core': { version: '58.0.30' },
         'node_modules/react-native-screens': { version: '4.30.0' },
       },
     }),
@@ -252,16 +273,15 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
   writeFileSync(
     afterPackage,
     JSON.stringify({
-      dependencies: { expo: '~58.0.22', 'react-native-screens': '~4.31.0' },
-      overrides: { 'expo-modules-core': PINNED_EXPO_MODULES_CORE },
+      dependencies: { expo: '~58.0.23', 'react-native-screens': '~4.31.0' },
     }),
   );
   writeFileSync(
     afterLock,
     JSON.stringify({
       packages: {
-        'node_modules/expo': { version: '58.0.22', dependencies: { 'expo-modules-core': '~58.0.28' } },
-        'node_modules/expo-modules-core': { version: PINNED_EXPO_MODULES_CORE },
+        'node_modules/expo': { version: '58.0.23', dependencies: { 'expo-modules-core': '~58.0.30' } },
+        'node_modules/expo-modules-core': { version: '58.0.30' },
         'node_modules/react-native-screens': { version: '4.31.0' },
       },
     }),
@@ -288,6 +308,7 @@ test('check-pin --json and write-pr-body CLI write the expected artifacts', () =
   const body = readFileSync(out, 'utf8');
   assert.match(body, /detected: expo, react-native-screens/);
   assert.match(body, /^Relates to #2407$/m);
+  assert.match(body, /satisfies expo's declared range `~58\.0\.30`/);
 });
 
 test('align runs npm ci, the lockfile-local expo CLI, then a full npm install with scripts disabled', () => {
@@ -318,81 +339,23 @@ test('align runs npm ci, the lockfile-local expo CLI, then a full npm install wi
   assert.equal(calls[0].env.GH_TOKEN, undefined);
 });
 
-test('excuse-doctor only covers the pinned expo-modules-core SDK version check', () => {
-  assert.equal(isSdkPackageVersionCheck('packages match versions required by installed Expo SDK'), true);
-  assert.equal(isSdkPackageVersionCheck('that packages match versions required by the installed Expo SDK'), true);
-  assert.equal(isSdkPackageVersionCheck('for common project setup issues'), false);
-  assert.deepEqual(failedDoctorCheckNames(VERSION_CHECK_LOG), [
-    'packages match versions required by installed Expo SDK',
-  ]);
-  assert.deepEqual(mismatchedPackagesFromDoctorLog(VERSION_CHECK_LOG), ['expo-modules-core']);
-  assert.deepEqual(mismatchedPackagesFromCheckJson('[{"packageName":"expo-modules-core"}]'), [
-    'expo-modules-core',
-  ]);
-  assert.deepEqual(
-    mismatchedPackagesFromCheckJson('{"dependencies":{"expo-image":{"version":"58.0.2"}}}'),
-    ['expo-image'],
-  );
-  assert.deepEqual(mismatchedPackagesFromCheckJson('not-json'), []);
-
-  const pin = { declaredRangeNewerThanPin: true };
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: VERSION_CHECK_LOG,
-      checkJson: '[{"packageName":"expo-modules-core"}]',
-      pinReport: pin,
-    }),
-    true,
-  );
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: VERSION_CHECK_LOG,
-      pinReport: pin,
-    }),
-    true,
-  );
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: VERSION_CHECK_LOG,
-      pinReport: { declaredRangeNewerThanPin: false },
-    }),
-    false,
-  );
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: `${VERSION_CHECK_LOG}✖ Check for common project setup issues\n`,
-      pinReport: pin,
-    }),
-    false,
-  );
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: VERSION_CHECK_LOG,
-      checkJson: '[{"packageName":"expo-modules-core"},{"packageName":"expo-image"}]',
-      pinReport: pin,
-    }),
-    false,
-  );
-  assert.equal(
-    shouldExcuseDoctorFailure({
-      doctorLog: '✖ Check packages match versions required by installed Expo SDK\n',
-      pinReport: pin,
-    }),
-    false,
-  );
-});
-
-test('excuse-doctor CLI returns 0 only for the pinned core-range finding', () => {
+test('excuse-doctor never excuses findings now that the pin is gone', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'qz-expo-excuse-'));
   const pinJson = path.join(dir, 'pin.json');
   const doctorLog = path.join(dir, 'doctor.log');
   const checkJson = path.join(dir, 'check.json');
   writeFileSync(pinJson, JSON.stringify({ declaredRangeNewerThanPin: true }));
-  writeFileSync(doctorLog, VERSION_CHECK_LOG);
+  writeFileSync(
+    doctorLog,
+    [
+      '✖ Check packages match versions required by installed Expo SDK',
+      '  expo-modules-core@58.0.24 - expected ~58.0.28',
+      '',
+    ].join('\n'),
+  );
   writeFileSync(checkJson, JSON.stringify([{ packageName: 'expo-modules-core' }]));
-  const logs = [];
   const errors = [];
-  const ok = main(
+  const code = main(
     [
       'node',
       'scripts/expo-weekly-update.mjs',
@@ -405,31 +368,12 @@ test('excuse-doctor CLI returns 0 only for the pinned core-range finding', () =>
       checkJson,
     ],
     {
-      log: (line) => logs.push(String(line)),
+      log() {},
       error: (line) => errors.push(String(line)),
     },
   );
-  assert.equal(ok, 0, errors.join('\n'));
-  assert.match(logs.join('\n'), /expo-modules-core/);
-
-  writeFileSync(checkJson, JSON.stringify([{ packageName: 'expo-image' }]));
-  assert.equal(
-    main(
-      [
-        'node',
-        'scripts/expo-weekly-update.mjs',
-        'excuse-doctor',
-        '--pin-json',
-        pinJson,
-        '--doctor-log',
-        doctorLog,
-        '--check-json',
-        checkJson,
-      ],
-      { log() {}, error() {} },
-    ),
-    1,
-  );
+  assert.equal(code, 1);
+  assert.match(errors.join('\n'), /no doctor findings are excused/);
 });
 
 test('parseArgs and unknown commands stay strict', () => {
