@@ -46,6 +46,10 @@ def tokens(text):
     return set(re.findall('[a-z0-9]+', unicodedata.normalize('NFKD',text).casefold()))-STOP
 
 
+def concert_source_urls(source_strings):
+    return set(re.findall(r'https://www\.queenconcerts\.com/\S+', source_strings))
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--live-baseline',type=Path,help='Optional read-only production export (QuestionText, CorrectAnswer JSON).')
@@ -73,7 +77,7 @@ def main():
             old_sources.extend(read_csv(path))
     source_strings='\n'.join(r.get('Source','') for r in old_sources)
     used_history=set(re.findall(r'history key ([^;\s]+)',source_strings))
-    used_concerts=set(re.findall(r'https://www.queenconcerts.com/\S+',source_strings))
+    used_concerts=concert_source_urls(source_strings)
     pool=[]; rejected=[]; facts=set(); texts=set()
     reviewed_exclusions={row['FactKey']:row['Reason'] for row in read_csv(HERE/'excluded_facts.csv')}
 

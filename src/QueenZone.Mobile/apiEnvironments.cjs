@@ -1,3 +1,5 @@
+const { androidHostLoopback } = require('./emulator-network.json');
+
 /**
  * Shared API environment defaults for app.config (CommonJS) and the RN app.
  * Keep types/tests in src/QueenZone.Mobile/src/config/environments.ts wrapping this module.
@@ -83,7 +85,7 @@ function rewriteLoopbackForAndroid(apiBaseUrl, platform) {
 
   const url = new URL(apiBaseUrl);
   if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
-    url.hostname = '10.0.2.2';
+    url.hostname = androidHostLoopback;
   }
   return url.origin;
 }

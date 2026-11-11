@@ -23,14 +23,6 @@
       "exploitability": "Expo development/build certificate tooling only in the current graph; no application imports or OTA code-signing configuration. Signature-verification tooling remains affected; no patched release is published. Remove on a patched compatible release (#1996).",
       "owner": "QueenZone maintainers",
       "expires": "2026-12-31"
-    },
-    {
-      "ghsa": "GHSA-mrhx-c7xc-m3w5",
-      "package": "zod",
-      "via": "direct zod@^3.25.76 (deduped 3.25.76) and expo@58.0.17 -> @expo/cli@58.1.14",
-      "exploitability": "@expo/cli requires zod 3.x, so the patched 4.x line cannot be adopted yet. App runtime use is limited to parseContract validation of first-party QueenZone /api/v1 responses over HTTPS (constrained arrays capped at 225); an attacker would need to control the trusted API or TLS. Expo CLI uses it on local build config. Remove when Expo moves to a patched zod.",
-      "owner": "QueenZone maintainers",
-      "expires": "2026-12-31"
     }
   ]
 }

@@ -199,6 +199,8 @@ Copy `.env.example` to `.env` (git-ignored) for a sticky local override. Restart
 Metro after changing env vars.
 
 Android emulators rewrite `localhost` / `127.0.0.1` to `10.0.2.2` automatically.
+The emulator's host-loopback alias is configured in `emulator-network.json`.
+This rewrite applies only to Android loopback URLs; staging and production hosts are unchanged.
 Physical devices need your machine's LAN IP in `EXPO_PUBLIC_API_BASE_URL`.
 The Profile screen (Home masthead avatar) shows the active `appEnv` and resolved origin for a quick check.
 

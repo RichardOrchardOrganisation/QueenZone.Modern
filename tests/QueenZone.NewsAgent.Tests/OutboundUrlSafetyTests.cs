@@ -196,6 +196,10 @@ public sealed class OutboundUrlSafetyTests
     [InlineData("api.internal")]
     [InlineData("169.254.169.254")]
     [InlineData("metadata.google.internal")]
+    [InlineData("::ffff:169.254.169.254")]
+    [InlineData("169.254.43518")]
+    [InlineData("10.0.0.1")]
+    [InlineData("fe80::1")]
     public void IsBlockedHostName_InternalOrMetadataHost_ReturnsTrue(string host)
     {
         Assert.True(OutboundUrlSafety.IsBlockedHostName(host));
@@ -205,6 +209,8 @@ public sealed class OutboundUrlSafetyTests
     [InlineData("example.com")]
     [InlineData("localhost.example.com")]
     [InlineData("metadata.example.com")]
+    [InlineData("8.8.8.8")]
+    [InlineData("2606:4700:4700::1111")]
     public void IsBlockedHostName_PublicHost_ReturnsFalse(string host)
     {
         Assert.False(OutboundUrlSafety.IsBlockedHostName(host));

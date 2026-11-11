@@ -134,14 +134,9 @@ public static class OutboundUrlSafety
             return true;
         }
 
-        // Azure IMDS host
-        if (host.Equals("169.254.169.254", StringComparison.OrdinalIgnoreCase)
-            || host.Equals("metadata.google.internal", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        return false;
+        // Literal hosts use the same network policy as DNS results, including
+        // link-local metadata services. The .internal suffix above covers GCP.
+        return IPAddress.TryParse(host, out var address) && IsBlockedAddress(address);
     }
 
     public static bool IsBlockedAddress(IPAddress address)
