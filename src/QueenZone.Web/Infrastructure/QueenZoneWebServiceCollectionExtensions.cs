@@ -340,6 +340,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<MemberAccountDeletionService>();
         services.AddScoped<MemberAccountService>();
         services.AddScoped<MemberProfileService>();
+        services.AddScoped<LegacyAccountLinkService>();
         services.AddScoped<MemberAvatarService>();
         services.AddScoped<AppleAccountTokenService>();
         services.AddScoped<MemberDeletionReceiptService>();

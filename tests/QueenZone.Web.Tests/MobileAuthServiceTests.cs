@@ -1071,9 +1071,11 @@ public sealed class MobileAuthServiceTests
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
         var accounts = new MemberAccountService(
             repository,
-            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+            new LegacyAccountLinkService(
+                repository,
+                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+                new MemberProfileService(repository)),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberProfileService(repository),
             clock,
             Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
         var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
@@ -1283,9 +1285,11 @@ public sealed class MobileAuthServiceTests
     private static MemberAccountService CreateMemberAccountService(InMemoryMemberAccountRepository members) =>
         new(
             members,
-            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberProfileService(members));
+            new LegacyAccountLinkService(
+                members,
+                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+                new MemberProfileService(members)),
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
 
     private static async Task<MemberAccount> SeedPasswordAccountAsync(
         InMemoryMemberAccountRepository members,
@@ -1317,9 +1321,11 @@ public sealed class MobileAuthServiceTests
         var repository = accounts ?? new InMemoryMemberAccountRepository();
         var members = memberAccountService ?? new MemberAccountService(
             repository,
-            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberProfileService(repository));
+            new LegacyAccountLinkService(
+                repository,
+                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+                new MemberProfileService(repository)),
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
 
         var accountRateLimiter = new MobileAuthAccountRateLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(

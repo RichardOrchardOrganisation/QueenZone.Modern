@@ -12,6 +12,7 @@ namespace QueenZone.Web.Pages.Account;
 public sealed class SettingsModel(
     MemberAccountService memberAccountService,
     MemberProfileService memberProfileService,
+    LegacyAccountLinkService legacyAccountLinkService,
     MemberAvatarService memberAvatarService) : PageModel
 {
     public const string SuccessMessageKey = "AccountSettingsSuccess";
@@ -322,7 +323,7 @@ public sealed class SettingsModel(
             return Page();
         }
 
-        var result = await memberAccountService.ClaimLegacyAccountAsync(
+        var result = await legacyAccountLinkService.ClaimLegacyAccountAsync(
             memberId.Value,
             SelectedLegacyUserId.Value,
             AdoptLegacyDisplayName,
@@ -360,7 +361,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var result = await memberAccountService.UnlinkLegacyAccountAsync(memberId.Value, cancellationToken);
+        var result = await legacyAccountLinkService.UnlinkLegacyAccountAsync(memberId.Value, cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
             await PopulatePageAsync(account, cancellationToken);
@@ -451,7 +452,7 @@ public sealed class SettingsModel(
         Email = account.Email;
         HasAvatar = !string.IsNullOrWhiteSpace(account.AvatarUrl);
         LinkedProviders = await memberAccountService.ListExternalProvidersAsync(account.Id, cancellationToken);
-        LegacyLink = await memberAccountService.GetLegacyLinkStateAsync(account, cancellationToken);
+        LegacyLink = await legacyAccountLinkService.GetLegacyLinkStateAsync(account, cancellationToken);
         ScheduledDeletionAt = account.DeletionRequestedAt?.AddDays(MemberAccountDeletionPolicy.RetentionDays);
         ApplySocialInputs((await memberProfileService.ListSocialLinksAsync(account.Id, cancellationToken))
             .ToDictionary(link => link.Channel, link => (string?)link.Url));

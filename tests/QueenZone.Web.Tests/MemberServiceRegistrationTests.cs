@@ -19,6 +19,7 @@ public sealed class MemberServiceRegistrationTests : IClassFixture<MemberService
     [InlineData(typeof(MemberAccountDeletionService))]
     [InlineData(typeof(MemberAvatarService))]
     [InlineData(typeof(MemberProfileService))]
+    [InlineData(typeof(LegacyAccountLinkService))]
     public void MemberServices_ResolveFromValidatedProvider(Type serviceType)
     {
         using var scope = factory.Services.CreateScope();

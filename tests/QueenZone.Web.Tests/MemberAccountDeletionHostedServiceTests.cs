@@ -106,11 +106,13 @@ public sealed class MemberAccountDeletionHostedServiceTests
     {
         var memberService = new MemberAccountService(
             repository,
-            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+            new LegacyAccountLinkService(
+                repository,
+                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+                new MemberProfileService(repository)),
             new AzureBlobUploadService(
                 new InMemoryBlobStorageBackend(),
-                Options.Create(new BlobUploadOptions())),
-            new MemberProfileService(repository));
+                Options.Create(new BlobUploadOptions())));
 
         var services = new ServiceCollection();
         services.AddSingleton(memberService);
