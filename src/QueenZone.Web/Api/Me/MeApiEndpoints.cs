@@ -129,6 +129,7 @@ public static class MeApiEndpoints
     internal static async Task<IResult> PatchMeAsync(
         ClaimsPrincipal user,
         MemberAccountService memberAccountService,
+        MemberProfileService memberProfileService,
         MemberProfilePatchRequest? request,
         CancellationToken cancellationToken)
     {
@@ -153,7 +154,7 @@ public static class MeApiEndpoints
 
         if (hasName)
         {
-            var renamed = await memberAccountService.UpdateDisplayNameAsync(
+            var renamed = await memberProfileService.UpdateDisplayNameAsync(
                 memberId,
                 request.DisplayName!,
                 cancellationToken);
@@ -165,7 +166,7 @@ public static class MeApiEndpoints
 
         if (hasPrivacy)
         {
-            var privacy = await memberAccountService.UpdateMessagePrivacyAsync(
+            var privacy = await memberProfileService.UpdateMessagePrivacyAsync(
                 memberId,
                 request.MessagePrivacy!.Value,
                 cancellationToken);
@@ -177,7 +178,7 @@ public static class MeApiEndpoints
 
         if (hasTheme)
         {
-            var theme = await memberAccountService.UpdateThemePreferenceAsync(
+            var theme = await memberProfileService.UpdateThemePreferenceAsync(
                 memberId,
                 request.ThemePreference!.Value,
                 cancellationToken);
@@ -407,8 +408,8 @@ public static class MeApiEndpoints
             ToLegacyDto(legacyLink),
             scheduled,
             new MemberProfileLimitsDto(
-                MemberAccountService.MinDisplayNameLength,
-                MemberAccountService.MaxDisplayNameLength,
+                MemberProfileService.MinDisplayNameLength,
+                MemberProfileService.MaxDisplayNameLength,
                 MemberAvatarPaths.MaxUploadBytes,
                 [.. MemberAvatarPaths.AllowedContentTypes],
                 MemberAccountDeletionPolicy.RetentionDays),

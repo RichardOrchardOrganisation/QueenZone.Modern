@@ -131,10 +131,10 @@ public sealed class AdminReviewerAccountService(
             return ValidatedInput.Invalid("Enter a valid email address of at most 256 characters.");
         }
 
-        if (trimmedDisplayName.Length is < MemberAccountService.MinDisplayNameLength or > MemberAccountService.MaxDisplayNameLength)
+        if (trimmedDisplayName.Length is < MemberProfileService.MinDisplayNameLength or > MemberProfileService.MaxDisplayNameLength)
         {
             return ValidatedInput.Invalid(
-                $"Display name must be between {MemberAccountService.MinDisplayNameLength} and {MemberAccountService.MaxDisplayNameLength} characters.");
+                $"Display name must be between {MemberProfileService.MinDisplayNameLength} and {MemberProfileService.MaxDisplayNameLength} characters.");
         }
 
         var passwordError = ValidatePassword(password, passwordRequired);

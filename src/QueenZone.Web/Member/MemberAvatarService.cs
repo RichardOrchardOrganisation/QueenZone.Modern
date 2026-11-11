@@ -46,7 +46,7 @@ public sealed class MemberAvatarService(
         {
             return MemberAccountResult.Failure(
                 MemberAccountOutcome.PendingDeletion,
-                MemberAccountService.PendingDeletionEditError);
+                MemberProfileService.PendingDeletionEditError);
         }
 
         MemberAvatarImageProcessor.ProcessedAvatar processed;
@@ -159,7 +159,7 @@ public sealed class MemberAvatarService(
         {
             return MemberAccountResult.Failure(
                 MemberAccountOutcome.PendingDeletion,
-                MemberAccountService.PendingDeletionEditError);
+                MemberProfileService.PendingDeletionEditError);
         }
 
         if (string.IsNullOrWhiteSpace(account.AvatarUrl))
