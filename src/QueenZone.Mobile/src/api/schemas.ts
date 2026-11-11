@@ -20,7 +20,8 @@ export class ContractAssertionError extends Error {
 }
 
 const isoDateTime = z.string().min(1);
-const guid = z.string().uuid();
+// The API exposes .NET GUIDs, which do not require RFC UUID version/variant bits.
+const guid = z.guid();
 
 export const problemDetailsSchema = z
   .object({
