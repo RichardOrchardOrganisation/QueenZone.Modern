@@ -46,7 +46,7 @@ public sealed class CrosswordReplayTests : E2EPageTest
     {
         await Page.GotoAsync("/crosswords/meet-the-band");
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
-        await Page.WaitForFunctionAsync("navigator.serviceWorker.controller !== null");
+        await Page.WaitForFunctionAsync("() => navigator.serviceWorker.controller !== null");
         await Page.ReloadAsync();
         await Page.WaitForFunctionAsync("async () => (await caches.match(location.href))?.headers.get('X-QueenZone-Crossword-Shell') === 'public'");
         await Page.Locator("[data-cell='0']").ClickAsync(); await Page.Keyboard.TypeAsync("Z");
