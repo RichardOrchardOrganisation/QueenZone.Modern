@@ -272,6 +272,33 @@ test('truncated HTTP 200 socket FIN rejects without hanging and removes the part
   }
 });
 
+test('failed download waits for a pending file open before cleanup and rejection', { timeout: 5000 }, async (t) => {
+  const fs = require('node:fs');
+  const createWriteStream = fs.createWriteStream;
+  let stream;
+  t.mock.method(fs, 'createWriteStream', (dest) => {
+    stream = createWriteStream(dest, {
+      fs: { ...fs, open: (...args) => setTimeout(() => fs.open(...args), 50) },
+    });
+    return stream;
+  });
+  const fixture = layout();
+  const dest = join(fixture.root, 'pending-open-download');
+  const { server, base } = await listen((req, res) => {
+    res.writeHead(200, { 'Content-Length': payload.length });
+    res.write(payload.subarray(0, 8));
+    req.socket.end();
+  });
+  try {
+    await assert.rejects(downloadToFile(`${base}/binary`, dest), /closed before|truncated|socket hang up|ECONNRESET/i);
+    assert.ok(stream, 'response must have started the file stream');
+    assert.equal(stream.closed, true, 'cleanup must finish before the caller can retry');
+    assert.equal(existsSync(dest), false);
+  } finally {
+    await closeServer(server);
+  }
+});
+
 test('truncated HTTP 200 body retries and stages the pinned binary without hanging', { timeout: 5000 }, async () => {
   const started = Date.now();
   const fixture = layout();
