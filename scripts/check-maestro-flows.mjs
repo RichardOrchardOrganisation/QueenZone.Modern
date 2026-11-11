@@ -50,6 +50,24 @@ function blockOf(lines, index) {
   return body;
 }
 
+/**
+ * Splits a YAML line into `{ item, key, value }` without regex backtracking.
+ * `item` is true for a `- key: value` sequence entry. Returns null for
+ * comments, blanks and lines that are not a simple `key[: value]`.
+ */
+export function parseKeyLine(line) {
+  let rest = line.trim();
+  if (rest === '' || rest.startsWith('#')) return null;
+  const item = rest.startsWith('- ');
+  if (item) rest = rest.slice(2).trimStart();
+  const colon = rest.indexOf(':');
+  const key = colon === -1 ? rest : rest.slice(0, colon);
+  if (key === '' || /[^A-Za-z]/.test(key)) return null;
+  return { item, key, value: colon === -1 ? '' : rest.slice(colon + 1).trim() };
+}
+
+const isDigits = value => value !== '' && [...value].every(ch => ch >= '0' && ch <= '9');
+
 /** Direct child `key: value` of the block at `index`, or undefined. */
 function childValue(lines, index, key) {
   const body = blockOf(lines, index);
@@ -57,21 +75,27 @@ function childValue(lines, index, key) {
   const childIndent = indentOf(lines[body[0]]);
   for (const i of body) {
     if (indentOf(lines[i]) !== childIndent) continue;
-    const match = new RegExp(`^\\s*${key}:\\s*(.*)$`).exec(lines[i]);
-    if (match) return match[1].trim();
+    const parsed = parseKeyLine(lines[i]);
+    if (parsed?.key === key) return parsed.value;
   }
   return undefined;
 }
 
 export function suiteFlows(suiteText) {
-  return [...suiteText.matchAll(/^- runFlow:\s*(\S+\.yaml)\s*$/gm)].map(match => match[1]);
+  return suiteText
+    .split(/\r?\n/)
+    .filter(line => indentOf(line) === 0)
+    .map(parseKeyLine)
+    .filter(parsed => parsed?.item && parsed.key === 'runFlow' && parsed.value.endsWith('.yaml'))
+    .map(parsed => parsed.value);
 }
 
 export function firstCommand(text) {
   const { lines, start } = commandLines(text);
   for (let i = start; i < lines.length; i++) {
-    const match = /^- ([A-Za-z]+)(?::\s*(.*))?$/.exec(lines[i]);
-    if (match) return { name: match[1], value: (match[2] ?? '').trim() };
+    if (indentOf(lines[i]) !== 0) continue;
+    const parsed = parseKeyLine(lines[i]);
+    if (parsed?.item) return { name: parsed.key, value: parsed.value };
   }
   return null;
 }
@@ -80,39 +104,47 @@ export function ownsStartState(text) {
   const first = firstCommand(text);
   if (!first) return false;
   if (first.name === 'launchApp' || first.name === 'openLink') return true;
-  return first.name === 'runFlow' && /^(common\/|open-)/.test(first.value);
+  return first.name === 'runFlow' && (first.value.startsWith('common/') || first.value.startsWith('open-'));
 }
 
-/** Returns [{ rule, line, message }] for the rules that apply to every flow file. */
+function checkWait(lines, i) {
+  const timeout = childValue(lines, i, 'timeout');
+  if (timeout === undefined) return 'extendedWaitUntil has no timeout';
+  if (!isDigits(timeout) || Number(timeout) > MAX_WAIT_MS) return `timeout ${timeout} exceeds ${MAX_WAIT_MS}ms`;
+  return null;
+}
+
+function checkRetry(lines, i, start) {
+  const problems = [];
+  const max = childValue(lines, i, 'maxRetries');
+  if (max === undefined || !isDigits(max) || Number(max) > 1) {
+    problems.push(`retry maxRetries must be 0 or 1 (got ${max ?? 'default'})`);
+  }
+  const above = lines.slice(Math.max(start, i - COMMENT_LOOKBACK), i);
+  if (!above.some(prev => prev.trim().startsWith('#'))) {
+    problems.push('retry needs a comment above naming the infrastructure symptom');
+  }
+  return problems;
+}
+
+/** Returns [{ rule, line, message }] for one flow file. */
 export function checkFlowText(text, { suiteFlow = false } = {}) {
   const findings = [];
+  const add = (rule, line, message) => findings.push({ rule, line, message });
   const { lines, start } = commandLines(text);
   for (let i = start; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*-?\s*extendedWaitUntil:\s*$/.test(line)) {
-      const timeout = childValue(lines, i, 'timeout');
-      if (timeout === undefined) {
-        findings.push({ rule: 'bounded-wait', line: i + 1, message: 'extendedWaitUntil has no timeout' });
-      } else if (!/^\d+$/.test(timeout) || Number(timeout) > MAX_WAIT_MS) {
-        findings.push({ rule: 'bounded-wait', line: i + 1, message: `timeout ${timeout} exceeds ${MAX_WAIT_MS}ms` });
-      }
-    }
-    if (/^\s*-?\s*retry:\s*$/.test(line)) {
-      const max = childValue(lines, i, 'maxRetries');
-      if (max === undefined || !/^\d+$/.test(max) || Number(max) > 1) {
-        findings.push({ rule: 'retry-justified', line: i + 1, message: `retry maxRetries must be 0 or 1 (got ${max ?? 'default'})` });
-      }
-      const above = lines.slice(Math.max(start, i - COMMENT_LOOKBACK), i);
-      if (!above.some(prev => prev.trim().startsWith('#'))) {
-        findings.push({ rule: 'retry-justified', line: i + 1, message: 'retry needs a comment above naming the infrastructure symptom' });
-      }
-    }
-    if (suiteFlow && /^\s*optional:\s*true\s*$/.test(line)) {
-      findings.push({ rule: 'no-optional', line: i + 1, message: 'suite flows must not mark a step optional' });
+    const parsed = parseKeyLine(lines[i]);
+    if (parsed?.key === 'extendedWaitUntil' && parsed.value === '') {
+      const problem = checkWait(lines, i);
+      if (problem) add('bounded-wait', i + 1, problem);
+    } else if (parsed?.key === 'retry' && parsed.value === '') {
+      for (const problem of checkRetry(lines, i, start)) add('retry-justified', i + 1, problem);
+    } else if (suiteFlow && parsed?.key === 'optional' && !parsed.item && parsed.value === 'true') {
+      add('no-optional', i + 1, 'suite flows must not mark a step optional');
     }
   }
   if (suiteFlow && !ownsStartState(text)) {
-    findings.push({ rule: 'start-state', line: 1, message: 'suite flow must start with launchApp, openLink, or a common/* or open-* setup subflow' });
+    add('start-state', 1, 'suite flow must start with launchApp, openLink, or a common/* or open-* setup subflow');
   }
   return findings;
 }
@@ -124,7 +156,7 @@ function yamlFiles(dir) {
     if (entry.isDirectory()) out.push(...yamlFiles(full));
     else if (entry.name.endsWith('.yaml')) out.push(full);
   }
-  return out.sort();
+  return out.sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -154,7 +186,7 @@ export function compareToBaseline(violations, baseline) {
   const found = new Set(violations.map(v => v.key));
   return {
     newViolations: violations.filter(v => !allowed.has(v.key)),
-    stale: [...allowed].filter(key => !found.has(key)).sort(),
+    stale: [...allowed].filter(key => !found.has(key)).sort((a, b) => a.localeCompare(b)),
   };
 }
 

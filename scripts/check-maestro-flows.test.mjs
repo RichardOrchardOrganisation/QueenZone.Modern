@@ -8,6 +8,7 @@ import {
   collectViolations,
   compareToBaseline,
   firstCommand,
+  parseKeyLine,
   ownsStartState,
   suiteFlows,
 } from './check-maestro-flows.mjs';
@@ -82,4 +83,14 @@ test('collectViolations treats only gating-suite flows as suite flows', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('line parser handles items, bare commands, values and non-keys', () => {
+  assert.deepEqual(parseKeyLine('- launchApp'), { item: true, key: 'launchApp', value: '' });
+  assert.deepEqual(parseKeyLine('- runFlow: common/home-top.yaml'), { item: true, key: 'runFlow', value: 'common/home-top.yaml' });
+  assert.deepEqual(parseKeyLine('          optional: true'), { item: false, key: 'optional', value: 'true' });
+  assert.deepEqual(parseKeyLine("      text: '^Open$'"), { item: false, key: 'text', value: "'^Open$'" });
+  assert.equal(parseKeyLine('# comment'), null);
+  assert.equal(parseKeyLine('   '), null);
+  assert.equal(parseKeyLine('- tapOn: Appearance'.replace('tapOn', 'tap On')), null);
 });

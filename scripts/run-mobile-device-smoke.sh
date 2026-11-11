@@ -785,6 +785,7 @@ write_failure_summary() {
         case "$line" in
           "Maestro failing flow: "*) echo "- Flow: \`${line#Maestro failing flow: }\`" ;;
           "Maestro failing selector: "*) echo "- Selector: \`${line#Maestro failing selector: }\`" ;;
+          *) ;; # Other diagnostics stay in the step log only.
         esac
       done <<< "$signature"
     else
