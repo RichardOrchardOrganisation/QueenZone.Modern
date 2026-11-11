@@ -98,6 +98,8 @@ typed persistent-control exception. See
 mutation. Evaluator logic stays in `MutationAbuseControlContractTests` (no
 per-test `WithWebHostBuilder` host). Authentication alone is not throttling.
 
+`appsettings.Testing.json` gives mutation policies a 1,000-request allowance so browser/device suites sharing a loopback IP do not consume each other's production-sized burst budget. Production defaults stay unchanged. `MutationRateLimitRouteTests` uses explicit low-limit host variants to verify rejection, partition isolation and Retry-After behaviour.
+
 **Output cache:** environment `Testing` disables public HTML output caching so cases stay deterministic. Production-shaped hit/miss, compression, static-asset cache headers, and mobile-auth startup coverage share one Production-environment host via `ProductionHostCollection` / `ProductionHostFixture`. Tests that read cache or counting-repository state call `ResetAsync()` (start the host, evict output-cache tags, then zero counters). Fail-closed Production settings live on `ProductionHostSettings`; a different Production boot (for example no mobile signing key) is a named variant in `WebHostVariants.cs`, not a per-test host. No extra secrets or env vars are required for a normal `dotnet test` run.
 
 Admin editorial routes also have a second HTTP integration layer that wires `EfAdminNewsRepository` and `EfNewsDiscoveryRepository` through SQLite (`AdminNewsEfRoutesTests`, `AdminNewsDiscoveryEfRoutesTests`). Use that layer for create/edit/publish/promote persistence checks that in-memory fakes cannot catch.
@@ -675,6 +677,8 @@ unit / component (npm test, #833)
 Node + Jest tests (`npm test`, fast, no native toolchain) are not a substitute for `mobile-android` / `mobile-ios` compile, and those unsigned CI compiles are not device coverage — they never boot the binary. Static TypeScript and generated OpenAPI → TS types are not a substitute for the consumer-contract suite: `src/api/client.ts` uses `fetch` plus `as T`, so a renamed JSON field still typechecks. Device smoke does not re-test #833 state permutations and does not replace #869 contracts.
 
 ### Mobile device smoke (#872 Option A)
+
+The opt-in [mobile device reliability pilot](mobile-reliability-pilot.md) defines a bounded before/after experiment for photos and attachments on both platforms. It preserves first-attempt evidence, separates infrastructure failures from app outcomes, and requires deliberate defect checks before adopting broader rules. Its historical job inventory is not a controlled flake rate; no new merge gate is introduced.
 
 Maestro drives the same short journey on Android emulator and iOS Simulator. The smoke path rebuilds a **Release-embedded** binary (`assembleRelease` / `-configuration Release`) with `EXPO_PUBLIC_API_BASE_URL` baked for the runner (`http://10.0.2.2:<port>` on Android, `http://127.0.0.1:<port>` on iOS) because that origin is bake-time (`apiEnvironments.cjs` / `app.config.ts`). Debug / expo-dev-client APKs wait for Metro and never reach `home-screen` (#1322). Do not host Metro in Actions. Sideloaded compile-only artifacts aimed at production cannot talk to the local Testing host. Staging/production publish recipes are unchanged. Generated `android/` and `ios/` stay uncommitted. Local `expo start` + Debug remains for developers.
 

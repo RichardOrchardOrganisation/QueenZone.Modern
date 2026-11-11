@@ -108,13 +108,20 @@ function wrapDownloadError(error) {
   return wrapped;
 }
 
-function destroyDownload({ request, response, file, dest } = {}) {
+async function destroyDownload({ request, response, file, dest } = {}) {
   if (response) {
     response.unpipe();
     response.destroy();
   }
   if (request) request.destroy();
-  if (file) file.destroy();
+  if (file && !file.closed) {
+    // createWriteStream opens asynchronously. Wait for close before removing
+    // the partial, otherwise a pending open can recreate it after cleanup.
+    await new Promise(resolve => {
+      file.once('close', resolve);
+      file.destroy();
+    });
+  }
   if (dest) fs.rmSync(dest, { force: true });
 }
 
@@ -141,8 +148,10 @@ function downloadToFile(url, dest, options = {}) {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      destroyDownload({ request, response, file, dest });
-      reject(wrapDownloadError(error));
+      destroyDownload({ request, response, file, dest }).then(
+        () => reject(wrapDownloadError(error)),
+        cleanupError => reject(wrapDownloadError(cleanupError)),
+      );
     };
     timer = setTimeout(() => fail(timeoutError()), remaining);
     const lib = url.startsWith('https:') ? https : http;
