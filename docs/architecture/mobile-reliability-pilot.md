@@ -57,6 +57,8 @@ node scripts/collect-mobile-reliability.mjs <new-output.json> <run-id> <another-
 
 Match each run's `headSha` and dispatch time to the receipt. Do not infer run identity from "latest" alone. The collector is read-only, retrieves every Actions attempt and job page, and refuses to overwrite an existing output. API failure aborts collection; it does not fabricate missing results.
 
+The collector resolves GitHub CLI only from standard absolute installation paths. For another trusted installation, set `GH_EXECUTABLE` to its absolute path; it never searches `PATH`.
+
 For each cell/repetition, copy and complete this receipt alongside the collected JSON:
 
 ```json

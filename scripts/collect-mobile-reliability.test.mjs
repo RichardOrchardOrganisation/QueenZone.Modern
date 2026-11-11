@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { collect, measurement, summarize } from './collect-mobile-reliability.mjs';
+import { collect, measurement, summarize, resolveGhExecutable } from './collect-mobile-reliability.mjs';
+import { resolve } from 'node:path';
+
+test('GitHub CLI resolution never searches PATH and rejects relative overrides', () => {
+  assert.throws(() => resolveGhExecutable({ GH_EXECUTABLE: 'gh' }), /absolute path/);
+  assert.throws(() => resolveGhExecutable({ PATH: '/untrusted' }, () => false), /trusted GitHub CLI/);
+  assert.equal(resolveGhExecutable({ GH_EXECUTABLE: resolve('gh') }), resolve('gh'));
+  assert.equal(resolveGhExecutable({}, candidate => candidate === '/usr/bin/gh'), '/usr/bin/gh');
+});
 
 const run = { id: 12, head_sha: 'abc', path: '.github/workflows/mobile-device-smoke.yml', run_attempt: 2 };
 const job = { id: 3, name: 'Mobile iOS device smoke', status: 'completed', conclusion: 'success',

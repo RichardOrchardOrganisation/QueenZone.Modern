@@ -1,8 +1,20 @@
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
+import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const repository = 'RichardOrchardOrganisation/QueenZone.Modern';
+
+export function resolveGhExecutable(env = process.env, exists = existsSync) {
+  if (env.GH_EXECUTABLE) {
+    if (!isAbsolute(env.GH_EXECUTABLE)) throw new Error('GH_EXECUTABLE must be an absolute path.');
+    return env.GH_EXECUTABLE;
+  }
+  const executable = ['/usr/bin/gh', '/usr/local/bin/gh', '/opt/homebrew/bin/gh',
+    String.raw`C:\Program Files\GitHub CLI\gh.exe`].find(candidate => exists(candidate));
+  if (!executable) throw new Error('Set GH_EXECUTABLE to the absolute path of your trusted GitHub CLI installation.');
+  return executable;
+}
 
 // Metadata cannot prove a first-pass Maestro result: the harness can recover
 // within one Actions job. Leave that field unknown until artifacts are reviewed.
@@ -38,6 +50,16 @@ export function summarize(rows) {
   return [...groups.values()];
 }
 
+function collectAttempt(run, attempt, api) {
+  const rows = [];
+  for (let page = 1; ; page++) {
+    const result = api(`actions/runs/${run.id}/attempts/${attempt}/jobs?per_page=100&page=${page}`);
+    if (!Array.isArray(result.jobs)) throw new Error(`Missing jobs for ${run.id}, attempt ${attempt}`);
+    rows.push(...result.jobs.map(job => measurement(run, job, attempt)).filter(Boolean));
+    if (result.jobs.length < 100) return rows;
+  }
+}
+
 export function collect(runIds, api) {
   const rows = [];
   for (const id of new Set(runIds)) {
@@ -46,15 +68,7 @@ export function collect(runIds, api) {
     if (run.path !== '.github/workflows/mobile-device-smoke.yml') throw new Error(`Run ${id} is not mobile-device-smoke.yml`);
     if (!Number.isInteger(run.run_attempt) || run.run_attempt < 1) throw new Error(`Run ${id} has no valid attempt count`);
     for (let attempt = 1; attempt <= run.run_attempt; attempt++) {
-      for (let page = 1; ; page++) {
-        const result = api(`actions/runs/${id}/attempts/${attempt}/jobs?per_page=100&page=${page}`);
-        if (!Array.isArray(result.jobs)) throw new Error(`Missing jobs for ${id}, attempt ${attempt}`);
-        for (const job of result.jobs) {
-          const row = measurement(run, job, attempt);
-          if (row) rows.push(row);
-        }
-        if (result.jobs.length < 100) break;
-      }
+      rows.push(...collectAttempt(run, attempt, api));
     }
   }
   return { schemaVersion: 1, collectedAt: new Date().toISOString(), repository,
@@ -65,7 +79,8 @@ export function collect(runIds, api) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [output, ...ids] = process.argv.slice(2);
   if (!output || ids.length === 0) throw new Error('Usage: node scripts/collect-mobile-reliability.mjs OUTPUT.json RUN_ID [RUN_ID ...]');
-  const report = collect(ids, endpoint => JSON.parse(execFileSync('gh', ['api', `repos/${repository}/${endpoint}`], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 })));
+  const gh = resolveGhExecutable();
+  const report = collect(ids, endpoint => JSON.parse(execFileSync(gh, ['api', `repos/${repository}/${endpoint}`], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 })));
   writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' });
   console.log(`Recorded ${report.rows.length} device job attempts in ${output}. First-pass results require artifact review.`);
 }

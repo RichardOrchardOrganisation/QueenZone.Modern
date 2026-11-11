@@ -98,6 +98,8 @@ typed persistent-control exception. See
 mutation. Evaluator logic stays in `MutationAbuseControlContractTests` (no
 per-test `WithWebHostBuilder` host). Authentication alone is not throttling.
 
+`appsettings.Testing.json` gives mutation policies a 1,000-request allowance so browser/device suites sharing a loopback IP do not consume each other's production-sized burst budget. Production defaults stay unchanged. `MutationRateLimitRouteTests` uses explicit low-limit host variants to verify rejection, partition isolation and Retry-After behaviour.
+
 **Output cache:** environment `Testing` disables public HTML output caching so cases stay deterministic. Production-shaped hit/miss, compression, static-asset cache headers, and mobile-auth startup coverage share one Production-environment host via `ProductionHostCollection` / `ProductionHostFixture`. Tests that read cache or counting-repository state call `ResetAsync()` (start the host, evict output-cache tags, then zero counters). Fail-closed Production settings live on `ProductionHostSettings`; a different Production boot (for example no mobile signing key) is a named variant in `WebHostVariants.cs`, not a per-test host. No extra secrets or env vars are required for a normal `dotnet test` run.
 
 Admin editorial routes also have a second HTTP integration layer that wires `EfAdminNewsRepository` and `EfNewsDiscoveryRepository` through SQLite (`AdminNewsEfRoutesTests`, `AdminNewsDiscoveryEfRoutesTests`). Use that layer for create/edit/publish/promote persistence checks that in-memory fakes cannot catch.
