@@ -2,6 +2,8 @@
 
 Measure the Photos tab → Brian May category → photo 101 → wallpaper/Save controls → close journey, and the signed-in Forum reply → attach → publish → open → return journey. Both must retain all existing taps, assertions and destination checks. Standalone trials remove unrelated suite failures from the path. They do not test state carried over from preceding flows. The attachment journey uses the local Testing host and its seeded topic. No production account, data or device is involved. The fixture injection and opened marker cover the app download path. Native picker and viewer behavior require separate evidence.
 
+The [Maestro flow rules](testing-policy.md#mobile-device-smoke-872-option-a) remain in the testing policy. The flow checker and its shrink-only baseline remain the policy enforcement. This pilot measures two proposed changes to existing journeys and leaves the tracked flow baseline as-is.
+
 ## Fixed comparison
 
 - Record one full pilot commit SHA before dispatch. Use one fixed SHA per platform cohort for the workflow, app, Testing host, fixtures and all six modes. The app and original flows start from `2f6e8963f4b54e6c5c53631cb52e983e34744ec3` (includes the attachment download change from #2451).
@@ -38,7 +40,7 @@ Consider a limited follow-up only if both defect checks fail at the intended ass
 
 `node scripts/collect-mobile-reliability.mjs OUTPUT.json RUN_ID ...` reads Actions job metadata for the selected device runs, including skipped jobs and all workflow attempts. It cannot infer inner Maestro attempts from job metadata. Use job logs and artifacts for trial results.
 
-The snapshot contained 12 workflow runs at attempt 1, two revisions (`9f69f20d`, `f2885bcb`), two scheduled runs and ten manual dispatches, using hosted and self-hosted runners. Of 14 non-skipped device jobs, 9 succeeded and 5 failed. This mixes suites, revisions and runner classes, and includes job-level results that do not measure first attempts.
+A follow-up spot check covered 12 workflow runs at attempt 1, two revisions (`9f69f20d`, `f2885bcb`), two scheduled runs and ten manual dispatches, using hosted and self-hosted runners. Of 14 non-skipped device jobs, 9 succeeded and 5 failed. This mixes suites, revisions and runner classes, and includes job-level results that do not measure first attempts.
 
 | Run | Platform and suite | Observed result |
 | --- | --- | --- |
@@ -50,6 +52,52 @@ The snapshot contained 12 workflow runs at attempt 1, two revisions (`9f69f20d`,
 
 The remaining selected runs were [42949154973](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42949154973), 42938362688, 42935567977, 42927720285, 42920234721, 42802963475, 42782892540 and 42780139694. These reported successful iOS extended jobs and require invocation logs to determine first-attempt outcomes.
 
-## Controlled trial record
+## Controlled trial record, 11 November 2026
 
-Record the fixed SHA and each job outcome here once the jobs have finished.
+The hosted iOS cohort ran at `73852d4f027aa6f6f018ec9e54c465249443b9bb`. All six initial Android jobs on that revision booted the emulator, then stopped before Maestro. The pilot's version probe started a separate emulator process without the boot command's `-noaudio` setting. It exited 127 because `libpulse.so.0` was unavailable. The workflow's selector-failure message was incorrect.
+
+The corrected Android cohort ran at `cd54c67dbb90ac73ec6910dbd76226d193377c5e`, which reads the installed emulator revision from SDK package metadata. The six aborted jobs count against the device budget and are excluded from the controlled Android pass counts. The corrected revision uses the same app and base flows and incorporates the merged Testing host configuration from #2472. All baseline/candidate comparisons are within one platform and SHA.
+
+- **iOS toolchain** · Hosted `macos26/20261102.0473.1`, Xcode 26.6 (17F113), iOS 26.5 Simulator (23F77), Java 21.0.13, Node 24.22.2, .NET SDK 10.0.404 and Maestro 2.12.1.
+- **Android toolchain** · Hosted `ubuntu26/20261101.186.1`, Java 17.0.21, Node 24.22.2, .NET SDK 10.0.404, Maestro 2.12.1, emulator 37.2.13 and ADB 37.0.1-15733141. The API 34 Google APIs x86_64 fingerprint was `google/sdk_gphone64_x86_64/emu64xa:14/UE1A.230829.050/12077443:userdebug/dev-keys`.
+
+Each passing journey below has a successful invocation marker and one passing JUnit case. Each deliberate defect has one failing JUnit case at the named assertion. The iOS Photos candidate in pair 1 produced no JUnit case on either invocation. XCTest driver startup timed out both before and after the simulator reboot. The normal journey therefore did not reach the app. Job times are in UTC and first-invocation seconds include Maestro driver startup.
+
+| Journey and mode | Platform | Job UTC | Job seconds | Job result | First Maestro result | First seconds | Recovery | Evidence |
+| --- | --- | --- | ---: | --- | --- | ---: | --- | --- |
+| Photos baseline | Android | 06:54:45–07:31:02 | 2177 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975713306/job/130374203049), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975713306/artifacts/13836658947) |
+| Photos baseline | iOS | 06:54:56–07:37:18 | 2542 | success | Pass | 272 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975713306/job/130374264464), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975713306/artifacts/13836643872) |
+| Attachment baseline | Android | 06:54:48–07:25:13 | 1825 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975718030/job/130374217469), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975718030/artifacts/13837185361) |
+| Attachment baseline | iOS | 06:54:56–07:34:55 | 2399 | success | Pass | 271 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975718030/job/130374261931), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975718030/artifacts/13837476405) |
+| Photos candidate | Android | 06:54:50–07:24:15 | 1765 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975721896/job/130374231037), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975721896/artifacts/13836901185) |
+| Photos candidate | iOS | 06:54:58–07:44:39 | 2981 | failure | Driver startup timeout | 140 | Failed | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975721896/job/130374280035), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975721896/artifacts/13838250509) |
+| Attachment candidate | Android | 06:54:52–07:34:07 | 2355 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975725969/job/130374243488), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975725969/artifacts/13837795414) |
+| Attachment candidate | iOS | 06:55:02–07:43:25 | 2903 | success | Pass | 348 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975725969/job/130374296935), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975725969/artifacts/13838115834) |
+| Photos defect | Android | 06:54:54–07:25:10 | 1816 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975729867/job/130374256091), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975729867/artifacts/13836359232) |
+| Photos defect | iOS | 06:55:06–07:23:44 | 1718 | failure | Missing `photos-screen` | 140 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975729867/job/130374324640), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975729867/artifacts/13836766733) |
+| Attachment defect | Android | 06:54:56–07:30:39 | 2143 | failure | No start | — | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975734421/job/130374269434), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975734421/artifacts/13837480758) |
+| Attachment defect | iOS | 07:23:46–08:08:13 | 2667 | failure | Missing `forum-thread-attachment-opened` | 324 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975734421/job/130374335177), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42975734421/artifacts/13838428801) |
+| Photos baseline (corrected) | Android | 07:27:43–07:54:48 | 1625 | success | Pass | 37 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979654159/job/130386821981), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979654159/artifacts/13837229298) |
+| Attachment baseline (corrected) | Android | 07:27:45–08:05:19 | 2254 | success | Pass | 88 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979657997/job/130386832887), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979657997/artifacts/13838213534) |
+| Photos candidate (corrected) | Android | 07:27:47–08:06:37 | 2330 | success | Pass | 51 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979661890/job/130386847826), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979661890/artifacts/13839061090) |
+| Attachment candidate (corrected) | Android | 07:27:49–08:07:23 | 2374 | success | Pass | 87 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979665796/job/130386860568), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979665796/artifacts/13838378882) |
+| Photos defect (corrected) | Android | 07:27:51–08:06:10 | 2299 | failure | Missing `photos-screen` | 62 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979669858/job/130386874112), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979669858/artifacts/13838587791) |
+| Attachment defect (corrected) | Android | 07:27:53–08:07:09 | 2356 | failure | Missing `forum-thread-attachment-opened` | 114 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979673948/job/130386887208), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42979673948/artifacts/13838732730) |
+| Photos candidate (pair 2) | iOS | 07:45:55–08:28:48 | 2573 | success | Pass | 276 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42981847987/job/130393926488), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42981847987/artifacts/13840475935) |
+| Photos baseline (pair 2) | iOS | 07:45:58–08:32:15 | 2777 | success | Pass | 301 | None | [Job](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42981852305/job/130393930663), [artifact](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/actions/runs/42981852305/artifacts/13839174960) |
+
+### Outcome and decision
+
+| Platform | Normal jobs starting Maestro | Baseline first passes | Candidate first passes | Deliberate defects detected | Recovery |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Android, corrected cohort | 4/4 | 2/2 | 2/2 | 2/2 | None |
+| iOS | 6/6 | 3/3 | 2/3 | 2/2 | One driver restart, unsuccessful |
+| Total | 10/10 | 5/5 | 4/5 | 4/4 | 0/1 successful |
+
+Including the first Android cohort, 14 of 20 device jobs started Maestro. The six setup failures, one driver failure, four deliberate assertion failures, and nine normal passes account for all device jobs. There were no unexpected app assertion failures or native app crashes in the controlled jobs. Every normal journey that reached the app passed. The second iOS Photos pair ran candidate first, then baseline, and both passed on their first invocations.
+
+The pilot used all 20 device-job slots and 45,879 device-job seconds (about 765 runner minutes) across 14 dispatches. This includes the initial Android setup failures and excludes the short iOS chooser jobs. There were no Actions reruns. The platform-only replacements used the original device-job and runner-minute budget.
+
+Do not adopt either candidate on this evidence. The original app-level failures did not recur in the isolated journeys, the iOS driver failure never reached the Photos flow, and the budget allowed one complete app-level pair per platform/journey. On iOS, the attachment candidate's first invocation took 348 seconds versus 271 for baseline, although the reported flow was shorter (177 versus 259 seconds). The job evidence does not attribute that difference to the changed assertion deadline. These results support preserving the required assertions and recording startup failures separately. Broader reliability rules or a long-term failure rate require different evidence.
+
+The measured revisions predate the harness cleanup and flow checker in #2473. The findings branch preserves that work and verifies the combined scripts locally. Artifact links point to the fixed trial revisions.

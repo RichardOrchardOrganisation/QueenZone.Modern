@@ -34,6 +34,56 @@ if [[ -z "${GITHUB_ENV:-}" ]]; then
   exit 1
 fi
 
+# A runner killed mid-job (service restart, Mac sleep/reboot, cancel past the
+# grace period) never reaches the always() cleanup, so its job Simulator stays
+# behind, sometimes still booted. Delete only QueenZone-CI-iOS-* devices whose
+# device.plist has not changed for IOS_CI_SIM_STALE_HOURS (default 6, well past
+# the 90-minute job timeout). Never touches other simulators, and a failed
+# sweep never fails the job.
+sweep_stale_job_simulators() {
+  local stale
+  stale="$(
+    IOS_CI_XCRUN="${xcrun_cmd}" \
+    IOS_CI_SIM_DEVICES_DIR="${IOS_CI_SIM_DEVICES_DIR:-${HOME}/Library/Developer/CoreSimulator/Devices}" \
+    IOS_CI_SIM_STALE_HOURS="${IOS_CI_SIM_STALE_HOURS:-6}" \
+    python3 - <<'PY'
+import json, os, subprocess, sys, time
+
+xcrun = os.environ["IOS_CI_XCRUN"]
+devices_dir = os.environ["IOS_CI_SIM_DEVICES_DIR"]
+max_age = float(os.environ["IOS_CI_SIM_STALE_HOURS"]) * 3600
+devices = json.loads(subprocess.check_output([xcrun, "simctl", "list", "-j", "devices"], text=True)).get("devices") or {}
+now = time.time()
+for runtime_devices in devices.values():
+    for device in runtime_devices or []:
+        name = str(device.get("name") or "")
+        udid = str(device.get("udid") or "")
+        if not name.startswith("QueenZone-CI-iOS-") or not udid:
+            continue
+        plist = os.path.join(devices_dir, udid, "device.plist")
+        try:
+            age = now - os.path.getmtime(plist)
+        except OSError:
+            continue
+        if age > max_age:
+            print(f"{udid}\t{name}\t{device.get('state', '?')}\t{age / 3600:.1f}")
+PY
+  )" || {
+    echo "::warning::Could not list simulators to sweep stale QueenZone-CI-iOS-* devices; continuing."
+    return 0
+  }
+  [[ -n "${stale}" ]] || return 0
+  local udid name state hours
+  while IFS=$'\t' read -r udid name state hours; do
+    [[ -n "${udid}" ]] || continue
+    echo "Deleting abandoned job simulator ${name} (${udid}; ${state}; untouched ${hours}h)"
+    "${xcrun_cmd}" simctl shutdown "${udid}" >/dev/null 2>&1 || true
+    "${xcrun_cmd}" simctl delete "${udid}" >/dev/null 2>&1 || true
+  done <<< "${stale}"
+}
+
+sweep_stale_job_simulators
+
 pick="$(
   IOS_CI_XCRUN="${xcrun_cmd}" python3 - <<'PY'
 import json, os, subprocess, sys

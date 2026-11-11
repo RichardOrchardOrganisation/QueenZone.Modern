@@ -729,15 +729,38 @@ collect_diagnostics() {
   fi
 }
 
+# `dotnet run` is a wrapper: killing only its pid can leave the QueenZone.Web
+# child listening on SMOKE_PORT. On the self-hosted Mac (also a developer
+# machine) that orphan then breaks the next run's host start. Stop the whole
+# tree: children first, TERM, short grace, then KILL.
+stop_process_tree() {
+  local pid="$1" child
+  [[ -n "$pid" ]] || return 0
+  local children
+  children="$(pgrep -P "$pid" 2>/dev/null || true)"
+  for child in $children; do
+    stop_process_tree "$child"
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null || true
+    local _
+    for _ in 1 2 3 4 5; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   local status=$?
   stop_android_side_processes
   if [[ "$status" -ne 0 ]]; then
     collect_diagnostics "exit-$status"
   fi
-  if [[ -n "${host_pid}" ]] && kill -0 "$host_pid" 2>/dev/null; then
-    kill "$host_pid" 2>/dev/null || true
-    wait "$host_pid" 2>/dev/null || true
+  if [[ -n "${host_pid}" ]]; then
+    stop_process_tree "$host_pid"
   fi
   # Re-raise the original status. macOS /bin/bash 3.2 can otherwise exit with
   # the trap's last command status after a fatal `set -u` error, which made
@@ -745,6 +768,63 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
+
+# Put the failure signature where a reviewer looks first, so repeat offenders
+# are visible across runs without downloading artifacts (testing-policy rule 7).
+# The class is the harness's own: APP_CRASH, transport_death, selector_miss.
+write_failure_summary() {
+  local summary_platform="$1" summary_suite="$2" failure_class="$3" signature="$4"
+  [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || return 0
+  {
+    echo "### Maestro failure: ${summary_platform} ${summary_suite}"
+    echo ""
+    echo "- Class: \`${failure_class}\`"
+    if [[ -n "$signature" ]]; then
+      local line
+      while IFS= read -r line; do
+        case "$line" in
+          "Maestro failing flow: "*) echo "- Flow: \`${line#Maestro failing flow: }\`" ;;
+          "Maestro failing selector: "*) echo "- Selector: \`${line#Maestro failing selector: }\`" ;;
+          *) ;; # Other diagnostics stay in the step log only.
+        esac
+      done <<< "$signature"
+    else
+      echo "- No JUnit failure recorded (Maestro may not have started a flow)."
+    fi
+    echo ""
+    echo "Classify before changing a flow: screenshots, hierarchy and logs are in the \`maestro-results\` artifact."
+  } >> "$GITHUB_STEP_SUMMARY" || true
+}
+
+# Fail with the owning process instead of letting the new host die on bind
+# ("exited before writing the fixture") or a later flow talk to a stale host.
+assert_port_free() {
+  local check_port="$1" owner
+  command -v lsof >/dev/null 2>&1 || return 0
+  owner="$(lsof -nP -iTCP:"$check_port" -sTCP:LISTEN 2>/dev/null | tail -n +2 || true)"
+  if [[ -n "$owner" ]]; then
+    echo "Port ${check_port} is already in use; refusing to start the Testing contract host." >&2
+    echo "$owner" >&2
+    echo "Stop that process (often an orphaned QueenZone.Web from a killed run) or set SMOKE_PORT." >&2
+    return 1
+  fi
+}
+
+# Local runs without IOS_SIM_UDID target the "booted" Simulator. On the shared
+# self-hosted Mac a CI job's Simulator may also be booted, and simctl/Maestro
+# would pick one arbitrarily. Refuse to guess.
+assert_single_ios_target() {
+  [[ -n "${IOS_SIM_UDID:-}" ]] && return 0
+  local booted count
+  booted="$(xcrun simctl list devices booted 2>/dev/null | grep -E '\(Booted\)' || true)"
+  count="$(printf '%s' "$booted" | grep -c . || true)"
+  if [[ "$count" -gt 1 ]]; then
+    echo "More than one iOS Simulator is booted and IOS_SIM_UDID is not set:" >&2
+    echo "$booted" >&2
+    echo "Set IOS_SIM_UDID to the Simulator this run should use, or shut the others down." >&2
+    return 1
+  fi
+}
 
 start_host() {
   export ASPNETCORE_ENVIRONMENT=Testing
@@ -755,6 +835,7 @@ start_host() {
   export ASPNETCORE_URLS="http://127.0.0.1:${port}"
 
   rm -f "$fixture" "${fixture}.tmp"
+  assert_port_free "$port"
 
   if [[ "$no_build_host" != true ]]; then
     dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
@@ -1011,6 +1092,7 @@ else
     echo "iOS Simulator .app not found at '${app:-<empty>}'." >&2
     exit 1
   fi
+  assert_single_ios_target
   echo "Installing $app"
   if [[ "$suite" = "journeys" ]]; then
     # A Simulator install preserves an existing data container. Remove the
@@ -1365,8 +1447,9 @@ if [[ "$maestro_status" -ne 0 ]]; then
   if [[ ! -f "$junit_report" ]] && [[ -f "$results_dir/junit-android-transport-first.xml" ]]; then
     junit_report="$results_dir/junit-android-transport-first.xml"
   fi
+  failure_signature=""
   if [[ -f "$junit_report" ]]; then
-    node -e '
+    failure_signature="$(node -e '
       const fs = require("fs");
       const xml = fs.readFileSync(process.argv[1], "utf8");
       const printSelector = process.argv[2] === "selector_miss";
@@ -1382,8 +1465,10 @@ if [[ "$maestro_status" -ne 0 ]]; then
           }
         }
       }
-    ' "$junit_report" "$android_failure_class" >&2 || true
+    ' "$junit_report" "$android_failure_class" 2>&1 || true)"
+    [[ -z "$failure_signature" ]] || echo "$failure_signature" >&2
   fi
+  write_failure_summary "$platform" "$suite" "$android_failure_class" "$failure_signature"
   collect_diagnostics "maestro-$maestro_status"
 fi
 
