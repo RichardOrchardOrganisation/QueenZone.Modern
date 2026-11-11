@@ -70,8 +70,8 @@ public sealed class MeApiTests :
         Assert.Null(profile.AvatarPath);
         Assert.Equal(MemberMessagePrivacy.Members, profile.MessagePrivacy);
         Assert.Equal(MemberThemePreference.System, profile.ThemePreference);
-        Assert.Equal(MemberAccountService.MinDisplayNameLength, profile.Limits.MinDisplayNameLength);
-        Assert.Equal(MemberAccountService.MaxDisplayNameLength, profile.Limits.MaxDisplayNameLength);
+        Assert.Equal(MemberProfileService.MinDisplayNameLength, profile.Limits.MinDisplayNameLength);
+        Assert.Equal(MemberProfileService.MaxDisplayNameLength, profile.Limits.MaxDisplayNameLength);
         Assert.Equal(MemberAvatarPaths.MaxUploadBytes, profile.Limits.MaxAvatarBytes);
         Assert.Equal(AccountDeletionCopy.ConfirmationPhrase, profile.Deletion.ConfirmationPhrase);
         Assert.Equal(AccountDeletionCopy.RequestedTitle, profile.Deletion.RequestedTitle);

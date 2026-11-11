@@ -11,6 +11,7 @@ namespace QueenZone.Web.Pages.Account;
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class SettingsModel(
     MemberAccountService memberAccountService,
+    MemberProfileService memberProfileService,
     MemberAvatarService memberAvatarService) : PageModel
 {
     public const string SuccessMessageKey = "AccountSettingsSuccess";
@@ -18,8 +19,8 @@ public sealed class SettingsModel(
     [BindProperty]
     [Required(ErrorMessage = "Display name is required.")]
     [StringLength(
-        MemberAccountService.MaxDisplayNameLength,
-        MinimumLength = MemberAccountService.MinDisplayNameLength,
+        MemberProfileService.MaxDisplayNameLength,
+        MinimumLength = MemberProfileService.MinDisplayNameLength,
         ErrorMessage = "Display name must be between {2} and {1} characters.")]
     [Display(Name = "Display name")]
     public string DisplayName { get; set; } = string.Empty;
@@ -137,7 +138,7 @@ public sealed class SettingsModel(
             return Page();
         }
 
-        var result = await memberAccountService.UpdateDisplayNameAsync(memberId.Value, DisplayName, cancellationToken);
+        var result = await memberProfileService.UpdateDisplayNameAsync(memberId.Value, DisplayName, cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
             ModelState.AddModelError(string.Empty, result.Error ?? "Could not update display name.");
@@ -175,7 +176,7 @@ public sealed class SettingsModel(
             return Page();
         }
 
-        var result = await memberAccountService.UpdateMessagePrivacyAsync(
+        var result = await memberProfileService.UpdateMessagePrivacyAsync(
             memberId.Value,
             submittedPrivacy,
             cancellationToken);
@@ -214,7 +215,7 @@ public sealed class SettingsModel(
             return Page();
         }
 
-        var result = await memberAccountService.UpdateThemePreferenceAsync(
+        var result = await memberProfileService.UpdateThemePreferenceAsync(
             memberId.Value,
             submittedTheme,
             cancellationToken);
@@ -274,7 +275,7 @@ public sealed class SettingsModel(
         SuppressUnrelatedBindErrors();
         ViewData["Title"] = "Account settings";
 
-        var result = await memberAccountService.UpdateSocialLinksAsync(
+        var result = await memberProfileService.UpdateSocialLinksAsync(
             memberId.Value,
             submitted,
             cancellationToken);
@@ -452,7 +453,7 @@ public sealed class SettingsModel(
         LinkedProviders = await memberAccountService.ListExternalProvidersAsync(account.Id, cancellationToken);
         LegacyLink = await memberAccountService.GetLegacyLinkStateAsync(account, cancellationToken);
         ScheduledDeletionAt = account.DeletionRequestedAt?.AddDays(MemberAccountDeletionPolicy.RetentionDays);
-        ApplySocialInputs((await memberAccountService.ListSocialLinksAsync(account.Id, cancellationToken))
+        ApplySocialInputs((await memberProfileService.ListSocialLinksAsync(account.Id, cancellationToken))
             .ToDictionary(link => link.Channel, link => (string?)link.Url));
     }
 

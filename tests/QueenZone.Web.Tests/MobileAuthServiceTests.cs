@@ -1073,6 +1073,7 @@ public sealed class MobileAuthServiceTests
             repository,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
+            new MemberProfileService(repository),
             clock,
             Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
         var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
@@ -1283,7 +1284,8 @@ public sealed class MobileAuthServiceTests
         new(
             members,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
+            new MemberProfileService(members));
 
     private static async Task<MemberAccount> SeedPasswordAccountAsync(
         InMemoryMemberAccountRepository members,
@@ -1312,10 +1314,12 @@ public sealed class MobileAuthServiceTests
         var options = Options.Create(mobileOptions ?? new MobileAuthOptions());
         var site = Options.Create(new SiteOptions());
         var environment = new FakeHostEnvironment(environmentName);
+        var repository = accounts ?? new InMemoryMemberAccountRepository();
         var members = memberAccountService ?? new MemberAccountService(
-            accounts ?? new InMemoryMemberAccountRepository(),
+            repository,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
+            new MemberProfileService(repository));
 
         var accountRateLimiter = new MobileAuthAccountRateLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(

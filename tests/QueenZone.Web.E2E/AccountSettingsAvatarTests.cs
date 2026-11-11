@@ -68,6 +68,28 @@ public class AccountSettingsAvatarTests : E2EPageTest
         await Expect(Page.GetByText("Avatar must be a JPEG, PNG, or WebP image.")).ToBeVisibleAsync();
     }
 
+    [Test]
+    public async Task ProfileEditsPersistAfterReload()
+    {
+        await Page.GotoAsync("/account/settings");
+        await Page.GetByLabel("Display name").FillAsync("Profile Edit Fan");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Save display name" }).ClickAsync();
+        await Expect(Page.GetByText("Display name updated.")).ToBeVisibleAsync();
+
+        await Page.GetByRole(AriaRole.Radio, new() { Name = "Dark", Exact = true }).CheckAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Save appearance", Exact = true }).ClickAsync();
+        await Expect(Page.GetByText("Appearance updated.")).ToBeVisibleAsync();
+
+        await Page.GetByRole(AriaRole.Radio, new() { Name = "Nobody", Exact = true }).CheckAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Save messaging privacy" }).ClickAsync();
+        await Expect(Page.GetByText("Messaging privacy updated.")).ToBeVisibleAsync();
+
+        await Page.ReloadAsync();
+        await Expect(Page.GetByLabel("Display name")).ToHaveValueAsync("Profile Edit Fan");
+        await Expect(Page.GetByRole(AriaRole.Radio, new() { Name = "Dark", Exact = true })).ToBeCheckedAsync();
+        await Expect(Page.GetByRole(AriaRole.Radio, new() { Name = "Nobody", Exact = true })).ToBeCheckedAsync();
+    }
+
     private static byte[] CreatePng()
     {
         using var image = new Image<Rgba32>(96, 96, new Rgba32(120, 40, 160, 255));

@@ -157,7 +157,8 @@ public sealed class MemberAccountDeletionPromotedMediaTests : IAsyncDisposable
         new(
             repository,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            blobs);
+            blobs,
+            new MemberProfileService(repository));
 
     private async Task<Guid> SeedDueMemberAsync(
         string email,
