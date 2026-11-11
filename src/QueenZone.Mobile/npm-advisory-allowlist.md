@@ -65,25 +65,26 @@ malformed/missing-output, expiry and publication gates are unchanged.
 [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016)
 tracks review and removal.
 
-## zod oversized constrained collections
+## November 2026 dependency remediation (#2467)
 
-`GHSA-mrhx-c7xc-m3w5` affects `zod` below 4.6.6: validating an oversized
-array, set or record against a size-constrained schema can exhaust memory.
-The [advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) patches only the
-4.x line. `expo@58.0.17` -> `@expo/cli@58.1.14` requires `zod@3.25.76`, and the
-app declares `zod@^3.25.76`, so a bump or override would break Expo CLI.
+On **2026-11-11**, the locked Expo CLI no longer depends on zod. The app
+now uses **zod 4.6.7**, which includes the fix for
+[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
+The obsolete zod exception has been removed.
 
-The app imports zod only in `src/api/schemas.ts`. `parseContract` validates
-responses from the first-party QueenZone `/api/v1` over HTTPS, including
-constrained arrays such as crossword `blocks`/`numbering` (`max(225)`). This
-is runtime use, not build-time only, but the input comes from our own API. To
-exploit it, an attacker would need to control that API or break TLS, and the
-impact is a client-side crash. Expo CLI uses zod on local project config.
-This exception accepts that limited exposure and does not fix the vulnerability.
+Targeted overrides select **glob 14.0.2**, **minimatch 11.0.1** for affected
+modern consumers, and **uuid 11.1.1** for xcode. Legacy glob 7/minimatch 3
+consumers retain their compatible APIs and are outside these advisory ranges.
+Remove these overrides when upstream ranges accept patched versions.
 
-Owner: **QueenZone maintainers**. Expires **2026-12-31**. Remove it once Expo
-supports a patched zod and the app moves to it. Reassess before validating
-third-party or user-supplied payloads with constrained collections.
+**deepmerge 4.3.1 remains affected** by
+[GHSA-gcqx-w48m-w2h4](https://github.com/advisories/GHSA-gcqx-w48m-w2h4).
+It is used by jest-config for development/test configuration, and npm lists
+no patched release. Downgrading below the advisory range is not a verified
+fix: the advisory describes the defect as affecting versions through 4.3.1.
+No exception or dismissal has been added. Track a maintained upstream fix or
+removal in [#2467](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2467).
+Do not treat the passing high/critical gate as a clean vulnerability audit.
 
 CI `mobile-js` and the manual TestFlight/Google Play preflight jobs explicitly
 run the same full-graph advisory validator after installation and before the

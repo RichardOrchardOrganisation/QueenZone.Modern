@@ -20,6 +20,21 @@ import {
 } from './schemas.ts';
 
 describe('parseContract', () => {
+  it('rejects oversized crossword collections before reading their elements', () => {
+    const cells = new Array(226);
+    Object.defineProperty(cells, 0, {
+      get() { throw new Error('Oversized payload elements must not be visited'); },
+    });
+
+    assert.throws(
+      () => parseContract('GET /api/v1/crosswords/check', crosswordCheckResultSchema, {
+        playVersion: '11111111-2222-4333-8444-555555555555',
+        cells, explanations: [], complete: false,
+      }),
+      /Contract GET \/api\/v1\/crosswords\/check failed: cells:/,
+    );
+  });
+
   it('validates crossword play status, cell bounds, letters and completion review independently of future fields', () => {
     const playVersion = '11111111-2222-4333-8444-555555555555';
     const check = { playVersion, cells: [{ index: 0, status: 'correct' }], explanations: [], complete: false, futureField: true };
