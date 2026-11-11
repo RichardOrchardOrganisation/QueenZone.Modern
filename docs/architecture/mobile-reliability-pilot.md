@@ -105,11 +105,4 @@ Record the final recommendation, limitations and follow-up under #2471. Broad CI
 
 ## Rules being evaluated
 
-- Own the starting state and deterministic data for each independently executed journey.
-- Use unique selectors and bounded waits for observable readiness and outcomes.
-- Make taps clear of keyboards, overlays and persistent navigation controls.
-- Keep required outcomes mandatory; shortcuts only prepare unrelated prerequisites.
-- Retry only documented infrastructure recovery, preserving first-attempt evidence.
-- Prove assertions detect intended breakage before standardising the pattern.
-
-Promote repeated, mechanically detectable mistakes into narrow automated checks after the pilot. Keep behaviour rules in [testing-policy.md](testing-policy.md), not duplicated across agent prompts.
+The rules this pilot evaluates are the flow rules in [testing-policy.md, "Writing device flows that fail only for real reasons"](testing-policy.md#mobile-device-smoke-872-option-a). They are kept there only, not repeated here. `scripts/check-maestro-flows.mjs` already enforces the mechanically checkable ones, with a shrink-only baseline of existing violations. Candidate changes in this pilot should remove a baselined flow from `config/maestro-flow-baseline.json` rather than add new patterns. Tighten or relax the policy rules based on what the pilot measures.

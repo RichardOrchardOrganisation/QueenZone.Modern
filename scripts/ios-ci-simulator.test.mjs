@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -86,7 +86,10 @@ JSON
     echo "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
     ;;
   ${bootstatus}
-  "simctl shutdown AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"|"simctl delete AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+  "simctl list -j devices")
+    if [[ -f "$FAKE_STATE/devices.json" ]]; then cat "$FAKE_STATE/devices.json"; else echo '{"devices":{}}'; fi
+    ;;
+  simctl\\ shutdown\\ *|simctl\\ delete\\ *)
     ;;
   *)
     echo "unexpected xcrun $*" >&2
@@ -98,6 +101,58 @@ esac
   chmodSync(bin, 0o755);
   return bin;
 }
+
+test('create sweeps only abandoned QueenZone-CI-iOS simulators', () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
+  try {
+    const envFile = path.join(tmp, 'github-env');
+    writeFileSync(envFile, '');
+    const devicesDir = path.join(tmp, 'Devices');
+    const device = (udid, hoursAgo) => {
+      mkdirSync(path.join(devicesDir, udid), { recursive: true });
+      const plist = path.join(devicesDir, udid, 'device.plist');
+      writeFileSync(plist, '');
+      const when = new Date(Date.now() - hoursAgo * 3600 * 1000);
+      utimesSync(plist, when, when);
+    };
+    device('OLD-JOB', 10);
+    device('RECENT-JOB', 1);
+    device('OLD-PERSONAL', 48);
+    writeFileSync(path.join(tmp, 'devices.json'), JSON.stringify({
+      devices: {
+        'com.apple.CoreSimulator.SimRuntime.iOS-26-1': [
+          { name: 'QueenZone-CI-iOS-1-mobile-ios-smoke', udid: 'OLD-JOB', state: 'Booted' },
+          { name: 'QueenZone-CI-iOS-2-mobile-ios-journeys', udid: 'RECENT-JOB', state: 'Booted' },
+          { name: 'iPhone 16', udid: 'OLD-PERSONAL', state: 'Shutdown' },
+        ],
+      },
+    }));
+    const result = spawnSync('bash', [script, 'create'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ENV: envFile,
+        GITHUB_RUN_ID: '99',
+        GITHUB_JOB: 'mobile-ios-smoke',
+        IOS_CI_XCRUN: fakeXcrun(tmp),
+        IOS_CI_SIM_DEVICES_DIR: devicesDir,
+        FAKE_STATE: tmp,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.match(result.stdout, /Deleting abandoned job simulator QueenZone-CI-iOS-1-mobile-ios-smoke \(OLD-JOB; Booted/);
+    const args = readFileSync(path.join(tmp, 'xcrun-args'), 'utf8');
+    assert.match(args, /simctl delete OLD-JOB/);
+    assert.doesNotMatch(args, /RECENT-JOB/);
+    assert.doesNotMatch(args, /OLD-PERSONAL/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('a failed sweep never fails simulator creation', () => {
+  assert.match(source, /Could not list simulators to sweep[^\n]*\n\s+return 0/);
+});
 
 test('create boots a job-owned simulator and records its UDID', () => {
   const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
