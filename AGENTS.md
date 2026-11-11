@@ -42,6 +42,14 @@ Mobile server state uses the in-repo hooks, not a query library: `useHomeSection
 
 `design/tokens/*.css` (colors, typography, spacing/shadows/motion) is the **canonical** source for design-token CSS custom properties, documented in `design/README.md`. `src/QueenZone.Web/wwwroot/design-system/tokens/` and every `design/design_handoff_*/tokens/` folder are generated copies — never hand-edit them. After changing anything under `design/tokens/`, run `pwsh ./scripts/Sync-DesignTokens.ps1` to propagate the change, or CI's "Design token sync check" (`pwsh ./scripts/Sync-DesignTokens.ps1 -Check`) will fail the PR. `site.css` itself (`src/QueenZone.Web/wwwroot/css/site.css`) consumes these tokens via `var(--...)` and is edited directly as normal.
 
+Web frontend work (HTML, CSS, and client-side JavaScript under `src/QueenZone.Web`) should follow [Modern Web Guidance](https://developer.chrome.com/docs/modern-web-guidance). The skill is installed at `.agents/skills/modern-web-guidance` so Codex and Cursor pick it up. This does not apply to `src/QueenZone.Mobile`.
+
+### Browser support (QueenZone.Web)
+
+This repository has no `browserslist` file and no previously documented Baseline level. QueenZone.Web ships untranspiled CSS and JavaScript from `wwwroot`. The required Playwright merge-gate suite (`scripts/Run-E2E.ps1`) installs and runs Chromium only.
+
+**Proposed target (see #2481):** Baseline Widely available, which is also the Modern Web Guidance default. Features that have been interoperable in the major browser engines for at least 30 months may be used without compatibility fallbacks. Newly available or limited-availability features need the fallbacks in the relevant guide. The CLI reads this from `.mwgrc`.
+
 ## Branch And Pull Request Policy
 
 Do not push feature work directly to `main`.
