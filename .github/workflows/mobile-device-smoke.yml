@@ -40,6 +40,18 @@ on:
         required: false
         type: boolean
         default: false
+      reliability_trial:
+        description: "Issue #2471 only (suite journeys and force_hosted_ios)"
+        type: choice
+        default: "off"
+        options:
+          - "off"
+          - photos-baseline
+          - photos-candidate
+          - photos-defect
+          - attachment-baseline
+          - attachment-candidate
+          - attachment-defect
       force_hosted_ios:
         description: "Force iOS jobs onto GitHub-hosted macos-26 even when the Mac is idle"
         required: false
@@ -55,7 +67,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-device-${{ github.event.inputs.suite || github.event.schedule || 'smoke' }}-${{ github.event.inputs.platform || 'both' }}-${{ github.ref }}
+  group: mobile-device-${{ github.event.inputs.suite || github.event.schedule || 'smoke' }}-${{ github.event.inputs.platform || 'both' }}-${{ github.ref }}-${{ github.event.inputs.reliability_trial || 'off' }}
   cancel-in-progress: true
 
 env:
@@ -579,10 +591,11 @@ jobs:
         && (github.event.inputs.suite == 'journeys' || github.event.inputs.suite == 'both' || github.event.inputs.suite == 'proof')
         && (github.event.inputs.platform == 'android' || github.event.inputs.platform == 'both'))
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: ${{ github.event.inputs.suite == 'journeys' && github.event.inputs.reliability_trial != 'off' && github.event.inputs.reliability_trial != '' && 60 || 90 }}
     # Emulator image coordinates for the preinstall + cache key (#2351). Keep in
     # step with the android-emulator-runner api-level/target/arch below.
     env:
+      MOBILE_RELIABILITY_TRIAL: ${{ github.event.inputs.suite == 'journeys' && github.event.inputs.reliability_trial != 'off' && github.event.inputs.reliability_trial || '' }}
       ANDROID_EMULATOR_API_LEVEL: "34"
       ANDROID_EMULATOR_TARGET: google_apis
       ANDROID_EMULATOR_ARCH: x86_64
@@ -646,6 +659,13 @@ jobs:
       - name: Preinstall Android NDK 27.1.12297006
         working-directory: .
         run: ./scripts/preinstall-android-ndk.sh
+
+      - name: Prepare reliability pilot trial
+        if: env.MOBILE_RELIABILITY_TRIAL != ''
+        working-directory: .
+        env:
+          FORCE_HOSTED_IOS: ${{ github.event.inputs.force_hosted_ios }}
+        run: node scripts/mobile-reliability-pilot.mjs prepare "$MOBILE_RELIABILITY_TRIAL"
 
       - name: Assemble Android Release smoke APK
         env:
@@ -827,7 +847,8 @@ jobs:
       - name: Upload Android journeys diagnostics
         if: >-
           always()
-          && (steps.android-emulator-install.outcome == 'failure'
+          && (env.MOBILE_RELIABILITY_TRIAL != ''
+            || steps.android-emulator-install.outcome == 'failure'
             || (steps.android-journeys.outcome == 'failure'
               && steps.android-journeys-retry.outcome != 'success'))
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -836,7 +857,7 @@ jobs:
           path: |
             src/QueenZone.Mobile/maestro-results/
             src/QueenZone.Mobile/maestro-results-transport-first/
-          if-no-files-found: error
+          if-no-files-found: ${{ env.MOBILE_RELIABILITY_TRIAL != '' && 'ignore' || 'error' }}
           retention-days: 7
 
       - name: Package hosted Android evidence for PR gate
@@ -1027,7 +1048,9 @@ jobs:
           && (github.event.inputs.platform == 'ios' || github.event.inputs.platform == 'both'))
       )
     runs-on: ${{ fromJSON(github.event.inputs.suite == 'both' && needs.choose-ios-runner.outputs.runs_on_secondary || needs.choose-ios-runner.outputs.runs_on) }}
-    timeout-minutes: 90
+    timeout-minutes: ${{ github.event.inputs.suite == 'journeys' && github.event.inputs.reliability_trial != 'off' && github.event.inputs.reliability_trial != '' && 60 || 90 }}
+    env:
+      MOBILE_RELIABILITY_TRIAL: ${{ github.event.inputs.suite == 'journeys' && github.event.inputs.reliability_trial != 'off' && github.event.inputs.reliability_trial || '' }}
     defaults:
       run:
         working-directory: src/QueenZone.Mobile
@@ -1093,6 +1116,13 @@ jobs:
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
           dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+
+      - name: Prepare reliability pilot trial
+        if: env.MOBILE_RELIABILITY_TRIAL != ''
+        working-directory: .
+        env:
+          FORCE_HOSTED_IOS: ${{ github.event.inputs.force_hosted_ios }}
+        run: node scripts/mobile-reliability-pilot.mjs prepare "$MOBILE_RELIABILITY_TRIAL"
 
       - name: Build iOS Simulator Release smoke app
         env:
@@ -1183,7 +1213,7 @@ jobs:
           echo "Runner: \`${RUNNER_NAME}\` (\`${RUNNER_OS_NAME}\` / \`${RUNNER_ARCH_NAME}\`)" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload iOS journeys diagnostics
-        if: failure()
+        if: failure() || (always() && env.MOBILE_RELIABILITY_TRIAL != '')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-ios-journeys-${{ github.run_id }}
