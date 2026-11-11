@@ -139,12 +139,21 @@ jest.mock('expo-file-system/legacy', () => ({
 }));
 
 jest.mock('expo-file-system', () => {
+  const fakeUriPart = (part: unknown): string =>
+    typeof part === 'object' && part !== null && 'uri' in part ? String(part.uri) : String(part);
+  const existing = new Set<string>();
   class FakeFile {
     uri: string;
-    exists = false;
     size = 0;
     constructor(...parts: unknown[]) {
-      this.uri = parts.map(String).join('/');
+      this.uri = parts.map(fakeUriPart).join('/');
+    }
+    get exists() {
+      return existing.has(this.uri);
+    }
+    set exists(value: boolean) {
+      if (value) existing.add(this.uri);
+      else existing.delete(this.uri);
     }
     create() {
       this.exists = true;
@@ -166,10 +175,16 @@ jest.mock('expo-file-system', () => {
     uri: string;
     exists = true;
     constructor(...parts: unknown[]) {
-      this.uri = parts.map(String).join('/');
+      this.uri = parts.map(fakeUriPart).join('/');
     }
     create() {
       this.exists = true;
+    }
+    delete() {
+      this.exists = false;
+      for (const uri of [...existing]) {
+        if (uri.startsWith(`${this.uri}/`)) existing.delete(uri);
+      }
     }
     list() {
       return [];

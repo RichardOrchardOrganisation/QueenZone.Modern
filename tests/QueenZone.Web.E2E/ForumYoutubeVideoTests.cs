@@ -61,11 +61,11 @@ public class ForumYoutubeVideoTests : E2EPageTest
             var card = Page.Locator(Cards).Nth(index);
             await card.ScrollIntoViewIfNeededAsync();
             await Expect(card.Locator("iframe")).ToHaveCountAsync(1);
-            var scroll = await Page.EvaluateAsync<double>("scrollY");
+            var scroll = await Page.EvaluateAsync<double>("() => scrollY");
             await Page.WaitForTimeoutAsync(300);
-            Assert.That(await Page.EvaluateAsync<double>("scrollY"), Is.EqualTo(scroll).Within(1));
+            Assert.That(await Page.EvaluateAsync<double>("() => scrollY"), Is.EqualTo(scroll).Within(1));
         }
-        Assert.That(await Page.EvaluateAsync<string[]>("window.poolViolations"), Is.Empty);
+        Assert.That(await Page.EvaluateAsync<string[]>("() => window.poolViolations"), Is.Empty);
     }
 
     [Test]
@@ -82,7 +82,7 @@ public class ForumYoutubeVideoTests : E2EPageTest
         await Page.FrameLocator(Cards + " >> nth=0 >> iframe").GetByRole(AriaRole.Button, new() { Name = "Play fixture" }).ClickAsync();
         var frameA = Page.Frames.Single(frame => frame.Url.Contains("/embed/M7lc1UVf-VE", StringComparison.Ordinal));
         var frameB = Page.Frames.Single(frame => frame.Url.Contains("/embed/abcdefghijk", StringComparison.Ordinal));
-        await frameA.EvaluateAsync("window.commands = []");
+        await frameA.EvaluateAsync("() => { window.commands = []; }");
         await Page.EvaluateAsync("""
             () => {
               const source = document.querySelectorAll('[data-qz-forum-video] iframe')[1].contentWindow;
@@ -91,17 +91,17 @@ public class ForumYoutubeVideoTests : E2EPageTest
               dispatchEvent(new MessageEvent('message', {origin:'https://www.youtube-nocookie.com', source:window, data}));
             }
             """);
-        Assert.That(await frameA.EvaluateAsync<string[]>("window.commands"), Is.Empty);
+        Assert.That(await frameA.EvaluateAsync<string[]>("() => window.commands"), Is.Empty);
         await frameB.GetByRole(AriaRole.Button, new() { Name = "Play fixture" }).ClickAsync();
-        await frameA.WaitForFunctionAsync("window.commands.includes('pauseVideo')");
-        await frameA.EvaluateAsync("window.commands = []");
-        await frameB.EvaluateAsync("window.commands = []");
-        await Page.EvaluateAsync("Object.defineProperty(document, 'hidden', {configurable:true, value:true}); document.dispatchEvent(new Event('visibilitychange'))");
-        await frameA.WaitForFunctionAsync("window.commands.includes('pauseVideo')");
-        await frameB.WaitForFunctionAsync("window.commands.includes('pauseVideo')");
-        await Page.EvaluateAsync("Object.defineProperty(document, 'hidden', {configurable:true, value:false}); document.dispatchEvent(new Event('visibilitychange'))");
-        Assert.That(await frameA.EvaluateAsync<string[]>("window.commands"), Is.All.EqualTo("pauseVideo"));
-        Assert.That(await frameB.EvaluateAsync<string[]>("window.commands"), Is.All.EqualTo("pauseVideo"));
+        await frameA.WaitForFunctionAsync("() => window.commands.includes('pauseVideo')");
+        await frameA.EvaluateAsync("() => { window.commands = []; }");
+        await frameB.EvaluateAsync("() => { window.commands = []; }");
+        await Page.EvaluateAsync("() => { Object.defineProperty(document, 'hidden', {configurable:true, value:true}); document.dispatchEvent(new Event('visibilitychange')); }");
+        await frameA.WaitForFunctionAsync("() => window.commands.includes('pauseVideo')");
+        await frameB.WaitForFunctionAsync("() => window.commands.includes('pauseVideo')");
+        await Page.EvaluateAsync("() => { Object.defineProperty(document, 'hidden', {configurable:true, value:false}); document.dispatchEvent(new Event('visibilitychange')); }");
+        Assert.That(await frameA.EvaluateAsync<string[]>("() => window.commands"), Is.All.EqualTo("pauseVideo"));
+        Assert.That(await frameB.EvaluateAsync<string[]>("() => window.commands"), Is.All.EqualTo("pauseVideo"));
         await Expect(first.Locator("iframe")).ToHaveAttributeAsync("sandbox", "allow-scripts allow-same-origin");
         await Expect(first.Locator("iframe")).ToHaveAttributeAsync("allow", "encrypted-media; fullscreen");
         await Expect(first.Locator("iframe")).ToHaveAttributeAsync("referrerpolicy", "strict-origin-when-cross-origin");
@@ -124,8 +124,8 @@ public class ForumYoutubeVideoTests : E2EPageTest
         var before = await card.Locator("[data-video-viewport]").BoundingBoxAsync();
         var link = card.GetByRole(AriaRole.Link, new() { Name = "Watch on YouTube", Exact = true });
         await link.FocusAsync();
-        var scroll = await Page.EvaluateAsync<double>("scrollY");
-        await Page.EvaluateAsync("Object.defineProperty(navigator, 'onLine', {configurable:true, value:true}); dispatchEvent(new Event('resize'))");
+        var scroll = await Page.EvaluateAsync<double>("() => scrollY");
+        await Page.EvaluateAsync("() => { Object.defineProperty(navigator, 'onLine', {configurable:true, value:true}); dispatchEvent(new Event('resize')); }");
         await Expect(card.Locator("iframe")).ToHaveCountAsync(1);
         await Expect(link).ToBeFocusedAsync();
         var after = await card.Locator("iframe").BoundingBoxAsync();
@@ -134,8 +134,8 @@ public class ForumYoutubeVideoTests : E2EPageTest
         Assert.That(after.Height, Is.GreaterThanOrEqualTo(200));
         Assert.That(after.Width, Is.EqualTo(before!.Width).Within(1));
         Assert.That(after.Height, Is.EqualTo(before.Height).Within(1));
-        Assert.That(await Page.EvaluateAsync<double>("scrollY"), Is.EqualTo(scroll).Within(1));
-        Assert.That(await Page.EvaluateAsync<bool>("document.documentElement.scrollWidth <= window.innerWidth"), Is.True);
+        Assert.That(await Page.EvaluateAsync<double>("() => scrollY"), Is.EqualTo(scroll).Within(1));
+        Assert.That(await Page.EvaluateAsync<bool>("() => document.documentElement.scrollWidth <= window.innerWidth"), Is.True);
     }
 
     [Test]
@@ -148,12 +148,12 @@ public class ForumYoutubeVideoTests : E2EPageTest
         await Expect(first.Locator("iframe")).ToHaveCountAsync(1);
         var before = await first.Locator("[data-video-viewport]").BoundingBoxAsync();
         await Page.Locator(Cards).Nth(10).ScrollIntoViewIfNeededAsync();
-        var scroll = await Page.EvaluateAsync<double>("scrollY");
+        var scroll = await Page.EvaluateAsync<double>("() => scrollY");
         await Expect(first.Locator("iframe")).ToHaveCountAsync(0);
         var after = await first.Locator("[data-video-viewport]").BoundingBoxAsync();
         Assert.That(after!.Height, Is.EqualTo(before!.Height).Within(1));
         Assert.That(after.Width, Is.EqualTo(before.Width).Within(1));
-        Assert.That(await Page.EvaluateAsync<double>("scrollY"), Is.EqualTo(scroll).Within(1));
+        Assert.That(await Page.EvaluateAsync<double>("() => scrollY"), Is.EqualTo(scroll).Within(1));
     }
 
     [Test]
@@ -188,7 +188,7 @@ public class ForumYoutubeVideoTests : E2EPageTest
         await Expect(Page.Locator(Cards).First.GetByRole(AriaRole.Button, new() { Name = "Retry", Exact = true })).ToBeVisibleAsync(new() { Timeout = 15000 });
         await Expect(Page.Locator("iframe")).ToHaveCountAsync(0, new() { Timeout = 15000 });
         var failedRequests = requests;
-        await Page.EvaluateAsync("dispatchEvent(new Event('resize'))");
+        await Page.EvaluateAsync("() => dispatchEvent(new Event('resize'))");
         await Page.WaitForTimeoutAsync(400);
         Assert.That(requests, Is.EqualTo(failedRequests));
         await Expect(Page.Locator("[data-video-status]").First).ToContainTextAsync("Watch on YouTube");
@@ -232,9 +232,9 @@ public class ForumYoutubeVideoTests : E2EPageTest
         await Page.GotoAsync(Archive);
         await Page.Locator(Cards).First.ScrollIntoViewIfNeededAsync();
         await Expect(Page.Locator(Cards).First.Locator("iframe")).ToHaveCountAsync(1);
-        await Page.EvaluateAsync("document.querySelector('.qz-forum-post').remove()");
+        await Page.EvaluateAsync("() => document.querySelector('.qz-forum-post').remove()");
         await Expect(Page.Locator("iframe")).ToHaveCountAsync(0);
-        await Page.EvaluateAsync("dispatchEvent(new Event('resize')); dispatchEvent(new Event('scroll'))");
+        await Page.EvaluateAsync("() => { dispatchEvent(new Event('resize')); dispatchEvent(new Event('scroll')); }");
         await Page.WaitForTimeoutAsync(300);
         await Expect(Page.Locator("iframe")).ToHaveCountAsync(0);
         await Page.GotoAsync(Archive + "/page/2");

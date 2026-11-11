@@ -1,0 +1,14 @@
+{
+  "description": "Maestro flow rule violations that predate scripts/check-maestro-flows.mjs. Remove entries as flows are fixed; never add new ones.",
+  "allowed": [
+    "retry-justified:flows/open-smoke-auth.yaml",
+    "start-state:flows/02-tabs.yaml",
+    "start-state:flows/03-home-detail.yaml",
+    "start-state:flows/04-news-story.yaml",
+    "start-state:flows/05-photography.yaml",
+    "start-state:flows/06-archive-search.yaml",
+    "start-state:flows/07-forum.yaml",
+    "start-state:flows/11-news-discussion.yaml",
+    "start-state:flows/33-crossword-theme.yaml"
+  ]
+}

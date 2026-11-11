@@ -92,6 +92,7 @@ public class E2ECategoryGuardTests
             nameof(PageShapeAssertionTests),
             nameof(ParticipationClarityTests),
             nameof(PhotographyLightboxTests),
+            nameof(PlaywrightEvaluationGuardTests),
             nameof(PrivateMessageConversationTests),
             nameof(PrivateMessagingMobileTests),
             nameof(QuizSprintProgressTests),

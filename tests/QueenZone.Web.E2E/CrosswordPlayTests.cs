@@ -14,7 +14,7 @@ public sealed class CrosswordPlayTests : E2EPageTest
     {
         await Page.GotoAsync("/crosswords/meet-the-band");
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
-        await Page.WaitForFunctionAsync("navigator.serviceWorker.controller !== null");
+        await Page.WaitForFunctionAsync("() => navigator.serviceWorker.controller !== null");
         await Page.EvaluateAsync("""
             async () => {
                 const cache = await caches.open('qz-static-v2');
@@ -264,7 +264,7 @@ public sealed class CrosswordPlayTests : E2EPageTest
             Assert.Ignore("Playwright WebKit fails internally on service-worker offline reload. Installed desktop PWA proof runs in Chromium; real Safari offline remains manual.");
         await Page.GotoAsync("/crosswords/meet-the-band");
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
-        await Page.WaitForFunctionAsync("navigator.serviceWorker.controller !== null");
+        await Page.WaitForFunctionAsync("() => navigator.serviceWorker.controller !== null");
         await Page.ReloadAsync();
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
         await Page.WaitForFunctionAsync("async () => { const response = await caches.match(location.href); return response?.headers.get('X-QueenZone-Crossword-Shell') === 'public'; }");
@@ -307,7 +307,7 @@ public sealed class CrosswordPlayTests : E2EPageTest
         await Context.SetExtraHTTPHeadersAsync(new Dictionary<string, string> { ["X-Test-Member-Id"] = member });
         await Page.GotoAsync("/crosswords/meet-the-band");
         await Expect(Page.Locator("[data-toolbar]")).ToBeVisibleAsync();
-        await Page.WaitForFunctionAsync("navigator.serviceWorker.controller !== null");
+        await Page.WaitForFunctionAsync("() => navigator.serviceWorker.controller !== null");
         await Page.ReloadAsync();
         await Page.WaitForFunctionAsync("async () => (await caches.match(location.href))?.headers.get('X-QueenZone-Crossword-Shell') === 'public'");
         var shell = await Page.EvaluateAsync<string>("async () => (await (await caches.match(location.href)).text())");

@@ -102,7 +102,8 @@ for (const [file, publicationJob] of [
 }
 
 for (const [name, audit, now, expectedStatus, message, policy = allowlist] of [
-  ['remaining approved advisory', auditFor('GHSA-mrhx-c7xc-m3w5', 'high', 'zod'), '2026-11-01', 0, /ALLOW expires 2026-12-31/],
+  ['remaining approved advisory', auditFor('GHSA-86w9-cpqp-85rv', 'high', 'node-forge'), '2026-11-11', 0, /ALLOW expires 2026-12-31/],
+  ['patched zod advisory reappears', auditFor('GHSA-mrhx-c7xc-m3w5', 'high', 'zod'), '2026-11-11', 1, /Unallowlisted high GHSA-MRHX-C7XC-M3W5/],
   ['withdrawn advisory absent after deadline', { vulnerabilities: {} }, '2026-11-01', 0, /High\/critical advisories: 0/],
   ['braces advisory reappears', auditFor(), '2026-11-01', 1, /Unallowlisted high GHSA-VFJ7-8CJW-P6XM/],
   ['expired exception absent from audit', { vulnerabilities: {} }, '2026-11-01', 1, /Expired allowlist entry/, historicalAllowlist],

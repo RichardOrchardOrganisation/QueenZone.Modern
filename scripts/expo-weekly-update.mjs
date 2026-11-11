@@ -8,16 +8,16 @@
  *   node scripts/expo-weekly-update.mjs excuse-doctor --pin-json <file> --doctor-log <file> [--check-json <file>]
  *
  * The 58.0.24 expo-modules-core pin was removed under #2407. The guard now
- * fails if an expo-modules-core override comes back, or if the lockfile does
+ * fails if an expo-modules-core override comes back, if the lockfile does
  * not resolve a single top-level node_modules/expo-modules-core key with no
- * nested copy under expo/.
+ * nested copy under expo/, or if that resolved version does not satisfy
+ * expo's declared expo-modules-core range.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export const PINNED_EXPO_MODULES_CORE = '58.0.24';
 export const MOBILE_DIR = 'src/QueenZone.Mobile';
 export const TOP_LEVEL_LOCK_KEY = 'node_modules/expo-modules-core';
 export const EXPO_LOCK_KEY = 'node_modules/expo';
@@ -73,70 +73,28 @@ export function compareSemver(left, right) {
   return first.major - second.major || first.minor - second.minor || first.patch - second.patch;
 }
 
-export function isRangeNewerThanPin(range, pin = PINNED_EXPO_MODULES_CORE) {
-  const minimum = parseSemver(range);
-  return Boolean(minimum && compareSemver(minimum, pin) > 0);
-}
-
-export function isSdkPackageVersionCheck(name) {
-  const lowered = String(name || '').toLowerCase();
-  return lowered.includes('packages match versions') && lowered.includes('expo sdk');
-}
-
-export function failedDoctorCheckNames(output) {
-  return [...String(output || '').matchAll(/^✖ Check (.+)$/gm)].map((match) => match[1].trim());
-}
-
-export function mismatchedPackagesFromCheckJson(text) {
-  const raw = String(text || '').trim();
-  if (!raw) {
-    return [];
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  const rows = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray(parsed?.dependencies)
-      ? parsed.dependencies
-      : parsed?.dependencies && typeof parsed.dependencies === 'object'
-        ? Object.entries(parsed.dependencies).map(([name, value]) => ({
-            packageName: name,
-            ...(value && typeof value === 'object' ? value : {}),
-          }))
-        : [];
-  const names = [];
-  for (const row of rows) {
-    const name = row?.packageName ?? row?.package ?? row?.name;
-    if (name) {
-      names.push(String(name));
-    }
-  }
-  return [...new Set(names)].sort((left, right) => left.localeCompare(right));
-}
-
-export function mismatchedPackagesFromDoctorLog(output) {
-  const names = new Set();
-  for (const match of String(output || '').matchAll(/^\s+([@a-z0-9/._-]+)@\d+/gim)) {
-    names.add(match[1]);
-  }
-  return [...names].sort((left, right) => left.localeCompare(right));
-}
-
-export function shouldExcuseDoctorFailure({ doctorLog = '', checkJson = '', pinReport = {} } = {}) {
-  if (!pinReport.declaredRangeNewerThanPin) {
+export function versionSatisfiesRange(version, range) {
+  const resolved = typeof version === 'string' ? parseSemver(version) : version;
+  const text = String(range || '').trim();
+  if (!resolved || !text) {
     return false;
   }
-  const failedChecks = failedDoctorCheckNames(doctorLog);
-  if (failedChecks.length === 0 || failedChecks.some((name) => !isSdkPackageVersionCheck(name))) {
+  const match = text.match(/^([~^])?(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) {
     return false;
   }
-  const fromJson = mismatchedPackagesFromCheckJson(checkJson);
-  const packages = fromJson.length > 0 ? fromJson : mismatchedPackagesFromDoctorLog(doctorLog);
-  return packages.length > 0 && packages.every((name) => name === 'expo-modules-core');
+  const operator = match[1] || '';
+  const floor = { major: Number(match[2]), minor: Number(match[3]), patch: Number(match[4]) };
+  if (compareSemver(resolved, floor) < 0) {
+    return false;
+  }
+  if (operator === '~') {
+    return resolved.major === floor.major && resolved.minor === floor.minor;
+  }
+  if (operator === '^') {
+    return resolved.major === floor.major;
+  }
+  return compareSemver(resolved, floor) === 0;
 }
 
 export function readJson(filePath) {
@@ -151,7 +109,7 @@ export function inspectPin({ packageJson, lockfile } = {}) {
   const errors = [];
   if (override !== undefined) {
     errors.push(
-      `package.json must not override expo-modules-core; the ${PINNED_EXPO_MODULES_CORE} pin was removed under ${PIN_ISSUE} (found ${override}).`,
+      `package.json must not override expo-modules-core; the pin was removed under ${PIN_ISSUE} (found ${override}).`,
     );
   }
   if (!resolved) {
@@ -160,14 +118,21 @@ export function inspectPin({ packageJson, lockfile } = {}) {
   if (nested.length > 0) {
     errors.push(`package-lock.json must not nest expo-modules-core under expo/ (found ${nested.join(', ')}).`);
   }
+  if (!declaredRange) {
+    errors.push(
+      `package-lock.json must record expo's declared expo-modules-core range at ${EXPO_LOCK_KEY} (found missing).`,
+    );
+  } else if (resolved && !versionSatisfiesRange(resolved, declaredRange)) {
+    errors.push(
+      `package-lock.json must resolve ${TOP_LEVEL_LOCK_KEY} to a version that satisfies expo's declared range ${declaredRange} (found ${resolved}).`,
+    );
+  }
   return {
     ok: errors.length === 0,
     override: override ?? null,
     resolved: resolved ?? null,
     nested,
     declaredRange,
-    // No pin since #2407, so nothing is excused against one.
-    declaredRangeNewerThanPin: false,
     errors,
   };
 }
@@ -257,18 +222,15 @@ export function buildWeeklyPrBody({
   } else {
     lines.push('Changed `package.json` versions:', '', ...packageChanges.map(formatChangeLine), '');
   }
+  const rangeNote = pinReport.declaredRange
+    ? `, which satisfies expo's declared range \`${pinReport.declaredRange}\``
+    : '';
   lines.push(
-    '## expo-modules-core pin',
+    '## expo-modules-core',
     '',
-    `No \`overrides\` pin on \`expo-modules-core\` (the ${PINNED_EXPO_MODULES_CORE} pin was removed under ${PIN_ISSUE}); \`package-lock.json\` resolves a single top-level \`${TOP_LEVEL_LOCK_KEY}\` at ${pinReport.resolved ?? 'unknown'}.`,
+    `No \`overrides\` pin on \`expo-modules-core\` (the pin was removed under ${PIN_ISSUE}); \`package-lock.json\` resolves a single top-level \`${TOP_LEVEL_LOCK_KEY}\` at ${pinReport.resolved ?? 'unknown'}${rangeNote}.`,
     '',
   );
-  if (pinReport.declaredRangeNewerThanPin) {
-    lines.push(
-      `Upstream \`expo\` now declares \`expo-modules-core\` as \`${pinReport.declaredRange}\`, which is newer than the #2408 pin. Unpinning is decided on ${PIN_ISSUE}, not in this weekly PR.`,
-      '',
-    );
-  }
   lines.push(
     '## Verification',
     '',
@@ -392,15 +354,8 @@ export function runAlign(args, { execFile = execFileSync, env = process.env } = 
   return 0;
 }
 
-export function runExcuseDoctor(args, { log = console.log, error = console.error } = {}) {
-  const pinReport = args.pinJson ? readJson(args.pinJson) : {};
-  const doctorLog = args.doctorLog ? readFileSync(args.doctorLog, 'utf8') : '';
-  const checkJson = args.checkJson ? readFileSync(args.checkJson, 'utf8') : '';
-  if (shouldExcuseDoctorFailure({ doctorLog, checkJson, pinReport })) {
-    log('Excusing doctor: only expo-modules-core is outside the #2408 pin range.');
-    return 0;
-  }
-  error('Doctor failed for a reason other than the pinned expo-modules-core range.');
+export function runExcuseDoctor(args, { error = console.error } = {}) {
+  error('Doctor failed; expo-modules-core is unpinned, so no doctor findings are excused.');
   return 1;
 }
 
@@ -409,10 +364,9 @@ export function runCheckPin(args, { log = console.log, error = console.error } =
   if (args.json) {
     log(JSON.stringify(report, null, 2));
   } else if (report.ok) {
-    log(`expo-modules-core is unpinned and resolves ${report.resolved} at a single top-level key.`);
-    if (report.declaredRangeNewerThanPin) {
-      log(`Upstream expo declares ${report.declaredRange}; record ${PIN_ISSUE} in the weekly PR body.`);
-    }
+    log(
+      `expo-modules-core is unpinned and resolves ${report.resolved} at a single top-level key, which satisfies expo's declared range ${report.declaredRange}.`,
+    );
   } else {
     for (const line of report.errors) {
       error(line);

@@ -66,8 +66,8 @@ public class SocialShareTests : E2EPageTest
 
         await nativeShare.ClickAsync();
 
-        var title = await page.EvaluateAsync<string>("window.__shared && window.__shared.title");
-        var url = await page.EvaluateAsync<string>("window.__shared && window.__shared.url");
+        var title = await page.EvaluateAsync<string>("() => window.__shared && window.__shared.title");
+        var url = await page.EvaluateAsync<string>("() => window.__shared && window.__shared.url");
         Assert.That(title, Does.Contain("QueenZone modernisation begins"));
         Assert.That(url, Does.Contain("/news/1003/queenzone-modernisation-begins"));
     }
