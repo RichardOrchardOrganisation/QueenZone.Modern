@@ -31,6 +31,7 @@ public sealed class MemberAccountServiceTests
             legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                 new Dictionary<string, LegacyMemberMatch>()),
             blobs,
+            new MemberProfileService(repository),
             timeProvider,
             passwordLockout is null ? null : Options.Create(passwordLockout),
             deletionService: new MemberAccountDeletionService(repository, blobs, timeProvider, emailSender: emailSender))
@@ -665,10 +666,11 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateDisplayNameAsync_PersistsNewName()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Original Name");
 
-        var result = await service.UpdateDisplayNameAsync(registered.Account!.Id, "  New Name  ");
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account!.Id, "  New Name  ");
 
         Assert.True(result.Succeeded);
         Assert.Equal("New Name", result.Account!.DisplayName);
@@ -683,10 +685,11 @@ public sealed class MemberAccountServiceTests
     [InlineData("   ")]
     public async Task UpdateDisplayNameAsync_RejectsEmptyOrWhitespace(string? displayName)
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Original Name");
 
-        var result = await service.UpdateDisplayNameAsync(registered.Account!.Id, displayName!);
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account!.Id, displayName!);
 
         Assert.False(result.Succeeded);
         Assert.NotNull(result.Error);
@@ -699,10 +702,11 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateDisplayNameAsync_RejectsTooShortName()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Original Name");
 
-        var result = await service.UpdateDisplayNameAsync(registered.Account!.Id, "A");
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account!.Id, "A");
 
         Assert.False(result.Succeeded);
         Assert.Contains("at least", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -711,11 +715,12 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateDisplayNameAsync_RejectsTooLongName()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("fan@queenzone.org", "S3curePass!", "Original Name");
-        var tooLong = new string('x', MemberAccountService.MaxDisplayNameLength + 1);
+        var tooLong = new string('x', MemberProfileService.MaxDisplayNameLength + 1);
 
-        var result = await service.UpdateDisplayNameAsync(registered.Account!.Id, tooLong);
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account!.Id, tooLong);
 
         Assert.False(result.Succeeded);
         Assert.Contains("at most", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -724,11 +729,12 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateDisplayNameAsync_AllowsDuplicateDisplayNames()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         await service.RegisterAsync("fan1@queenzone.org", "S3curePass!", "Shared Name");
         var second = await service.RegisterAsync("fan2@queenzone.org", "S3curePass!", "Other Name");
 
-        var result = await service.UpdateDisplayNameAsync(second.Account!.Id, "Shared Name");
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(second.Account!.Id, "Shared Name");
 
         Assert.True(result.Succeeded);
         Assert.Equal("Shared Name", result.Account!.DisplayName);
@@ -737,9 +743,10 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateDisplayNameAsync_Fails_WhenAccountDoesNotExist()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
 
-        var result = await service.UpdateDisplayNameAsync(Guid.NewGuid(), "Nobody");
+        var result = await new MemberProfileService(repository).UpdateDisplayNameAsync(Guid.NewGuid(), "Nobody");
 
         Assert.False(result.Succeeded);
         Assert.Equal("Account not found.", result.Error);
@@ -749,10 +756,11 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateMessagePrivacyAsync_PersistsValidSetting()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("privacy@queenzone.org", "S3curePass!", "Privacy Fan");
 
-        var result = await service.UpdateMessagePrivacyAsync(
+        var result = await new MemberProfileService(repository).UpdateMessagePrivacyAsync(
             registered.Account!.Id,
             MemberMessagePrivacy.Followed);
 
@@ -765,11 +773,12 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateThemePreferenceAsync_DefaultsToSystemAndPersistsChoice()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("theme@queenzone.org", "S3curePass!", "Theme Fan");
         Assert.Equal(MemberThemePreference.System, registered.Account!.ThemePreference);
 
-        var result = await service.UpdateThemePreferenceAsync(registered.Account.Id, MemberThemePreference.Dark);
+        var result = await new MemberProfileService(repository).UpdateThemePreferenceAsync(registered.Account.Id, MemberThemePreference.Dark);
 
         Assert.True(result.Succeeded);
         var reloaded = await service.FindByIdAsync(registered.Account.Id);
@@ -779,10 +788,11 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateThemePreferenceAsync_RejectsUndefinedValue()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("theme-bad@queenzone.org", "S3curePass!", "Theme Fan");
 
-        var result = await service.UpdateThemePreferenceAsync(registered.Account!.Id, (MemberThemePreference)99);
+        var result = await new MemberProfileService(repository).UpdateThemePreferenceAsync(registered.Account!.Id, (MemberThemePreference)99);
 
         Assert.False(result.Succeeded);
         Assert.Contains("valid", result.Error, StringComparison.OrdinalIgnoreCase);
@@ -793,10 +803,11 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateMessagePrivacyAsync_RejectsUndefinedValue()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("privacy-bad@queenzone.org", "S3curePass!", "Privacy Fan");
 
-        var result = await service.UpdateMessagePrivacyAsync(
+        var result = await new MemberProfileService(repository).UpdateMessagePrivacyAsync(
             registered.Account!.Id,
             (MemberMessagePrivacy)99);
 
@@ -809,16 +820,17 @@ public sealed class MemberAccountServiceTests
     [Fact]
     public async Task UpdateMessagePrivacyAsync_RejectsPendingDeletion()
     {
-        var service = CreateService();
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("privacy-delete@queenzone.org", "S3curePass!", "Privacy Fan");
         await service.RequestDeletionAsync(registered.Account!.Id);
 
-        var result = await service.UpdateMessagePrivacyAsync(
+        var result = await new MemberProfileService(repository).UpdateMessagePrivacyAsync(
             registered.Account.Id,
             MemberMessagePrivacy.Nobody);
 
         Assert.False(result.Succeeded);
-        Assert.Equal(MemberAccountService.PendingDeletionEditError, result.Error);
+        Assert.Equal(MemberProfileService.PendingDeletionEditError, result.Error);
     }
 
     [Fact]
@@ -876,7 +888,7 @@ public sealed class MemberAccountServiceTests
         var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("social-service@example.com", "S3curePass!", "Social Service");
 
-        var saved = await service.UpdateSocialLinksAsync(
+        var saved = await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account!.Id,
             new Dictionary<MemberSocialChannel, string?>
             {
@@ -885,7 +897,7 @@ public sealed class MemberAccountServiceTests
             });
         Assert.True(saved.Succeeded);
 
-        var rejected = await service.UpdateSocialLinksAsync(
+        var rejected = await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account.Id,
             new Dictionary<MemberSocialChannel, string?>
             {
@@ -912,7 +924,7 @@ public sealed class MemberAccountServiceTests
         var repository = new InMemoryMemberAccountRepository();
         var service = CreateService(memberAccountRepository: repository);
         var registered = await service.RegisterAsync("social-delete@example.com", "S3curePass!", "Social Delete");
-        await service.UpdateSocialLinksAsync(
+        await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account!.Id,
             new Dictionary<MemberSocialChannel, string?>
             {
@@ -920,7 +932,7 @@ public sealed class MemberAccountServiceTests
             });
 
         var deleted = await service.RequestDeletionAsync(registered.Account.Id);
-        var update = await service.UpdateSocialLinksAsync(
+        var update = await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account.Id,
             new Dictionary<MemberSocialChannel, string?>
             {
@@ -929,7 +941,7 @@ public sealed class MemberAccountServiceTests
 
         Assert.True(deleted.Succeeded);
         Assert.False(update.Succeeded);
-        Assert.Equal(MemberAccountService.PendingDeletionEditError, update.Error);
+        Assert.Equal(MemberProfileService.PendingDeletionEditError, update.Error);
         Assert.Empty(await repository.ListSocialLinksAsync(registered.Account.Id));
     }
 
@@ -951,7 +963,7 @@ public sealed class MemberAccountServiceTests
 
         var result = await service.RequestDeletionAsync(registered.Account.Id);
         var signIn = await service.SignInAsync("delete-service@example.com", "S3curePass!");
-        var rename = await service.UpdateDisplayNameAsync(registered.Account.Id, "Visible Again");
+        var rename = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account.Id, "Visible Again");
 
         Assert.True(result.Succeeded);
         Assert.Equal(MemberAccountDeletionPolicy.DeletedDisplayName, result.Account!.DisplayName);
@@ -964,7 +976,7 @@ public sealed class MemberAccountServiceTests
         Assert.True(backend.Exists(MemberAvatarPaths.Container, thumbPath));
         Assert.True(signIn.Succeeded);
         Assert.False(rename.Succeeded);
-        Assert.Equal(MemberAccountService.PendingDeletionEditError, rename.Error);
+        Assert.Equal(MemberProfileService.PendingDeletionEditError, rename.Error);
 
         var cancelled = await service.CancelDeletionAsync(registered.Account.Id);
 
@@ -1015,7 +1027,7 @@ public sealed class MemberAccountServiceTests
             "deleted-github-subject",
             "deleted-external@example.com");
         Assert.False(blocked.Succeeded);
-        Assert.Equal(MemberAccountService.PendingDeletionEditError, blocked.Error);
+        Assert.Equal(MemberProfileService.PendingDeletionEditError, blocked.Error);
         Assert.Equal(["Google"], await service.ListExternalProvidersAsync(account.Id));
     }
 

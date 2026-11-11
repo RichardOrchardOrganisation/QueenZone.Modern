@@ -109,7 +109,8 @@ public sealed class MemberAccountDeletionHostedServiceTests
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(
                 new InMemoryBlobStorageBackend(),
-                Options.Create(new BlobUploadOptions())));
+                Options.Create(new BlobUploadOptions())),
+            new MemberProfileService(repository));
 
         var services = new ServiceCollection();
         services.AddSingleton(memberService);

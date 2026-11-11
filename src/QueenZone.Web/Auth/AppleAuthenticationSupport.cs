@@ -52,9 +52,9 @@ internal static class AppleAuthenticationSupport
             var lastName = GetString(name, "lastName");
             var displayName = string.Join(' ', new[] { firstName, lastName }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
-            if (displayName.Length > MemberAccountService.MaxDisplayNameLength)
+            if (displayName.Length > MemberProfileService.MaxDisplayNameLength)
             {
-                displayName = displayName[..MemberAccountService.MaxDisplayNameLength].TrimEnd();
+                displayName = displayName[..MemberProfileService.MaxDisplayNameLength].TrimEnd();
             }
 
             if (!string.IsNullOrWhiteSpace(displayName))

@@ -68,6 +68,7 @@ public static class MaintenanceServiceCollectionExtensions
 
         services.AddSingleton<MemberUploadQuotaService>();
         services.AddScoped<MemberAccountService>();
+        services.AddScoped<MemberProfileService>();
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
         services.AddScoped<GalleryOrphanSweepService>();
         services.AddSingleton<MaintenanceJobRunner>();

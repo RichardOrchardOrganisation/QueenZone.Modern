@@ -14,8 +14,8 @@ public sealed class AdminReviewerAccountValidationTests
         { "bad-email", "Reviewer", "abcdefghijkl", "Enter a valid email address of at most 256 characters." },
         { "   ", "Reviewer", "abcdefghijkl", "Enter a valid email address of at most 256 characters." },
         { new string('a', 245) + "@example.com", "Reviewer", "abcdefghijkl", "Enter a valid email address of at most 256 characters." },
-        { "reviewer@example.com", new string('n', MemberAccountService.MinDisplayNameLength - 1), "abcdefghijkl", DisplayNameError },
-        { "reviewer@example.com", new string('n', MemberAccountService.MaxDisplayNameLength + 1), "abcdefghijkl", DisplayNameError },
+        { "reviewer@example.com", new string('n', MemberProfileService.MinDisplayNameLength - 1), "abcdefghijkl", DisplayNameError },
+        { "reviewer@example.com", new string('n', MemberProfileService.MaxDisplayNameLength + 1), "abcdefghijkl", DisplayNameError },
         { "reviewer@example.com", "   ", "abcdefghijkl", DisplayNameError },
         { "reviewer@example.com", "Reviewer", "", "Password is required." },
         { "reviewer@example.com", "Reviewer", "            ", "Password is required." },
@@ -24,7 +24,7 @@ public sealed class AdminReviewerAccountValidationTests
     };
 
     private static string DisplayNameError =>
-        $"Display name must be between {MemberAccountService.MinDisplayNameLength} and {MemberAccountService.MaxDisplayNameLength} characters.";
+        $"Display name must be between {MemberProfileService.MinDisplayNameLength} and {MemberProfileService.MaxDisplayNameLength} characters.";
 
     [Theory]
     [MemberData(nameof(InvalidInputs))]
@@ -69,7 +69,7 @@ public sealed class AdminReviewerAccountValidationTests
     {
         var members = new InMemoryMemberAccountRepository();
         var email = new string('a', 244) + "@example.com";
-        var name = new string('n', minimumName ? MemberAccountService.MinDisplayNameLength : MemberAccountService.MaxDisplayNameLength);
+        var name = new string('n', minimumName ? MemberProfileService.MinDisplayNameLength : MemberProfileService.MaxDisplayNameLength);
         var password = " " + new string('p', passwordLength - 2) + " ";
         var result = await Service(members).CreateAsync(" " + email + " ", " " + name + " ", password);
         Assert.True(result.Succeeded);
