@@ -1073,11 +1073,6 @@ public sealed class MobileAuthServiceTests
             repository,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
             new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberUploadQuotaService(
-                new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                clock,
-                Options.Create(new UploadQuotaOptions { Enabled = false })),
             clock,
             Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
         var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
@@ -1288,12 +1283,7 @@ public sealed class MobileAuthServiceTests
         new(
             members,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberUploadQuotaService(
-                new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                TimeProvider.System,
-                Options.Create(new UploadQuotaOptions { Enabled = false })));
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
 
     private static async Task<MemberAccount> SeedPasswordAccountAsync(
         InMemoryMemberAccountRepository members,
@@ -1325,12 +1315,7 @@ public sealed class MobileAuthServiceTests
         var members = memberAccountService ?? new MemberAccountService(
             accounts ?? new InMemoryMemberAccountRepository(),
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
-            new MemberUploadQuotaService(
-                new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                clock,
-                Options.Create(new UploadQuotaOptions { Enabled = false })));
+            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
 
         var accountRateLimiter = new MobileAuthAccountRateLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(

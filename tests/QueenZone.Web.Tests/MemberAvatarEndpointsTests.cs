@@ -42,13 +42,14 @@ public sealed class MemberAvatarEndpointsTests :
         using (var scope = scopeFactory.CreateScope())
         {
             var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+            var avatars = scope.ServiceProvider.GetRequiredService<MemberAvatarService>();
             var registered = await members.RegisterAsync(
                 "avatar-serve@example.com",
                 "S3curePass!",
                 "Serve Fan");
             memberId = registered.Account!.Id;
             await using var png = await CreatePngAsync();
-            var upload = await members.UpdateAvatarAsync(memberId, png, "face.png");
+            var upload = await avatars.UpdateAvatarAsync(memberId, png, "face.png");
             Assert.True(upload.Succeeded, upload.Error);
         }
 

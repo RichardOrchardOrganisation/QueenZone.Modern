@@ -17,7 +17,6 @@ public sealed class MemberAccountServiceTests
         ILegacyMemberLookupRepository? legacyMemberLookupRepository = null,
         IBlobUploadService? blobUploadService = null,
         InMemoryBlobStorageBackend? blobBackend = null,
-        MemberUploadQuotaService? uploadQuota = null,
         TimeSpan? blobDeleteTimeout = null,
         TimeProvider? timeProvider = null,
         PasswordSignInLockoutOptions? passwordLockout = null,
@@ -32,7 +31,6 @@ public sealed class MemberAccountServiceTests
             legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                 new Dictionary<string, LegacyMemberMatch>()),
             blobs,
-            uploadQuota ?? CreateDisabledUploadQuota(),
             timeProvider,
             passwordLockout is null ? null : Options.Create(passwordLockout),
             deletionService: new MemberAccountDeletionService(repository, blobs, timeProvider, emailSender: emailSender))
@@ -40,6 +38,14 @@ public sealed class MemberAccountServiceTests
             BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
         };
     }
+
+    private static MemberAvatarService CreateAvatarService(
+        IMemberAccountRepository memberAccountRepository,
+        InMemoryBlobStorageBackend blobBackend) =>
+        new(
+            memberAccountRepository,
+            new AzureBlobUploadService(blobBackend, Options.Create(new BlobUploadOptions())),
+            CreateDisabledUploadQuota());
 
     private sealed class LockoutClock(DateTimeOffset start) : TimeProvider
     {
@@ -845,11 +851,13 @@ public sealed class MemberAccountServiceTests
     public async Task UpdateAvatarAsync_PersistsBlobPath_AndStoresFullAndThumb()
     {
         var backend = new InMemoryBlobStorageBackend();
-        var service = CreateService(blobBackend: backend);
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync("avatar@example.com", "S3curePass!", "Avatar Fan");
         await using var png = await CreatePngAsync(120, 80);
 
-        var result = await service.UpdateAvatarAsync(registered.Account!.Id, png, "photo.png");
+        var result = await avatars.UpdateAvatarAsync(registered.Account!.Id, png, "photo.png");
 
         Assert.True(result.Succeeded);
         Assert.False(string.IsNullOrWhiteSpace(result.Account!.AvatarUrl));
@@ -931,12 +939,13 @@ public sealed class MemberAccountServiceTests
         var backend = new InMemoryBlobStorageBackend();
         var repository = new InMemoryMemberAccountRepository();
         var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync(
             "delete-service@example.com",
             "S3curePass!",
             "Delete Service");
         await using var png = await CreatePngAsync();
-        var uploaded = await service.UpdateAvatarAsync(registered.Account!.Id, png, "avatar.png");
+        var uploaded = await avatars.UpdateAvatarAsync(registered.Account!.Id, png, "avatar.png");
         var avatarPath = uploaded.Account!.AvatarUrl!;
         var thumbPath = MemberAvatarPaths.ToThumbBlobName(avatarPath);
 
@@ -1014,12 +1023,14 @@ public sealed class MemberAccountServiceTests
     public async Task UpdateAvatarAsync_RejectsOversizedFile_BeforeUpload()
     {
         var backend = new InMemoryBlobStorageBackend();
-        var service = CreateService(blobBackend: backend);
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync("big@example.com", "S3curePass!", "Big Fan");
         // Oversized payload that is not a valid image — rejected on size before blob upload.
         await using var oversized = new MemoryStream(new byte[MemberAvatarPaths.MaxUploadBytes + 1]);
 
-        var result = await service.UpdateAvatarAsync(registered.Account!.Id, oversized, "huge.png");
+        var result = await avatars.UpdateAvatarAsync(registered.Account!.Id, oversized, "huge.png");
 
         Assert.False(result.Succeeded);
         Assert.Equal(MemberAccountOutcome.Invalid, result.Outcome);
@@ -1034,11 +1045,13 @@ public sealed class MemberAccountServiceTests
     public async Task UpdateAvatarAsync_RejectsNonImageFile_BeforeUpload()
     {
         var backend = new InMemoryBlobStorageBackend();
-        var service = CreateService(blobBackend: backend);
+        var repository = new InMemoryMemberAccountRepository();
+        var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync("txt@example.com", "S3curePass!", "Text Fan");
         await using var notImage = new MemoryStream("not-an-image"u8.ToArray());
 
-        var result = await service.UpdateAvatarAsync(registered.Account!.Id, notImage, "notes.txt");
+        var result = await avatars.UpdateAvatarAsync(registered.Account!.Id, notImage, "notes.txt");
 
         Assert.False(result.Succeeded);
         Assert.Equal(MemberAccountOutcome.Invalid, result.Outcome);
@@ -1127,9 +1140,10 @@ public sealed class MemberAccountServiceTests
         var backend = new InMemoryBlobStorageBackend();
         var repository = new InMemoryMemberAccountRepository();
         var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync("purge-ok@example.com", "S3curePass!", "Purge Fan");
         await using var png = await CreatePngAsync();
-        var uploaded = await service.UpdateAvatarAsync(registered.Account!.Id, png, "avatar.png");
+        var uploaded = await avatars.UpdateAvatarAsync(registered.Account!.Id, png, "avatar.png");
         var avatarPath = uploaded.Account!.AvatarUrl!;
         var thumbPath = MemberAvatarPaths.ToThumbBlobName(avatarPath);
         await service.RequestDeletionAsync(registered.Account.Id);
@@ -1174,16 +1188,17 @@ public sealed class MemberAccountServiceTests
         var backend = new InMemoryBlobStorageBackend();
         var realRepo = new InMemoryMemberAccountRepository();
         var service = CreateService(memberAccountRepository: realRepo, blobBackend: backend);
+        var avatars = CreateAvatarService(realRepo, backend);
         var registered = await service.RegisterAsync("keep@example.com", "S3curePass!", "Keep Fan");
         await using var first = await CreatePngAsync();
-        var firstResult = await service.UpdateAvatarAsync(registered.Account!.Id, first, "one.png");
+        var firstResult = await avatars.UpdateAvatarAsync(registered.Account!.Id, first, "one.png");
         Assert.True(firstResult.Succeeded);
         var oldPath = firstResult.Account!.AvatarUrl!;
         var oldThumb = MemberAvatarPaths.ToThumbBlobName(oldPath);
         Assert.True(backend.Exists(MemberAvatarPaths.Container, oldPath));
 
         var failingRepo = new FailingUpdateAvatarRepository(realRepo);
-        var failingService = CreateService(memberAccountRepository: failingRepo, blobBackend: backend);
+        var failingService = CreateAvatarService(failingRepo, backend);
         await using var second = await CreatePngAsync(64, 64);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             failingService.UpdateAvatarAsync(registered.Account.Id, second, "two.png"));

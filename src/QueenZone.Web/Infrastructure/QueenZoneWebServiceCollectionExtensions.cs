@@ -339,6 +339,7 @@ public static class QueenZoneWebServiceCollectionExtensions
     {
         services.AddScoped<MemberAccountDeletionService>();
         services.AddScoped<MemberAccountService>();
+        services.AddScoped<MemberAvatarService>();
         services.AddScoped<AppleAccountTokenService>();
         services.AddScoped<MemberDeletionReceiptService>();
         services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>

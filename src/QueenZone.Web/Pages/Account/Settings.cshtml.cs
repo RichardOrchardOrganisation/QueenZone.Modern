@@ -9,7 +9,9 @@ using QueenZone.Data;
 namespace QueenZone.Web.Pages.Account;
 
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
-public sealed class SettingsModel(MemberAccountService memberAccountService) : PageModel
+public sealed class SettingsModel(
+    MemberAccountService memberAccountService,
+    MemberAvatarService memberAvatarService) : PageModel
 {
     public const string SuccessMessageKey = "AccountSettingsSuccess";
 
@@ -394,7 +396,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
         }
 
         await using var stream = AvatarFile.OpenReadStream();
-        var result = await memberAccountService.UpdateAvatarAsync(
+        var result = await memberAvatarService.UpdateAvatarAsync(
             memberId.Value,
             stream,
             AvatarFile.FileName,
@@ -418,7 +420,7 @@ public sealed class SettingsModel(MemberAccountService memberAccountService) : P
             return Redirect("/account/login");
         }
 
-        var result = await memberAccountService.RemoveAvatarAsync(memberId.Value, cancellationToken);
+        var result = await memberAvatarService.RemoveAvatarAsync(memberId.Value, cancellationToken);
         if (!result.Succeeded)
         {
             var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);

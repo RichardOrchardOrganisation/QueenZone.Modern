@@ -157,12 +157,7 @@ public sealed class MemberAccountDeletionPromotedMediaTests : IAsyncDisposable
         new(
             repository,
             new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            blobs,
-            new MemberUploadQuotaService(
-                new Microsoft.Extensions.Caching.Memory.MemoryCache(
-                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions()),
-                TimeProvider.System,
-                Options.Create(new UploadQuotaOptions { Enabled = false })));
+            blobs);
 
     private async Task<Guid> SeedDueMemberAsync(
         string email,
