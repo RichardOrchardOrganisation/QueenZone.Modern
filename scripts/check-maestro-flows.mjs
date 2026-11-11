@@ -127,21 +127,30 @@ function checkRetry(lines, i, start) {
   return problems;
 }
 
+/** Rule findings for the line at `i`, as [rule, message] pairs. */
+function checkLine(lines, i, start, suiteFlow) {
+  const parsed = parseKeyLine(lines[i]);
+  if (!parsed) return [];
+  if (parsed.key === 'extendedWaitUntil' && parsed.value === '') {
+    const problem = checkWait(lines, i);
+    return problem ? [['bounded-wait', problem]] : [];
+  }
+  if (parsed.key === 'retry' && parsed.value === '') {
+    return checkRetry(lines, i, start).map(problem => ['retry-justified', problem]);
+  }
+  if (suiteFlow && parsed.key === 'optional' && !parsed.item && parsed.value === 'true') {
+    return [['no-optional', 'suite flows must not mark a step optional']];
+  }
+  return [];
+}
+
 /** Returns [{ rule, line, message }] for one flow file. */
 export function checkFlowText(text, { suiteFlow = false } = {}) {
   const findings = [];
   const add = (rule, line, message) => findings.push({ rule, line, message });
   const { lines, start } = commandLines(text);
   for (let i = start; i < lines.length; i++) {
-    const parsed = parseKeyLine(lines[i]);
-    if (parsed?.key === 'extendedWaitUntil' && parsed.value === '') {
-      const problem = checkWait(lines, i);
-      if (problem) add('bounded-wait', i + 1, problem);
-    } else if (parsed?.key === 'retry' && parsed.value === '') {
-      for (const problem of checkRetry(lines, i, start)) add('retry-justified', i + 1, problem);
-    } else if (suiteFlow && parsed?.key === 'optional' && !parsed.item && parsed.value === 'true') {
-      add('no-optional', i + 1, 'suite flows must not mark a step optional');
-    }
+    for (const [rule, message] of checkLine(lines, i, start, suiteFlow)) add(rule, i + 1, message);
   }
   if (suiteFlow && !ownsStartState(text)) {
     add('start-state', 1, 'suite flow must start with launchApp, openLink, or a common/* or open-* setup subflow');
