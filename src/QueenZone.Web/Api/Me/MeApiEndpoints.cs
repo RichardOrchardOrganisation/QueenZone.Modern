@@ -6,7 +6,7 @@ namespace QueenZone.Web;
 /// <summary>
 /// Signed-in member account for the mobile app (issues #752 / #753 / #754).
 /// Mirrors website <c>/account/settings</c> and <c>/account/delete</c> through
-/// <see cref="MemberAccountService"/>. Requires
+/// the profile, avatar, legacy-link and deletion services. Requires
 /// <see cref="MemberAuthenticationSchemes.MobileMemberPolicy"/>.
 /// </summary>
 public static class MeApiEndpoints
@@ -113,11 +113,11 @@ public static class MeApiEndpoints
     internal static async Task<IResult> GetMeAsync(
         HttpContext httpContext,
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         CancellationToken cancellationToken)
     {
-        var loaded = await LoadCurrentAsync(user, memberAccountService, legacyAccountLinkService, cancellationToken);
+        var loaded = await LoadCurrentAsync(user, memberAccountRepository, legacyAccountLinkService, cancellationToken);
         if (loaded.Failure is not null)
         {
             return loaded.Failure;
@@ -129,7 +129,7 @@ public static class MeApiEndpoints
 
     internal static async Task<IResult> PatchMeAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         MemberProfileService memberProfileService,
         MemberProfilePatchRequest? request,
@@ -190,13 +190,13 @@ public static class MeApiEndpoints
             }
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static async Task<IResult> UploadAvatarAsync(
         ClaimsPrincipal user,
         HttpRequest request,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         MemberAvatarService memberAvatarService,
         CancellationToken cancellationToken)
@@ -247,12 +247,12 @@ public static class MeApiEndpoints
             return BadRequest(result.Error ?? "Could not update avatar.");
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static async Task<IResult> RemoveAvatarAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         MemberAvatarService memberAvatarService,
         CancellationToken cancellationToken)
@@ -269,12 +269,12 @@ public static class MeApiEndpoints
             return BadRequest(result.Error ?? "Could not remove avatar.");
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static async Task<IResult> ClaimLegacyAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         ClaimLegacyRequest? request,
         CancellationToken cancellationToken)
@@ -300,12 +300,12 @@ public static class MeApiEndpoints
             return BadRequest(result.Error ?? "Could not claim the legacy account.");
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static async Task<IResult> UnlinkLegacyAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         CancellationToken cancellationToken)
     {
@@ -321,12 +321,12 @@ public static class MeApiEndpoints
             return BadRequest(result.Error ?? "Could not unlink the legacy account.");
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static async Task<IResult> RequestDeletionAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        MemberAccountDeletionService deletions,
         IMobileAuthGrantRepository mobileAuthGrantRepository,
         MemberDeletionReceiptService deletionReceipts,
         DeletionRequestBody? request,
@@ -347,8 +347,8 @@ public static class MeApiEndpoints
         }
 
         var result = request?.Immediate == true
-            ? await memberAccountService.DeleteImmediatelyAsync(memberId, cancellationToken)
-            : await memberAccountService.RequestDeletionAsync(memberId, cancellationToken);
+            ? await deletions.DeleteImmediatelyAsync(memberId, cancellationToken)
+            : await deletions.RequestDeletionAsync(memberId, cancellationToken);
         if (!result.Succeeded || result.Account is null)
         {
             return BadRequest(result.Error ?? "Could not request account deletion.");
@@ -371,7 +371,8 @@ public static class MeApiEndpoints
 
     internal static async Task<IResult> CancelDeletionAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
+        MemberAccountDeletionService deletions,
         LegacyAccountLinkService legacyAccountLinkService,
         CancellationToken cancellationToken)
     {
@@ -381,13 +382,13 @@ public static class MeApiEndpoints
             return unauthorized;
         }
 
-        var result = await memberAccountService.CancelDeletionAsync(memberId, cancellationToken);
+        var result = await deletions.CancelDeletionAsync(memberId, cancellationToken);
         if (!result.Succeeded)
         {
             return BadRequest(result.Error ?? "Could not cancel account deletion.");
         }
 
-        return await OkProfileAsync(memberId, memberAccountService, legacyAccountLinkService, cancellationToken);
+        return await OkProfileAsync(memberId, memberAccountRepository, legacyAccountLinkService, cancellationToken);
     }
 
     internal static MemberProfileDto ToDto(
@@ -430,11 +431,11 @@ public static class MeApiEndpoints
 
     private static async Task<IResult> OkProfileAsync(
         Guid memberId,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         CancellationToken cancellationToken)
     {
-        var account = await memberAccountService.FindByIdAsync(memberId, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
             return Results.Problem(
@@ -443,14 +444,14 @@ public static class MeApiEndpoints
                 detail: "The access token is invalid or expired.");
         }
 
-        var providers = await memberAccountService.ListExternalProvidersAsync(memberId, cancellationToken);
+        var providers = await memberAccountRepository.ListExternalProvidersAsync(memberId, cancellationToken);
         var legacy = await legacyAccountLinkService.GetLegacyLinkStateAsync(account, cancellationToken);
         return Results.Ok(ToDto(account, providers, legacy));
     }
 
     private static async Task<(MemberProfileDto? Profile, IResult? Failure)> LoadCurrentAsync(
         ClaimsPrincipal user,
-        MemberAccountService memberAccountService,
+        IMemberAccountRepository memberAccountRepository,
         LegacyAccountLinkService legacyAccountLinkService,
         CancellationToken cancellationToken)
     {
@@ -460,7 +461,7 @@ public static class MeApiEndpoints
             return (null, unauthorized);
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
             return (null, Results.Problem(
@@ -469,7 +470,7 @@ public static class MeApiEndpoints
                 detail: "The access token is invalid or expired."));
         }
 
-        var providers = await memberAccountService.ListExternalProvidersAsync(memberId, cancellationToken);
+        var providers = await memberAccountRepository.ListExternalProvidersAsync(memberId, cancellationToken);
         var legacy = await legacyAccountLinkService.GetLegacyLinkStateAsync(account, cancellationToken);
         return (ToDto(account, providers, legacy), null);
     }

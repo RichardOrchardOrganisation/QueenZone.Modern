@@ -104,15 +104,13 @@ public sealed class MemberAccountDeletionHostedServiceTests
         RecordingPurgeRepository repository,
         TimeProvider clock)
     {
-        var memberService = new MemberAccountService(
+        var memberService = new MemberAccountDeletionService(
             repository,
-            new LegacyAccountLinkService(
-                repository,
-                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-                new MemberProfileService(repository)),
             new AzureBlobUploadService(
                 new InMemoryBlobStorageBackend(),
-                Options.Create(new BlobUploadOptions())));
+                Options.Create(new BlobUploadOptions())),
+            clock, appleTokens: null,
+            NullLogger<MemberAccountDeletionService>.Instance, emailSender: null);
 
         var services = new ServiceCollection();
         services.AddSingleton(memberService);

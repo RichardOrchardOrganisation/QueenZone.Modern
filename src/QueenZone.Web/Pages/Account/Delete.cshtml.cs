@@ -9,7 +9,8 @@ namespace QueenZone.Web.Pages.Account;
 
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class DeleteModel(
-    MemberAccountService memberAccountService,
+    IMemberAccountRepository memberAccountRepository,
+    MemberAccountDeletionService deletions,
     IMobileAuthGrantRepository mobileAuthGrantRepository,
     MemberDeletionReceiptService deletionReceipts) : PageModel
 {
@@ -53,8 +54,8 @@ public sealed class DeleteModel(
         }
 
         var result = Immediate
-            ? await memberAccountService.DeleteImmediatelyAsync(account.Id, cancellationToken)
-            : await memberAccountService.RequestDeletionAsync(account.Id, cancellationToken);
+            ? await deletions.DeleteImmediatelyAsync(account.Id, cancellationToken)
+            : await deletions.RequestDeletionAsync(account.Id, cancellationToken);
         if (!result.Succeeded)
         {
             ModelState.AddModelError(string.Empty, result.Error ?? "Could not request account deletion.");
@@ -79,7 +80,7 @@ public sealed class DeleteModel(
             return Redirect("/account/login");
         }
 
-        var result = await memberAccountService.CancelDeletionAsync(account.Id, cancellationToken);
+        var result = await deletions.CancelDeletionAsync(account.Id, cancellationToken);
         if (!result.Succeeded)
         {
             PopulatePage(account);
@@ -103,7 +104,7 @@ public sealed class DeleteModel(
         var authResult = await HttpContext.AuthenticateMemberAsync();
         var idValue = authResult.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
         return authResult.Succeeded && Guid.TryParse(idValue, out var memberId)
-            ? await memberAccountService.FindByIdAsync(memberId, cancellationToken)
+            ? await memberAccountRepository.FindByIdAsync(memberId, cancellationToken)
             : null;
     }
 }

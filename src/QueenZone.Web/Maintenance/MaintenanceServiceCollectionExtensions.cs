@@ -40,7 +40,7 @@ public static class MaintenanceServiceCollectionExtensions
     /// <summary>
     /// Composition for <c>QueenZone.Maintenance.Worker</c>: only what the four jobs need.
     /// <see cref="AppleAccountTokenService"/> is deliberately absent. The worker cannot decrypt
-    /// the web host's protected tokens, so <see cref="MemberAccountService"/> leaves revocations
+    /// the web host's protected tokens, so <see cref="MemberAccountDeletionService"/> leaves revocations
     /// queued for <see cref="AppleTokenRevocationHostedService"/>.
     /// </summary>
     public static IServiceCollection AddQueenZoneMaintenanceWorker(
@@ -67,9 +67,13 @@ public static class MaintenanceServiceCollectionExtensions
         services.AddSingleton<IValidateOptions<GalleryOrphanSweepOptions>, GalleryOrphanSweepOptionsValidator>();
 
         services.AddSingleton<MemberUploadQuotaService>();
-        services.AddScoped<MemberAccountService>();
-        services.AddScoped<MemberProfileService>();
-        services.AddScoped<LegacyAccountLinkService>();
+        services.AddScoped(provider => new MemberAccountDeletionService(
+            provider.GetRequiredService<IMemberAccountRepository>(),
+            provider.GetRequiredService<IBlobUploadService>(),
+            provider.GetRequiredService<TimeProvider>(),
+            appleTokens: null,
+            provider.GetRequiredService<ILogger<MemberAccountDeletionService>>(),
+            emailSender: null));
         services.AddScoped<FanPerformanceSubmissionPurgeService>();
         services.AddScoped<GalleryOrphanSweepService>();
         services.AddSingleton<MaintenanceJobRunner>();

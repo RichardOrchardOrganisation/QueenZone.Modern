@@ -6,7 +6,7 @@ namespace QueenZone.Web;
 
 public sealed class MobileAuthService(
     MobileAuthAuthorizationSessionStore sessions,
-    MemberAccountService memberAccountService,
+    MemberAuthenticationService memberAccountService,
     IOptions<MobileAuthOptions> options,
     MobileAuthGrantProcessingService grantProcessing)
 {

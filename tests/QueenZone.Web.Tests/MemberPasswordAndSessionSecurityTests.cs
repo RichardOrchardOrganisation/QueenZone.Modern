@@ -28,7 +28,7 @@ public sealed partial class MemberPasswordAndSessionSecurityTests : IClassFixtur
         var account = await SeedPasswordAccountAsync(email, "correct horse battery staple", "Suspended Reviewer");
         using (var scope = factory.Services.CreateScope())
         {
-            await scope.ServiceProvider.GetRequiredService<MemberAccountService>().SuspendAsync(
+            await scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>().SuspendAsync(
                 account.Id,
                 "Review hold",
                 "admin@queenzone.org",
@@ -48,7 +48,7 @@ public sealed partial class MemberPasswordAndSessionSecurityTests : IClassFixtur
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains(MemberAccountService.InvalidPasswordSignInError, body, StringComparison.Ordinal);
+        Assert.Contains(MemberAuthenticationService.InvalidPasswordSignInError, body, StringComparison.Ordinal);
         Assert.DoesNotContain("suspended", body, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -103,7 +103,7 @@ public sealed partial class MemberPasswordAndSessionSecurityTests : IClassFixtur
 
         using (var scope = factory.Services.CreateScope())
         {
-            await scope.ServiceProvider.GetRequiredService<MemberAccountService>().SuspendAsync(
+            await scope.ServiceProvider.GetRequiredService<IMemberAccountRepository>().SuspendAsync(
                 suspended.Id,
                 "Review hold",
                 "admin@queenzone.org",
@@ -161,7 +161,7 @@ public sealed partial class MemberPasswordAndSessionSecurityTests : IClassFixtur
         string displayName)
     {
         using var scope = factory.Services.CreateScope();
-        var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var members = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         var result = await members.RegisterAsync(email, password, displayName);
         Assert.True(result.Succeeded, result.Error);
         return result.Account!;

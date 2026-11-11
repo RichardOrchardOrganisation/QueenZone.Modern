@@ -103,7 +103,7 @@ public sealed class MobileAuthRateLimitRouteTests : IClassFixture<WebHostVariant
     {
         using (var scope = ipPassword.Services.CreateScope())
         {
-            var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+            var members = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
             var seeded = await members.RegisterAsync(
                 "auth-password-rate@example.com",
                 "correct horse battery staple",

@@ -144,10 +144,10 @@ public sealed class MaintenanceJobsTests
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(IHostedService));
         Assert.DoesNotContain(services, descriptor => descriptor.ServiceType == typeof(AppleAccountTokenService));
 
-        using var provider = services.BuildServiceProvider(validateScopes: true);
+        using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         Assert.NotNull(provider.GetRequiredService<MaintenanceJobRunner>());
         using var scope = provider.CreateScope();
-        Assert.NotNull(scope.ServiceProvider.GetRequiredService<MemberAccountService>());
+        Assert.NotNull(scope.ServiceProvider.GetRequiredService<MemberAccountDeletionService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<FanPerformanceSubmissionPurgeService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<GalleryOrphanSweepService>());
         Assert.NotNull(scope.ServiceProvider.GetRequiredService<IPrivateMessageRepository>());
@@ -345,7 +345,7 @@ public sealed class MaintenanceJobsTests
         services.AddLogging(builder => builder.AddProvider(logs));
         services.AddQueenZoneMaintenanceWorker(new ConfigurationBuilder().Build());
         configure?.Invoke(services);
-        return services.BuildServiceProvider(validateScopes: true);
+        return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
     private sealed class CapturingLoggerProvider : ILoggerProvider

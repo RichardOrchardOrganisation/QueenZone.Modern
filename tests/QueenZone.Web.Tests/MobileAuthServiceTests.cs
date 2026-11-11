@@ -267,7 +267,7 @@ public sealed class MobileAuthServiceTests
         Assert.Null(pending.Code);
         Assert.Null(await members.FindByExternalLoginAsync(MemberAuthenticationSchemes.Google, "google-mobile-confirm"));
 
-        var linker = CreateMemberAccountService(members);
+        var linker = CreateMemberAuthenticationService(members);
         var linked = await linker.LinkExternalLoginAsync(
             account.Id,
             MemberAuthenticationSchemes.Google,
@@ -1069,20 +1069,19 @@ public sealed class MobileAuthServiceTests
     {
         var repository = new InMemoryMemberAccountRepository();
         var clock = new ManualTimeProvider(new DateTimeOffset(2026, 9, 22, 12, 0, 0, TimeSpan.Zero));
-        var accounts = new MemberAccountService(
+        var accounts = new MemberAuthenticationService(
             repository,
             new LegacyAccountLinkService(
                 repository,
                 new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
                 new MemberProfileService(repository)),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())),
             clock,
             Options.Create(new PasswordSignInLockoutOptions { MaxFailures = 2, WindowMinutes = 15 }));
         var registered = await accounts.RegisterAsync("shared-lock@example.com", "S3curePass!", "Shared");
         Assert.True(registered.Succeeded, registered.Error);
 
         var fromWebsite = await accounts.SignInAsync("shared-lock@example.com", "wrong-password");
-        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, fromWebsite.Error);
+        Assert.Equal(MemberAuthenticationService.InvalidPasswordSignInError, fromWebsite.Error);
 
         var service = CreateService(repository, timeProvider: clock, memberAccountService: accounts);
         var fromMobile = await service.ExchangePasswordGrantAsync(
@@ -1282,21 +1281,22 @@ public sealed class MobileAuthServiceTests
         return rotated.RefreshToken!;
     }
 
-    private static MemberAccountService CreateMemberAccountService(InMemoryMemberAccountRepository members) =>
+    private static MemberAuthenticationService CreateMemberAuthenticationService(InMemoryMemberAccountRepository members) =>
         new(
             members,
             new LegacyAccountLinkService(
                 members,
                 new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
                 new MemberProfileService(members)),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
+            TimeProvider.System,
+            Options.Create(new PasswordSignInLockoutOptions()));
 
     private static async Task<MemberAccount> SeedPasswordAccountAsync(
         InMemoryMemberAccountRepository members,
         string email,
         string password)
     {
-        var accounts = CreateMemberAccountService(members);
+        var accounts = CreateMemberAuthenticationService(members);
         var registered = await accounts.RegisterAsync(email, password, "Reviewer");
         Assert.True(registered.Succeeded, registered.Error);
         Assert.NotNull(registered.Account);
@@ -1312,20 +1312,21 @@ public sealed class MobileAuthServiceTests
         ILogger<MobileAuthService>? serviceLogger = null,
         IMobileAuthGrantRepository? grants = null,
         MobileAuthOptions? mobileOptions = null,
-        MemberAccountService? memberAccountService = null)
+        MemberAuthenticationService? memberAccountService = null)
     {
         var clock = timeProvider ?? TimeProvider.System;
         var options = Options.Create(mobileOptions ?? new MobileAuthOptions());
         var site = Options.Create(new SiteOptions());
         var environment = new FakeHostEnvironment(environmentName);
         var repository = accounts ?? new InMemoryMemberAccountRepository();
-        var members = memberAccountService ?? new MemberAccountService(
+        var members = memberAccountService ?? new MemberAuthenticationService(
             repository,
             new LegacyAccountLinkService(
                 repository,
                 new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
                 new MemberProfileService(repository)),
-            new AzureBlobUploadService(new InMemoryBlobStorageBackend(), Options.Create(new BlobUploadOptions())));
+            TimeProvider.System,
+            Options.Create(new PasswordSignInLockoutOptions()));
 
         var accountRateLimiter = new MobileAuthAccountRateLimiter(
                 new Microsoft.Extensions.Caching.Memory.MemoryCache(

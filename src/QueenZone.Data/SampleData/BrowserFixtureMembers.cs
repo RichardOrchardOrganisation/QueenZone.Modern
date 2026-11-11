@@ -24,8 +24,17 @@ public static class BrowserFixtureMembers
     public static readonly BrowserFixtureMember SettingsAvatarOwner =
         new(Guid.Parse("e2e0a000-0000-4000-8000-000000000005"), "E2E Settings Avatar Owner");
 
+    public static readonly BrowserFixtureMember AuthenticationOwner =
+        new(Guid.Parse("e2e0a000-0000-4000-8000-000000000006"), "E2E Authentication Owner");
+
+    public static readonly BrowserFixtureMember DeletionOwner =
+        new(Guid.Parse("e2e0a000-0000-4000-8000-000000000007"), "E2E Deletion Owner");
+
+    // Synthetic password, seeded only by the explicitly enabled in-memory Testing host.
+    public const string AuthenticationPassword = "Testing-only-password-2437!";
+
     public static IReadOnlyList<BrowserFixtureMember> All { get; } =
-        [ProfileViewer, ProfileSubject, ConversationSender, ConversationRecipient, SettingsAvatarOwner];
+        [ProfileViewer, ProfileSubject, ConversationSender, ConversationRecipient, SettingsAvatarOwner, AuthenticationOwner, DeletionOwner];
 }
 
 public sealed record BrowserFixtureMember(Guid Id, string DisplayName)

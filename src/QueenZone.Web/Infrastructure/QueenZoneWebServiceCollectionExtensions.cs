@@ -338,7 +338,7 @@ public static class QueenZoneWebServiceCollectionExtensions
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
         services.AddScoped<MemberAccountDeletionService>();
-        services.AddScoped<MemberAccountService>();
+        services.AddScoped<MemberAuthenticationService>();
         services.AddScoped<MemberProfileService>();
         services.AddScoped<LegacyAccountLinkService>();
         services.AddScoped<MemberAvatarService>();
