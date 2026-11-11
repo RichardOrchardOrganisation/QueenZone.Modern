@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\QueenZone.Data\QueenZone.Data.csproj" />
+    <ProjectReference Include="..\..\src\QueenZone.Tools\QueenZone.Tools.csproj" />
   </ItemGroup>
 
 </Project>

@@ -390,12 +390,8 @@ internal sealed class SqlSnapshotCopySession(
         {
             var batch = ids.Skip(offset).Take(batchSize).ToArray();
             await using var command = source.CreateCommand();
-            command.CommandText = "INSERT #SelectedPhoto(Id) VALUES "
-                + string.Join(",", batch.Select((_, index) => $"(@p{index})")) + ";";
-            for (var index = 0; index < batch.Length; index++)
-            {
-                command.Parameters.AddWithValue($"@p{index}", batch[index]);
-            }
+            command.CommandText = "INSERT #SelectedPhoto(Id) SELECT Id FROM OPENJSON(@Ids) WITH (Id int '$');";
+            SqlIdSet.Add(command, batch);
 
             await command.ExecuteNonQueryAsync();
         }
@@ -500,16 +496,16 @@ internal sealed class SqlSnapshotCopySession(
         {
             await using (var select = target.CreateCommand())
             {
-                var parameters = AddIdParameters(select, batch);
-                select.CommandText = $"SELECT DISTINCT PostId FROM dbo.ForumPostAttachments WHERE Id IN ({parameters});";
+                SqlIdSet.Add(select, batch);
+                select.CommandText = "SELECT DISTINCT PostId FROM dbo.ForumPostAttachments WHERE Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id uniqueidentifier '$'));";
                 select.CommandTimeout = 1200;
                 await using var reader = await select.ExecuteReaderAsync();
                 while (await reader.ReadAsync()) affectedPostIds.Add(reader.GetInt64(0));
             }
 
             await using var delete = target.CreateCommand();
-            var deleteParameters = AddIdParameters(delete, batch);
-            delete.CommandText = $"DELETE FROM dbo.ForumPostAttachments WHERE Id IN ({deleteParameters});";
+            SqlIdSet.Add(delete, batch);
+            delete.CommandText = "DELETE FROM dbo.ForumPostAttachments WHERE Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id uniqueidentifier '$'));";
             delete.CommandTimeout = 1200;
             await delete.ExecuteNonQueryAsync();
         }
@@ -517,8 +513,8 @@ internal sealed class SqlSnapshotCopySession(
         foreach (var batch in legacyPostIds.Chunk(500))
         {
             await using var update = target.CreateCommand();
-            var parameters = AddIdParameters(update, batch);
-            update.CommandText = $"UPDATE dbo.ModernForumPost SET Attachment=NULL, FileSize=NULL WHERE Id IN ({parameters});";
+            SqlIdSet.Add(update, batch);
+            update.CommandText = "UPDATE dbo.ModernForumPost SET Attachment=NULL, FileSize=NULL WHERE Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id bigint '$'));";
             update.CommandTimeout = 1200;
             await update.ExecuteNonQueryAsync();
         }
@@ -526,13 +522,13 @@ internal sealed class SqlSnapshotCopySession(
         foreach (var batch in affectedPostIds.Chunk(500))
         {
             await using var update = target.CreateCommand();
-            var parameters = AddIdParameters(update, batch);
-            update.CommandText = $"""
+            SqlIdSet.Add(update, batch);
+            update.CommandText = """
                 UPDATE p
                 SET AttachCount = CASE WHEN NULLIF(LTRIM(RTRIM(p.Attachment)), '') IS NULL THEN 0 ELSE 1 END
                     + (SELECT COUNT(*) FROM dbo.ForumPostAttachments a WHERE a.PostId=p.Id)
                 FROM dbo.ModernForumPost p
-                WHERE p.Id IN ({parameters});
+                WHERE p.Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id bigint '$'));
                 """;
             update.CommandTimeout = 1200;
             await update.ExecuteNonQueryAsync();
@@ -557,8 +553,8 @@ internal sealed class SqlSnapshotCopySession(
         foreach (var batch in legacyNewsIds.Chunk(500))
         {
             await using var update = target.CreateCommand();
-            var parameters = AddIdParameters(update, batch);
-            update.CommandText = $"UPDATE dbo.NEWS_T SET IMAGE_BLOB_KEY=NULL WHERE NEWS_ID IN ({parameters});";
+            SqlIdSet.Add(update, batch);
+            update.CommandText = "UPDATE dbo.NEWS_T SET IMAGE_BLOB_KEY=NULL WHERE NEWS_ID IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id int '$'));";
             update.CommandTimeout = 1200;
             await update.ExecuteNonQueryAsync();
         }
@@ -566,8 +562,8 @@ internal sealed class SqlSnapshotCopySession(
         foreach (var batch in draftArticleIds.Chunk(500))
         {
             await using var update = target.CreateCommand();
-            var parameters = AddIdParameters(update, batch);
-            update.CommandText = $"UPDATE dbo.EditorialArticles SET ImageBlobKey=NULL WHERE Id IN ({parameters});";
+            SqlIdSet.Add(update, batch);
+            update.CommandText = "UPDATE dbo.EditorialArticles SET ImageBlobKey=NULL WHERE Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id uniqueidentifier '$'));";
             update.CommandTimeout = 1200;
             await update.ExecuteNonQueryAsync();
         }
@@ -575,8 +571,8 @@ internal sealed class SqlSnapshotCopySession(
         foreach (var batch in liveArticleIds.Chunk(500))
         {
             await using var update = target.CreateCommand();
-            var parameters = AddIdParameters(update, batch);
-            update.CommandText = $"UPDATE dbo.EditorialArticles SET LiveImageBlobKey=NULL WHERE Id IN ({parameters});";
+            SqlIdSet.Add(update, batch);
+            update.CommandText = "UPDATE dbo.EditorialArticles SET LiveImageBlobKey=NULL WHERE Id IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id uniqueidentifier '$'));";
             update.CommandTimeout = 1200;
             await update.ExecuteNonQueryAsync();
         }
@@ -698,18 +694,6 @@ internal sealed class SqlSnapshotCopySession(
         command.CommandText = sql;
         command.CommandTimeout = 1200;
         await command.ExecuteNonQueryAsync();
-    }
-
-    private static string AddIdParameters<T>(SqlCommand command, IReadOnlyList<T> ids)
-    {
-        var names = new string[ids.Count];
-        for (var index = 0; index < ids.Count; index++)
-        {
-            names[index] = $"@id{index}";
-            command.Parameters.AddWithValue(names[index], ids[index]!);
-        }
-
-        return string.Join(",", names);
     }
 
     private static string Escape(string value) => value.Replace("]", "]]", StringComparison.Ordinal);

@@ -154,6 +154,25 @@ internal static class BackfillPhotoDimensionsCommand
         return new HttpPhotoDimensionProbe(options.HttpTimeout, options.BlobEndpoint);
     }
 
+    internal static void ConfigureQuery(SqlCommand command, BackfillPhotoDimensionsOptions options)
+    {
+        command.CommandText = """
+            SELECT TOP (@Limit) PIC_ID, Url, ISNULL(PIC_WIDTH, 0), ISNULL(PIC_HEIGHT, 0), Cat_ID, DISPLAY
+            FROM dbo.PIC_FILES_T
+            WHERE (@PublicOnly = 0 OR DISPLAY = 1)
+              AND (@Force = 1 OR ISNULL(PIC_WIDTH, 0) = 0 OR ISNULL(PIC_HEIGHT, 0) = 0)
+              AND (@CategoryId IS NULL OR Cat_ID = @CategoryId)
+              AND (@FilterIds = 0 OR PIC_ID IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id int '$')))
+            ORDER BY PIC_ID
+            """;
+        command.Parameters.Add("@Limit", System.Data.SqlDbType.BigInt).Value = (long?)options.Limit ?? long.MaxValue;
+        command.Parameters.Add("@PublicOnly", System.Data.SqlDbType.Bit).Value = options.PublicOnly;
+        command.Parameters.Add("@Force", System.Data.SqlDbType.Bit).Value = options.Force;
+        command.Parameters.Add("@CategoryId", System.Data.SqlDbType.Int).Value = (object?)options.CategoryId ?? DBNull.Value;
+        command.Parameters.Add("@FilterIds", System.Data.SqlDbType.Bit).Value = options.PicIds is { Count: > 0 };
+        SqlIdSet.Add(command, options.PicIds ?? []);
+    }
+
     [ExcludeFromCodeCoverage]
     private static async Task<IReadOnlyList<BackfillPhotoRow>> LoadCandidatesAsync(
         BackfillPhotoDimensionsOptions options)
@@ -161,44 +180,7 @@ internal static class BackfillPhotoDimensionsCommand
         await using var connection = new SqlConnection(options.ConnectionString);
         await connection.OpenAsync(options.CancellationToken);
         await using var command = connection.CreateCommand();
-
-        var where = new List<string> { "1 = 1" };
-        if (options.PublicOnly)
-        {
-            where.Add("DISPLAY = 1");
-        }
-
-        if (!options.Force)
-        {
-            where.Add("(ISNULL(PIC_WIDTH, 0) = 0 OR ISNULL(PIC_HEIGHT, 0) = 0)");
-        }
-
-        if (options.CategoryId is int catId)
-        {
-            where.Add("Cat_ID = @catId");
-            command.Parameters.AddWithValue("@catId", catId);
-        }
-
-        if (options.PicIds is { Count: > 0 })
-        {
-            var names = new List<string>();
-            for (var i = 0; i < options.PicIds.Count; i++)
-            {
-                var name = "@pic" + i;
-                names.Add(name);
-                command.Parameters.AddWithValue(name, options.PicIds[i]);
-            }
-
-            where.Add($"PIC_ID IN ({string.Join(", ", names)})");
-        }
-
-        var top = options.Limit is int limit ? $"TOP ({limit}) " : string.Empty;
-        command.CommandText = $"""
-            SELECT {top}PIC_ID, Url, ISNULL(PIC_WIDTH, 0), ISNULL(PIC_HEIGHT, 0), Cat_ID, DISPLAY
-            FROM dbo.PIC_FILES_T
-            WHERE {string.Join(" AND ", where)}
-            ORDER BY PIC_ID
-            """;
+        ConfigureQuery(command, options);
 
         var rows = new List<BackfillPhotoRow>();
         await using var reader = await command.ExecuteReaderAsync(options.CancellationToken);
