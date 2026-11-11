@@ -17,6 +17,8 @@ public sealed class MemberAvatarService(
     /// <see cref="CancellationToken"/> during a dead TCP or retry loop, so deletes use
     /// both <c>CancelAfter</c> and <c>WaitAsync</c>.
     /// </summary>
+    private const string AccountNotFoundError = "Account not found.";
+
     internal static readonly TimeSpan DefaultBlobDeleteTimeout = TimeSpan.FromSeconds(20);
 
     internal TimeSpan BlobDeleteTimeout { get; init; } = DefaultBlobDeleteTimeout;
@@ -37,7 +39,7 @@ public sealed class MemberAvatarService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, AccountNotFoundError);
         }
 
         if (account.DeletionRequestedAt is not null)
@@ -110,7 +112,7 @@ public sealed class MemberAvatarService(
                 if (updated is null)
                 {
                     await SafeDeleteAsync(uploadedAvatar, uploadedThumb, cancellationToken);
-                    return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+                    return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, AccountNotFoundError);
                 }
 
                 // Delete previous blobs only after the DB write succeeds.
@@ -150,7 +152,7 @@ public sealed class MemberAvatarService(
         var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account is null)
         {
-            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, AccountNotFoundError);
         }
 
         if (account.DeletionRequestedAt is not null)
@@ -169,7 +171,7 @@ public sealed class MemberAvatarService(
         var updated = await memberAccountRepository.UpdateAvatarUrlAsync(memberId, null, cancellationToken);
         if (updated is null)
         {
-            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, AccountNotFoundError);
         }
 
         await SafeDeleteAsync(
