@@ -73,7 +73,6 @@ beforeEach(() => {
   cacheAttachment.mockResolvedValue({
     fileUri: 'file:///cache/brighton-rock-solo.mp3',
     contentType: 'audio/mpeg',
-    dataUri: 'data:audio/mpeg;base64,AA==',
   });
   saveImage.mockReset();
   saveImage.mockResolvedValue(undefined);

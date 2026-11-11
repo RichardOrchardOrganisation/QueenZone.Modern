@@ -376,7 +376,6 @@ describe('ThreadScreen attachments', () => {
     cacheAttachment.mockResolvedValue({
       fileUri: 'file:///cache/brighton-rock-solo.mp3',
       contentType: 'audio/mpeg',
-      dataUri: 'data:audio/mpeg;base64,AA==',
     });
     saveImageAttachment.mockReset();
     saveImageAttachment.mockResolvedValue(undefined);
