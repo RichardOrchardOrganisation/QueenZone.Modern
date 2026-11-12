@@ -156,9 +156,11 @@ public sealed class MemberAccountDeletionPromotedMediaTests : IAsyncDisposable
     private MemberAccountService CreateService(IBlobUploadService blobs) =>
         new(
             repository,
-            new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-            blobs,
-            new MemberProfileService(repository));
+            new LegacyAccountLinkService(
+                repository,
+                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
+                new MemberProfileService(repository)),
+            blobs);
 
     private async Task<Guid> SeedDueMemberAsync(
         string email,
