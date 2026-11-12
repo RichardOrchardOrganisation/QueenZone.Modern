@@ -72,7 +72,7 @@ public class AccountSettingsAvatarTests : E2EPageTest
     public async Task ProfileEditsPersistAfterReload()
     {
         await Page.GotoAsync("/account/settings");
-        await Page.GetByLabel("Display name").FillAsync("Profile Edit Fan");
+        await Page.GetByRole(AriaRole.Textbox, new() { Name = "Display name" }).FillAsync("Profile Edit Fan");
         await Page.GetByRole(AriaRole.Button, new() { Name = "Save display name" }).ClickAsync();
         await Expect(Page.GetByText("Display name updated.")).ToBeVisibleAsync();
 
@@ -85,9 +85,24 @@ public class AccountSettingsAvatarTests : E2EPageTest
         await Expect(Page.GetByText("Messaging privacy updated.")).ToBeVisibleAsync();
 
         await Page.ReloadAsync();
-        await Expect(Page.GetByLabel("Display name")).ToHaveValueAsync("Profile Edit Fan");
+        await Expect(Page.GetByRole(AriaRole.Textbox, new() { Name = "Display name" })).ToHaveValueAsync("Profile Edit Fan");
         await Expect(Page.GetByRole(AriaRole.Radio, new() { Name = "Dark", Exact = true })).ToBeCheckedAsync();
         await Expect(Page.GetByRole(AriaRole.Radio, new() { Name = "Nobody", Exact = true })).ToBeCheckedAsync();
+    }
+
+    [Test]
+    public async Task LegacyAccountCanBeClaimedAndUnlinked()
+    {
+        await Page.GotoAsync("/account/settings");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Claim legacy account" }).ClickAsync();
+        await Expect(Page.GetByText("Legacy account claimed.", new() { Exact = true })).ToBeVisibleAsync();
+        await Page.ReloadAsync();
+        await Expect(Page.GetByText("Linked to legacy forum account", new() { Exact = false })).ToBeVisibleAsync();
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Unlink legacy account" }).ClickAsync();
+        await Expect(Page.GetByText("Legacy account unlinked.", new() { Exact = true })).ToBeVisibleAsync();
+        await Page.ReloadAsync();
+        await Expect(Page.GetByRole(AriaRole.Button, new() { Name = "Claim legacy account" })).ToBeVisibleAsync();
     }
 
     private static byte[] CreatePng()
