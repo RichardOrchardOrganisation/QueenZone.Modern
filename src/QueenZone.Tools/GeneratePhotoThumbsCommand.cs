@@ -94,27 +94,24 @@ internal static class GeneratePhotoThumbsCommand
         return new ThumbnailPlan(container, blobName, thumbBlobName, legacyThumbPath, thumbSizePixels);
     }
 
+    internal static void ConfigureQuery(SqlCommand command, GeneratePhotoThumbsOptions options)
+    {
+        command.CommandText = """
+            SELECT PIC_ID, Url, Thumb_URL, DISPLAY
+            FROM dbo.PIC_FILES_T
+            WHERE PIC_ID IN (SELECT Id FROM OPENJSON(@Ids) WITH (Id int '$'))
+            ORDER BY PIC_ID
+            """;
+        SqlIdSet.Add(command, options.PicIds);
+    }
+
     [ExcludeFromCodeCoverage]
     private static async Task<IReadOnlyList<GalleryPhotoRow>> LoadPhotosAsync(GeneratePhotoThumbsOptions options)
     {
-        var ids = options.PicIds;
         await using var connection = new SqlConnection(options.ConnectionString);
         await connection.OpenAsync(options.CancellationToken);
         await using var command = connection.CreateCommand();
-        var parameterNames = new List<string>();
-        for (var index = 0; index < ids.Count; index++)
-        {
-            var name = "@p" + index;
-            parameterNames.Add(name);
-            command.Parameters.AddWithValue(name, ids[index]);
-        }
-
-        command.CommandText = $"""
-            SELECT PIC_ID, Url, Thumb_URL, DISPLAY
-            FROM dbo.PIC_FILES_T
-            WHERE PIC_ID IN ({string.Join(", ", parameterNames)})
-            ORDER BY PIC_ID
-            """;
+        ConfigureQuery(command, options);
 
         var rows = new List<GalleryPhotoRow>();
         await using var reader = await command.ExecuteReaderAsync(options.CancellationToken);

@@ -104,30 +104,27 @@ internal static class ConvertLegacyBbCodeCommand
 
     private const int BodyHtmlMaxLength = 8000;
 
+    internal static void ConfigureQuery(SqlCommand command, ConvertLegacyBbCodeOptions options)
+    {
+        // CHARINDEX has no supporting index; allow the existing coarse scan time
+        // to finish. Precise BBCode marker detection still happens in C#.
+        command.CommandTimeout = 180;
+        command.CommandText = """
+            SELECT TOP (@Limit) Id, BodyHtml
+            FROM dbo.ModernForumPost
+            WHERE CHARINDEX(CHAR(91), BodyHtml) > 0
+            ORDER BY Id
+            """;
+        command.Parameters.Add("@Limit", System.Data.SqlDbType.BigInt).Value = (long?)options.Limit ?? long.MaxValue;
+    }
+
     [ExcludeFromCodeCoverage]
     private static async Task<IReadOnlyList<BbCodeCandidateRow>> LoadCandidatesAsync(ConvertLegacyBbCodeOptions options)
     {
         await using var connection = new SqlConnection(options.ConnectionString);
         await connection.OpenAsync(options.CancellationToken);
         await using var command = connection.CreateCommand();
-
-        // Coarse full-scan candidate query (no supporting index for CHARINDEX) can run well
-        // past ADO.NET's 30s default on a busier/lower-tier production instance. --limit lets
-        // the operator break the whole run into smaller, resumable batches if needed.
-        command.CommandTimeout = 180;
-
-        var top = options.Limit is int limit ? $"TOP ({limit}) " : string.Empty;
-
-        // CHARINDEX on a literal '[' (CHAR(91)) is a cheap, escaping-free coarse filter —
-        // T-SQL LIKE treats '[' as a wildcard character-class opener, so matching a literal
-        // "[quote" via LIKE requires fiddly escaping. Precise marker detection happens in C#
-        // via BbCodeConverter.ContainsBbCode against the small candidate set this returns.
-        command.CommandText = $"""
-            SELECT {top}Id, BodyHtml
-            FROM dbo.ModernForumPost
-            WHERE CHARINDEX(CHAR(91), BodyHtml) > 0
-            ORDER BY Id
-            """;
+        ConfigureQuery(command, options);
 
         var rows = new List<BbCodeCandidateRow>();
         await using var reader = await command.ExecuteReaderAsync(options.CancellationToken);

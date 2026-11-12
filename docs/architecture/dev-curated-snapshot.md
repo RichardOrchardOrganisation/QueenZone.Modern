@@ -4,6 +4,11 @@ Issue [#1325](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/iss
 defines the isolated dev data contract. Dev uses a small, sanitised production
 sample. It is not a production clone.
 
+The snapshot and photo-maintenance tools pass ID sets as typed JSON parameters.
+Source and target databases require SQL Server compatibility level 130 or later
+for `OPENJSON`. SQL Server regression tests exercise these queries in disposable
+databases, including bigint post IDs and GUID attachment/article IDs.
+
 ## Safety boundary
 
 The refresh has four separate credentials:
