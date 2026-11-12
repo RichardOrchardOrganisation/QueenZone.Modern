@@ -87,6 +87,34 @@ class ProofTests(unittest.TestCase):
             (maps / 'home.json').write_text(json.dumps({'entries': [feature]}))
             self.assertEqual(package_web(root, root / 'out'), [])
 
+    def test_packaging_accepts_redirect_navigated_urls(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reports = root / 'test-results/local-trx/e2e'
+            snapshots = root / 'test-results/e2e/passed-proof'
+            maps = root / 'docs/feature-map/web'
+            for folder in [reports, snapshots, maps]:
+                folder.mkdir(parents=True)
+            trx = TRX.replace(b'SmokeTests', b'AccountAuthenticationTests')
+            (reports / 'run.trx').write_bytes(trx)
+            (snapshots / 'one.png').write_bytes(IMAGE)
+            (snapshots / 'one.json').write_text(json.dumps({
+                'fixture': 'AccountAuthenticationTests',
+                'url': 'http://localhost:5099/account/login',
+                'navigatedUrls': [
+                    'http://localhost:5099/account/external-login-callback',
+                    'http://localhost:5099/account/login',
+                ],
+                'screenshot': 'one.png',
+            }))
+            feature = {
+                'id': 'web.auth.externalLoginCallback',
+                'url': '/account/external-login-callback',
+                'specs': ['tests/QueenZone.Web.E2E/AccountAuthenticationTests.cs'],
+            }
+            (maps / 'auth.json').write_text(json.dumps({'entries': [feature]}))
+            self.assertEqual(len(package_web(root, root / 'out')), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

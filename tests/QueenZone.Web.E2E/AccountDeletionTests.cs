@@ -20,6 +20,14 @@ public class AccountDeletionTests : E2EPageTest
     };
 
     [Test]
+    public async Task DeletePageShowsConfirmationForm()
+    {
+        await Page.GotoAsync("/account/delete");
+        await Expect(Page).ToHaveURLAsync(BaseUrl + "/account/delete");
+        await Expect(Page.GetByRole(AriaRole.Button, new() { Name = "Delete my account now" })).ToBeVisibleAsync();
+    }
+
+    [Test]
     public async Task ImmediateDeletionRequiresConfirmationAndShowsCompletedReceipt()
     {
         await Page.GotoAsync("/account/delete");
