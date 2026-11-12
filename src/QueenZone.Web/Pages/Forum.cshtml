@@ -34,7 +34,7 @@
       <div class="qz-grid qz-grid--three">
         @foreach (var category in Model.Categories)
         {
-          <a class="qz-card" href="@category.DetailPath">
+          <a class="qz-card qz-forum-board" href="@category.DetailPath">
             <div class="qz-card__kicker">@category.Name</div>
             <h3>@(string.IsNullOrWhiteSpace(category.Description) ? category.Name : category.Description)</h3>
             @if (!string.IsNullOrWhiteSpace(category.LatestThreadTitle))
@@ -79,7 +79,7 @@
             @foreach (var thread in Model.RecentThreads)
             {
               <tr>
-                <td><a href="@thread.DetailPath">@thread.Title</a></td>
+                <td class="qz-forum-thread-title"><a href="@thread.DetailPath">@thread.Title</a></td>
                 <td><a href="@thread.CategoryPath">@thread.CategoryName</a></td>
                 <td>@thread.ReplyCount.ToString("N0")</td>
                 <td>

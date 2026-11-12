@@ -102,7 +102,7 @@ public sealed class ForumApiTests : IClassFixture<QueenZoneWebApplicationFactory
         Assert.Equal(1, item!.Id);
         Assert.Equal("The Music", item.Name);
         Assert.Equal("/forum/1/the-music", item.DetailPath);
-        Assert.Equal("Ranking every studio album", item.LatestThreadTitle);
+        Assert.Equal(SampleForumData.LongThreadTitle, item.LatestThreadTitle);
     }
 
     [Fact]
@@ -131,13 +131,14 @@ public sealed class ForumApiTests : IClassFixture<QueenZoneWebApplicationFactory
         Assert.NotNull(firstPage);
         Assert.Equal(1, firstPage!.Page);
         Assert.Equal(ForumRoutes.TopicsPageSize, firstPage.PageSize);
-        Assert.Equal(30, firstPage.TotalCount);
+        Assert.Equal(31, firstPage.TotalCount);
         Assert.Equal(2, firstPage.TotalPages);
         Assert.Equal(ForumRoutes.TopicsPageSize, firstPage.Items.Count);
         Assert.Equal("Forum Guidelines", firstPage.Items[0].Title);
         Assert.True(firstPage.Items[0].IsSticky);
         Assert.Equal("/forum/topic/1001/forum-guidelines", firstPage.Items[0].DetailPath);
-        Assert.Equal("Ranking every studio album", firstPage.Items[1].Title);
+        Assert.Equal(SampleForumData.LongThreadTitle, firstPage.Items[1].Title);
+        Assert.Equal("Ranking every studio album", firstPage.Items[2].Title);
         Assert.False(firstPage.Items[1].IsSticky);
 
         var html = await client.GetStringAsync("/forum/1/the-music");
@@ -171,7 +172,7 @@ public sealed class ForumApiTests : IClassFixture<QueenZoneWebApplicationFactory
         Assert.NotNull(payload);
         Assert.Equal(1, payload!.Page);
         Assert.Equal(ApiPagination.MaxPageSize, payload.PageSize);
-        Assert.Equal(30, payload.Items.Count);
+        Assert.Equal(31, payload.Items.Count);
     }
 
     [Fact]

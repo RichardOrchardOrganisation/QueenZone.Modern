@@ -14,8 +14,8 @@ public sealed class InMemoryForumRepositoryRecentThreadsTests
         var recent = await repository.GetRecentThreadsAsync(5);
 
         Assert.Equal(5, recent.Count);
-        Assert.Equal(1001, recent[0].TopicId);
-        Assert.Equal("Forum Guidelines", recent[0].Title);
+        Assert.Equal(1031, recent[0].TopicId);
+        Assert.Equal(SampleForumData.LongThreadTitle, recent[0].Title);
         Assert.Equal("The Music", recent[0].CategoryName);
         Assert.True(recent[0].LastActivityAt >= recent[^1].LastActivityAt);
     }

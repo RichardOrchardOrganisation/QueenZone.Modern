@@ -2,6 +2,9 @@ namespace QueenZone.Data;
 
 public static class SampleForumData
 {
+    // Keep an unbroken token in both index surfaces for deterministic overflow coverage.
+    public const string LongThreadTitle = "Recording checksum 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
     public static IReadOnlyList<ForumCategoryItem> CreateSeedCategories() =>
     [
         new(
@@ -9,8 +12,8 @@ public static class SampleForumData
             "The Music",
             "Albums, songs, lyrics and the catalogue, track by track.",
             41_200,
-            new DateTime(2024, 6, 12, 14, 0, 0, DateTimeKind.Utc),
-            "Ranking every studio album",
+            new DateTime(2024, 6, 13, 14, 0, 0, DateTimeKind.Utc),
+            LongThreadTitle,
             10),
         new(
             2,
@@ -69,6 +72,7 @@ public static class SampleForumData
 
         var topics = new List<ForumTopicItem>
         {
+            new(1031, LongThreadTitle, new DateTime(2024, 6, 13, 14, 0, 0, DateTimeKind.Utc), "archive_member", 0, "archive_member", false),
             new(1001, "Forum Guidelines", new DateTime(2024, 6, 12, 20, 4, 0, DateTimeKind.Utc), "Richard Orchard", 44, "waunakonor", true),
             new(1002, "Ranking every studio album", new DateTime(2024, 6, 12, 14, 0, 0, DateTimeKind.Utc), "brightonrock", 1284, "brightonrock", false),
             new(1003, "Queen 2017 NOTW expanded release?", new DateTime(2024, 6, 11, 13, 10, 0, DateTimeKind.Utc), "Sam99", 12, "SpaceGrey", false)
