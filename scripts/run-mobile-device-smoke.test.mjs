@@ -123,3 +123,29 @@ test('failure signature lands in the job summary', () => {
   const unset = bash(`set -euo pipefail; unset GITHUB_STEP_SUMMARY; ${fn}\nwrite_failure_summary ios smoke x y`);
   assert.equal(unset.status, 0, unset.stderr);
 });
+
+test('Maestro invocation records preserve the original failure and recovery separately', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-maestro-attempts-'));
+  const result = spawnSync('bash', ['-c', `
+set -uo pipefail
+results_dir="$1"
+maestro_console_log="$results_dir/maestro-console.log"
+maestro_args=(test trial.yaml)
+maestro_invocation=0
+maestro() { return "$maestro_exit"; }
+${extractFunction('run_maestro_once')}
+maestro_exit=17
+run_maestro_once
+test "$?" = 17 || exit 1
+maestro_exit=0
+run_maestro_once
+`, 'bash', dir], { encoding: 'utf8' });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(readFileSync(path.join(dir, 'harness.log'), 'utf8').trim().split('\n'), [
+    'maestro_invocation=1 phase=start',
+    'maestro_invocation=1 phase=end exit=17',
+    'maestro_invocation=2 phase=start',
+    'maestro_invocation=2 phase=end exit=0',
+  ]);
+});

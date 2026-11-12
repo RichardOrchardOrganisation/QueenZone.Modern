@@ -1128,7 +1128,24 @@ if [[ "$prove_failure" = true ]]; then
   echo "Running forced-assertion flow to prove failure artifacts."
 elif [[ "$suite" = "journeys" ]]; then
   flow="src/QueenZone.Mobile/maestro/journeys.yaml"
-  echo "Running on-demand Maestro journeys (#1071)."
+  if [[ -n "${MOBILE_RELIABILITY_TRIAL:-}" ]]; then
+    flow="$(node scripts/mobile-reliability-pilot.mjs flow "$MOBILE_RELIABILITY_TRIAL" "$results_dir")"
+    echo "Reliability pilot toolchain: Maestro $(maestro --version)"
+    if [[ "$platform" = android ]]; then
+      adb version
+      adb shell getprop ro.build.fingerprint
+      # The runner boots with -noaudio. A separate emulator -version process
+      # can require libpulse even though the running emulator is healthy.
+      emulator_package="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}/emulator/source.properties"
+      if ! grep -E '^Pkg\.Revision[[:space:]]*=' "$emulator_package" 2>/dev/null; then
+        echo "Android emulator package revision unavailable"
+      fi
+    else
+      xcrun simctl list devices booted
+    fi
+  else
+    echo "Running on-demand Maestro journeys (#1071)."
+  fi
 elif [[ "$suite" = "release" ]]; then
   flow="src/QueenZone.Mobile/maestro/release.yaml"
   echo "Running the P0 Maestro release suite (#1411)."
@@ -1231,9 +1248,15 @@ android_latest_attempt_transport_died() {
   return 1
 }
 
+maestro_invocation=0
 run_maestro_once() {
+  local status
+  maestro_invocation=$((maestro_invocation + 1))
+  echo "maestro_invocation=$maestro_invocation phase=start" | tee -a "$results_dir/harness.log"
   maestro "${maestro_args[@]}" 2>&1 | tee -a "$maestro_console_log"
-  return "${PIPESTATUS[0]}"
+  status="${PIPESTATUS[0]}"
+  echo "maestro_invocation=$maestro_invocation phase=end exit=$status" | tee -a "$results_dir/harness.log"
+  return "$status"
 }
 
 set +e
