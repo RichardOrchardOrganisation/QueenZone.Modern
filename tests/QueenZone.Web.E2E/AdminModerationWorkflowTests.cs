@@ -337,7 +337,7 @@ public class AdminModerationWorkflowTests : RealDataPageTest
 
     /// <summary>
     /// Seeds a real <c>MemberAccounts</c> row (submission forms look the member up via
-    /// <c>MemberAccountService</c>/repositories) and impersonates it on the shared <see cref="Page"/>,
+    /// <c>MemberAuthenticationService</c>/repositories) and impersonates it on the shared <see cref="Page"/>,
     /// mirroring <see cref="CommunitySubmissionWorkflowTests.CreateMemberAsync"/>.
     /// </summary>
     private async Task<MemberContext> CreateMemberAsync(string fixtureSlug)

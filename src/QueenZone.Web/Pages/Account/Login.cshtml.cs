@@ -6,7 +6,7 @@ namespace QueenZone.Web.Pages.Account;
 
 public sealed class LoginModel(
     IOptions<MemberAuthenticationOptions> memberAuthenticationOptions,
-    MemberAccountService memberAccountService) : AccountPageModel(memberAuthenticationOptions)
+    MemberAuthenticationService memberAccountService) : AccountPageModel(memberAuthenticationOptions)
 {
     public string ReturnUrl { get; private set; } = "/";
 

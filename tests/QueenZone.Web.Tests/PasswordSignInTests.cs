@@ -11,7 +11,7 @@ namespace QueenZone.Web.Tests;
 /// Covers the email/password sign-in fallback on /account/login. There is no registration
 /// UI for this path: accounts only exist if provisioned out-of-band (e.g. via
 /// QueenZone.Tools create-reviewer-account), so these tests seed accounts directly through
-/// MemberAccountService, the same way that tool does.
+/// MemberAuthenticationService, the same way that tool does.
 /// </summary>
 public sealed partial class PasswordSignInTests : IClassFixture<QueenZoneWebApplicationFactory>
 {
@@ -209,7 +209,7 @@ public sealed partial class PasswordSignInTests : IClassFixture<QueenZoneWebAppl
     private async Task SeedAccountAsync(string email, string password, string displayName)
     {
         using var scope = factory.Services.CreateScope();
-        var memberAccountService = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var memberAccountService = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         var result = await memberAccountService.RegisterAsync(email, password, displayName);
         Assert.True(result.Succeeded, result.Error);
     }

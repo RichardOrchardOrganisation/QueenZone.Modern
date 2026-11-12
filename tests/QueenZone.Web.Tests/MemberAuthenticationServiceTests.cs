@@ -10,9 +10,21 @@ using SixLabors.ImageSharp.PixelFormats;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class MemberAccountServiceTests
+public sealed class MemberAuthenticationServiceTests
 {
-    private static MemberAccountService CreateService(
+    private static MemberAuthenticationService CreateService(
+        IMemberAccountRepository? memberAccountRepository = null,
+        ILegacyMemberLookupRepository? legacyMemberLookupRepository = null,
+        IBlobUploadService? blobUploadService = null,
+        InMemoryBlobStorageBackend? blobBackend = null,
+        TimeSpan? blobDeleteTimeout = null,
+        TimeProvider? timeProvider = null,
+        PasswordSignInLockoutOptions? passwordLockout = null,
+        IEmailSender? emailSender = null)
+        => CreateService(out _, memberAccountRepository, legacyMemberLookupRepository, blobUploadService, blobBackend, blobDeleteTimeout, timeProvider, passwordLockout, emailSender);
+
+    private static MemberAuthenticationService CreateService(
+        out MemberAccountDeletionService deletions,
         IMemberAccountRepository? memberAccountRepository = null,
         ILegacyMemberLookupRepository? legacyMemberLookupRepository = null,
         IBlobUploadService? blobUploadService = null,
@@ -26,20 +38,21 @@ public sealed class MemberAccountServiceTests
         var blobs = blobUploadService
             ?? new AzureBlobUploadService(backend, Options.Create(new BlobUploadOptions()));
         var repository = memberAccountRepository ?? new InMemoryMemberAccountRepository();
-        return new MemberAccountService(
+        deletions = new MemberAccountDeletionService(
+            repository, blobs, timeProvider ?? TimeProvider.System, appleTokens: null,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MemberAccountDeletionService>.Instance, emailSender)
+        {
+            BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountDeletionService.DefaultBlobDeleteTimeout,
+        };
+        return new MemberAuthenticationService(
             repository,
             new LegacyAccountLinkService(
                 repository,
                 legacyMemberLookupRepository ?? new InMemoryLegacyMemberLookupRepository(
                     new Dictionary<string, LegacyMemberMatch>()),
                 new MemberProfileService(repository)),
-            blobs,
-            timeProvider,
-            passwordLockout is null ? null : Options.Create(passwordLockout),
-            deletionService: new MemberAccountDeletionService(repository, blobs, timeProvider, emailSender: emailSender))
-        {
-            BlobDeleteTimeout = blobDeleteTimeout ?? MemberAccountService.DefaultBlobDeleteTimeout,
-        };
+            timeProvider ?? TimeProvider.System,
+            Options.Create(passwordLockout ?? new PasswordSignInLockoutOptions()));
     }
 
     private static MemberAvatarService CreateAvatarService(
@@ -170,7 +183,7 @@ public sealed class MemberAccountServiceTests
         var result = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
 
         Assert.False(result.Succeeded);
-        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, result.Error);
+        Assert.Equal(MemberAuthenticationService.InvalidPasswordSignInError, result.Error);
     }
 
     [Fact]
@@ -185,7 +198,7 @@ public sealed class MemberAccountServiceTests
         var wrong = await service.SignInAsync("fan@queenzone.org", "WrongPassword!");
         var suspended = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
 
-        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, missing.Error);
+        Assert.Equal(MemberAuthenticationService.InvalidPasswordSignInError, missing.Error);
         Assert.Equal(missing.Error, wrong.Error);
         Assert.Equal(missing.Error, suspended.Error);
         Assert.DoesNotContain("suspended", suspended.Error, StringComparison.OrdinalIgnoreCase);
@@ -207,7 +220,7 @@ public sealed class MemberAccountServiceTests
         Assert.False((await service.SignInAsync("fan@queenzone.org", "nope-2")).Succeeded);
         var locked = await service.SignInAsync("fan@queenzone.org", "S3curePass!");
         Assert.False(locked.Succeeded);
-        Assert.Equal(MemberAccountService.InvalidPasswordSignInError, locked.Error);
+        Assert.Equal(MemberAuthenticationService.InvalidPasswordSignInError, locked.Error);
 
         var stored = await repository.FindByEmailAsync("fan@queenzone.org");
         Assert.Equal(2, stored!.PasswordFailureCount);
@@ -670,7 +683,7 @@ public sealed class MemberAccountServiceTests
         Assert.Equal(ExternalLoginMessages.UnverifiedEmail, blank.Error);
         Assert.Equal("Account not found.", missing.Error);
         Assert.Equal(ExternalLoginMessages.AlreadyLinked, taken.Error);
-        Assert.Equal(MemberAccountService.SuspendedSignInError, suspended.Error);
+        Assert.Equal(MemberAuthenticationService.SuspendedSignInError, suspended.Error);
         Assert.Equal(["Google"], await service.ListExternalProvidersAsync(owner.Account.Id));
         Assert.Empty(await service.ListExternalProvidersAsync(other.Account.Id));
     }
@@ -852,9 +865,9 @@ public sealed class MemberAccountServiceTests
     public async Task UpdateMessagePrivacyAsync_RejectsPendingDeletion()
     {
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository);
+        var service = CreateService(out var deletions, memberAccountRepository: repository);
         var registered = await service.RegisterAsync("privacy-delete@queenzone.org", "S3curePass!", "Privacy Fan");
-        await service.RequestDeletionAsync(registered.Account!.Id);
+        await deletions.RequestDeletionAsync(registered.Account!.Id);
 
         var result = await new MemberProfileService(repository).UpdateMessagePrivacyAsync(
             registered.Account.Id,
@@ -953,7 +966,7 @@ public sealed class MemberAccountServiceTests
     public async Task UpdateSocialLinksAsync_PendingDeletion_RejectsAndKeepsRowsUntilAnonymise()
     {
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository);
+        var service = CreateService(out var deletions, memberAccountRepository: repository);
         var registered = await service.RegisterAsync("social-delete@example.com", "S3curePass!", "Social Delete");
         await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account!.Id,
@@ -962,7 +975,7 @@ public sealed class MemberAccountServiceTests
                 [MemberSocialChannel.X] = "queen",
             });
 
-        var deleted = await service.RequestDeletionAsync(registered.Account.Id);
+        var deleted = await deletions.RequestDeletionAsync(registered.Account.Id);
         var update = await new MemberProfileService(repository).UpdateSocialLinksAsync(
             registered.Account.Id,
             new Dictionary<MemberSocialChannel, string?>
@@ -981,7 +994,7 @@ public sealed class MemberAccountServiceTests
     {
         var backend = new InMemoryBlobStorageBackend();
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var service = CreateService(out var deletions, memberAccountRepository: repository, blobBackend: backend);
         var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync(
             "delete-service@example.com",
@@ -992,7 +1005,7 @@ public sealed class MemberAccountServiceTests
         var avatarPath = uploaded.Account!.AvatarUrl!;
         var thumbPath = MemberAvatarPaths.ToThumbBlobName(avatarPath);
 
-        var result = await service.RequestDeletionAsync(registered.Account.Id);
+        var result = await deletions.RequestDeletionAsync(registered.Account.Id);
         var signIn = await service.SignInAsync("delete-service@example.com", "S3curePass!");
         var rename = await new MemberProfileService(repository).UpdateDisplayNameAsync(registered.Account.Id, "Visible Again");
 
@@ -1009,7 +1022,7 @@ public sealed class MemberAccountServiceTests
         Assert.False(rename.Succeeded);
         Assert.Equal(MemberProfileService.PendingDeletionEditError, rename.Error);
 
-        var cancelled = await service.CancelDeletionAsync(registered.Account.Id);
+        var cancelled = await deletions.CancelDeletionAsync(registered.Account.Id);
 
         Assert.True(cancelled.Succeeded);
         Assert.Null(cancelled.Account!.DeletionRequestedAt);
@@ -1023,14 +1036,14 @@ public sealed class MemberAccountServiceTests
     public async Task PendingDeletion_ExistingExternalSignInRemainsAvailable_WithoutAddingProvider()
     {
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository);
+        var service = CreateService(out var deletions, memberAccountRepository: repository);
         var account = await SignedInExternalAsync(
             service,
             "Google",
             "deleted-google-subject",
             "deleted-external@example.com",
             "External Delete");
-        await service.RequestDeletionAsync(account.Id);
+        await deletions.RequestDeletionAsync(account.Id);
 
         var returned = await service.FindOrCreateFromExternalLoginAsync(
             "Google",
@@ -1107,10 +1120,10 @@ public sealed class MemberAccountServiceTests
     public async Task DeleteImmediatelyAsync_ReturnsSuccess_WhenPurgeCompletes()
     {
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository);
+        var service = CreateService(out var deletions, memberAccountRepository: repository);
         var registered = await service.RegisterAsync("immediate-ok@example.com", "S3curePass!", "Immediate Ok");
 
-        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+        var result = await deletions.DeleteImmediatelyAsync(registered.Account!.Id);
 
         Assert.True(result.Succeeded);
         Assert.NotNull(result.Account!.PersonalDataPurgedAt);
@@ -1122,10 +1135,10 @@ public sealed class MemberAccountServiceTests
     {
         var repository = new InMemoryMemberAccountRepository();
         var sender = new RecordingEmailSender();
-        var service = CreateService(memberAccountRepository: repository, emailSender: sender);
+        var service = CreateService(out var deletions, memberAccountRepository: repository, emailSender: sender);
         var registered = await service.RegisterAsync("delete-mail@example.com", "S3curePass!", "Delete Mail");
 
-        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+        var result = await deletions.DeleteImmediatelyAsync(registered.Account!.Id);
 
         Assert.True(result.Succeeded);
         Assert.Equal("delete-mail@example.com", sender.To);
@@ -1147,13 +1160,13 @@ public sealed class MemberAccountServiceTests
     {
         var inner = new InMemoryMemberAccountRepository();
         var (repository, _) = ThrowingPurgeMemberAccountRepository.Create(inner);
-        var service = CreateService(memberAccountRepository: repository);
+        var service = CreateService(out var deletions, memberAccountRepository: repository);
         var registered = await service.RegisterAsync("immediate-fail@example.com", "S3curePass!", "Immediate Fail");
 
-        var result = await service.DeleteImmediatelyAsync(registered.Account!.Id);
+        var result = await deletions.DeleteImmediatelyAsync(registered.Account!.Id);
 
         Assert.False(result.Succeeded);
-        Assert.Equal(MemberAccountService.ImmediatePurgeIncompleteError, result.Error);
+        Assert.Equal(MemberAccountDeletionService.ImmediatePurgeIncompleteError, result.Error);
         Assert.Null((await inner.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
     }
 
@@ -1162,14 +1175,14 @@ public sealed class MemberAccountServiceTests
     {
         var repository = new InMemoryMemberAccountRepository();
         var hanging = new HangForeverBlobUploadService();
-        var service = CreateService(
+        var service = CreateService(out var deletions,
             memberAccountRepository: repository,
             blobUploadService: hanging,
             blobDeleteTimeout: TimeSpan.FromMilliseconds(50));
         var registered = await service.RegisterAsync("immediate-blob@example.com", "S3curePass!", "Immediate Blob");
         await repository.UpdateAvatarUrlAsync(registered.Account!.Id, "members/hang/avatar.webp");
 
-        var result = await service.DeleteImmediatelyAsync(registered.Account.Id);
+        var result = await deletions.DeleteImmediatelyAsync(registered.Account.Id);
 
         Assert.True(result.Succeeded);
         Assert.NotNull((await repository.FindByIdAsync(registered.Account.Id))!.PersonalDataPurgedAt);
@@ -1182,16 +1195,16 @@ public sealed class MemberAccountServiceTests
     {
         var backend = new InMemoryBlobStorageBackend();
         var repository = new InMemoryMemberAccountRepository();
-        var service = CreateService(memberAccountRepository: repository, blobBackend: backend);
+        var service = CreateService(out var deletions, memberAccountRepository: repository, blobBackend: backend);
         var avatars = CreateAvatarService(repository, backend);
         var registered = await service.RegisterAsync("purge-ok@example.com", "S3curePass!", "Purge Fan");
         await using var png = await CreatePngAsync();
         var uploaded = await avatars.UpdateAvatarAsync(registered.Account!.Id, png, "avatar.png");
         var avatarPath = uploaded.Account!.AvatarUrl!;
         var thumbPath = MemberAvatarPaths.ToThumbBlobName(avatarPath);
-        await service.RequestDeletionAsync(registered.Account.Id);
+        await deletions.RequestDeletionAsync(registered.Account.Id);
 
-        var purged = await service.PurgeDueDeletionsAsync(
+        var purged = await deletions.PurgeDueDeletionsAsync(
             DateTime.UtcNow.AddDays(MemberAccountDeletionPolicy.RetentionDays + 1));
 
         Assert.Equal(1, purged);
@@ -1206,7 +1219,7 @@ public sealed class MemberAccountServiceTests
     {
         var repository = new InMemoryMemberAccountRepository();
         var hanging = new HangForeverBlobUploadService();
-        var service = CreateService(
+        var service = CreateService(out var deletions,
             memberAccountRepository: repository,
             blobUploadService: hanging,
             blobDeleteTimeout: TimeSpan.FromMilliseconds(50));
@@ -1217,7 +1230,7 @@ public sealed class MemberAccountServiceTests
             DateTime.UtcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays - 1));
 
         var started = DateTime.UtcNow;
-        var purged = await service.PurgeDueDeletionsAsync(DateTime.UtcNow);
+        var purged = await deletions.PurgeDueDeletionsAsync(DateTime.UtcNow);
         var elapsed = DateTime.UtcNow - started;
 
         Assert.Equal(1, purged);
@@ -1253,7 +1266,7 @@ public sealed class MemberAccountServiceTests
     }
 
     private static async Task<MemberAccount> SignedInExternalAsync(
-        MemberAccountService service,
+        MemberAuthenticationService service,
         string provider,
         string providerKey,
         string email,

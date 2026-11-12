@@ -15,7 +15,7 @@ public sealed class MemberServiceRegistrationTests : IClassFixture<MemberService
     public MemberServiceRegistrationTests(ValidatingFactory factory) => this.factory = factory;
 
     [Theory]
-    [InlineData(typeof(MemberAccountService))]
+    [InlineData(typeof(MemberAuthenticationService))]
     [InlineData(typeof(MemberAccountDeletionService))]
     [InlineData(typeof(MemberAvatarService))]
     [InlineData(typeof(MemberProfileService))]

@@ -456,7 +456,7 @@ public sealed partial class ExternalLoginCallbackTests : IClassFixture<ExternalC
     private async Task SeedPasswordAccountAsync(string email, string password, string displayName)
     {
         using var scope = factory.Services.CreateScope();
-        var memberAccountService = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var memberAccountService = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         var result = await memberAccountService.RegisterAsync(email, password, displayName);
         Assert.True(result.Succeeded, result.Error);
     }

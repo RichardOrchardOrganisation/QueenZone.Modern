@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Identity;
 using QueenZone.Data;
+using QueenZone.Data.Entities;
 
 namespace QueenZone.Web;
 
@@ -21,7 +23,10 @@ internal static class MemberBrowserFixture
         {
             var existing = await members.FindByIdAsync(member.Id, cancellationToken);
             if (existing is not null) continue;
-            await members.CreateAsync(member.ToAccount(), cancellationToken);
+            var account = member.ToAccount();
+            if (member == BrowserFixtureMembers.AuthenticationOwner)
+                account.PasswordHash = new PasswordHasher<MemberAccount>().HashPassword(account, BrowserFixtureMembers.AuthenticationPassword);
+            await members.CreateAsync(account, cancellationToken);
         }
     }
 }

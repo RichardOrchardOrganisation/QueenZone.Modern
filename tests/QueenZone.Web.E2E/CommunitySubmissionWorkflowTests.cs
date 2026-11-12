@@ -359,7 +359,7 @@ public class CommunitySubmissionWorkflowTests : RealDataPageTest
 
     /// <summary>
     /// Seeds a real <c>MemberAccounts</c> row (submission forms look the member up via
-    /// <c>MemberAccountService</c>/repositories, so a bare <c>X-Test-Member-Id</c> claim with no
+    /// <c>MemberAuthenticationService</c>/repositories, so a bare <c>X-Test-Member-Id</c> claim with no
     /// backing row is not enough) and points the browser context's impersonation headers at it.
     /// </summary>
     private async Task<MemberContext> CreateMemberAsync(string fixtureSlug)

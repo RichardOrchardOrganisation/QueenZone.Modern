@@ -13,6 +13,7 @@ namespace QueenZone.Web.E2E;
 public abstract class E2EPageTest : PageTest
 {
     private readonly List<IBrowserContext> _extraContexts = [];
+    private readonly List<string> _documentNavigationUrls = [];
 
     protected static string BaseUrl =>
         Environment.GetEnvironmentVariable("E2E_BASE_URL") ?? "http://127.0.0.1:5099";
@@ -42,10 +43,20 @@ public abstract class E2EPageTest : PageTest
         return context;
     }
 
+    private void RecordDocumentNavigation(object? sender, IRequest request)
+    {
+        if (request.IsNavigationRequest && request.ResourceType == "document")
+        {
+            _documentNavigationUrls.Add(request.Url);
+        }
+    }
+
     [SetUp]
     public async Task StartTracingAsync()
     {
         _extraContexts.Clear();
+        _documentNavigationUrls.Clear();
+        Page.Request += RecordDocumentNavigation;
         await Context.Tracing.StartAsync(new TracingStartOptions
         {
             Title = TestContext.CurrentContext.Test.FullName,
@@ -58,6 +69,7 @@ public abstract class E2EPageTest : PageTest
     [TearDown]
     public async Task CaptureFailureArtifactsAsync()
     {
+        Page.Request -= RecordDocumentNavigation;
         var outcome = TestContext.CurrentContext.Result.Outcome.Status;
         var failed = outcome is TestStatus.Failed or TestStatus.Warning;
 
@@ -134,6 +146,12 @@ public abstract class E2EPageTest : PageTest
                 fixture = GetType().Name,
                 test = TestContext.CurrentContext.Test.FullName,
                 url = page.Url,
+                // Redirect-only journeys never finish on the feature URL. Keep the
+                // document requests so packaging can still match those routes.
+                navigatedUrls = _documentNavigationUrls
+                    .Where(url => url.StartsWith(BaseUrl, StringComparison.Ordinal))
+                    .Distinct()
+                    .ToArray(),
                 screenshot = name + ".png"
             }));
         }

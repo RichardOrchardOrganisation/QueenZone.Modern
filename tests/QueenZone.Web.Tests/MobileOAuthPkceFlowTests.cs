@@ -102,7 +102,7 @@ public sealed class MobileOAuthPkceFlowTests :
         const string password = "S3curePass!";
         using (var scope = factory.Services.CreateScope())
         {
-            var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+            var members = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
             var registered = await members.RegisterAsync(email, password, "Mobile Confirm");
             Assert.True(registered.Succeeded, registered.Error);
         }

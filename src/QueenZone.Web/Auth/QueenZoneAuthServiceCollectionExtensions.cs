@@ -47,6 +47,10 @@ public static class QueenZoneAuthServiceCollectionExtensions
                     options.Cookie.Name = ExternalLoginLinkCookie.CookieName;
                     options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
                 });
+            // The opt-in browser host exercises missing OAuth state with a real local cookie.
+            // Unit-test factories keep their independently registered external handlers.
+            if (environment.IsEnvironment(QueenZoneEnvironments.Testing) && configuration.GetValue<bool>("MemberBrowserFixture:Enabled"))
+                services.AddAuthentication().AddCookie(MemberAuthenticationSchemes.ExternalCookie);
             ConfigureMobileBearer(configuration, environment, services.AddAuthentication());
             return services;
         }

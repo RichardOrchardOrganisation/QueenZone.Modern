@@ -64,7 +64,7 @@ public static class MaintenanceJobs
         using var activity = QueenZoneTelemetry.ActivitySource.StartActivity(
             "MemberAccountDeletion",
             ActivityKind.Internal);
-        var service = scopedServices.GetRequiredService<MemberAccountService>();
+        var service = scopedServices.GetRequiredService<MemberAccountDeletionService>();
         var purged = await service.PurgeDueDeletionsAsync(
             timeProvider.GetUtcNow().UtcDateTime,
             cancellationToken);

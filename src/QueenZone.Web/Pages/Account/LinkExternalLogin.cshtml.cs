@@ -9,7 +9,7 @@ namespace QueenZone.Web.Pages.Account;
 
 public sealed class LinkExternalLoginModel(
     IOptions<MemberAuthenticationOptions> memberAuthenticationOptions,
-    MemberAccountService memberAccountService,
+    MemberAuthenticationService memberAccountService,
     MobileAuthService mobileAuth,
     AppleAccountTokenService appleTokens) : AccountPageModel(memberAuthenticationOptions)
 {
@@ -228,7 +228,7 @@ public sealed class LinkExternalLoginModel(
     {
         "provider" => ExternalLoginMessages.ProviderMismatch,
         "unverified" => ExternalLoginMessages.UnverifiedEmail,
-        "suspended" => MemberAccountService.SuspendedSignInError,
+        "suspended" => MemberAuthenticationService.SuspendedSignInError,
         _ => null,
     };
 }

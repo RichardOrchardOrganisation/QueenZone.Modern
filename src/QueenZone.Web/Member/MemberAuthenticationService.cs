@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
-using QueenZone.Storage;
 
 namespace QueenZone.Web;
 
@@ -20,29 +19,14 @@ namespace QueenZone.Web;
 /// A new external provider is linked only when its email is verified and the existing
 /// account confirms the link. A returning provider subject signs in without that check.
 /// </remarks>
-public sealed class MemberAccountService(
+public sealed class MemberAuthenticationService(
     IMemberAccountRepository memberAccountRepository,
     LegacyAccountLinkService legacyLinks,
-    IBlobUploadService blobUploadService,
-    TimeProvider? timeProvider = null,
-    IOptions<PasswordSignInLockoutOptions>? passwordLockout = null,
-    MemberAccountDeletionService? deletionService = null)
+    TimeProvider timeProvider,
+    IOptions<PasswordSignInLockoutOptions> passwordLockout)
 {
-    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
-
-    private readonly MemberAccountDeletionService deletions = deletionService
-        ?? new MemberAccountDeletionService(memberAccountRepository, blobUploadService, timeProvider);
-
-    private readonly PasswordSignInLockoutOptions lockout = passwordLockout?.Value ?? new PasswordSignInLockoutOptions();
-    /// <summary>
-    /// Bound for each avatar blob delete. <see cref="MemberAccountDeletionHostedService"/>
-    /// can invoke this on its first timer tick; Azure.Storage.Blobs often ignores
-    /// <see cref="CancellationToken"/> during a dead TCP or retry loop, so callers
-    /// use both <c>CancelAfter</c> and <c>WaitAsync</c>.
-    /// </summary>
-    internal static readonly TimeSpan DefaultBlobDeleteTimeout = TimeSpan.FromSeconds(20);
-
-    internal TimeSpan BlobDeleteTimeout { get; init; } = DefaultBlobDeleteTimeout;
+    private readonly TimeProvider clock = timeProvider;
+    private readonly PasswordSignInLockoutOptions lockout = passwordLockout.Value;
 
     private readonly PasswordHasher<MemberAccount> passwordHasher = new();
 
@@ -270,170 +254,10 @@ public sealed class MemberAccountService(
     public Task<MemberAccount?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
         memberAccountRepository.FindByEmailAsync(email, cancellationToken);
 
-    public async Task<MemberAccount?> SuspendAsync(
-        Guid memberId,
-        string reason,
-        string suspendedByAdminEmail,
-        DateTime suspendedAt,
-        CancellationToken cancellationToken = default) =>
-        await memberAccountRepository.SuspendAsync(memberId, reason, suspendedByAdminEmail, suspendedAt, cancellationToken);
-
     public async Task<IReadOnlyList<string>> ListExternalProvidersAsync(Guid memberId, CancellationToken cancellationToken = default) =>
         await memberAccountRepository.ListExternalProvidersAsync(memberId, cancellationToken);
-
-    public async Task<MemberAccountResult> RequestDeletionAsync(
-        Guid memberId,
-        CancellationToken cancellationToken = default)
-    {
-        var requested = await memberAccountRepository.RequestDeletionAsync(
-            memberId,
-            DateTime.UtcNow,
-            cancellationToken);
-        if (requested is null)
-        {
-            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
-        }
-
-        return MemberAccountResult.Success(requested.Account);
-    }
-
-    public Task<MemberAccountResult> DeleteImmediatelyAsync(
-        Guid memberId, CancellationToken cancellationToken = default) =>
-        deletions.DeleteImmediatelyAsync(memberId, BlobDeleteTimeout, cancellationToken);
-
-    public async Task<MemberAccountResult> CancelDeletionAsync(
-        Guid memberId,
-        CancellationToken cancellationToken = default)
-    {
-        var account = await memberAccountRepository.CancelDeletionAsync(
-            memberId,
-            DateTime.UtcNow,
-            cancellationToken);
-        if (account is null)
-        {
-            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
-        }
-
-        if (account.PersonalDataPurgedAt is not null)
-        {
-            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "Account deletion can no longer be cancelled.");
-        }
-
-        if (account.DeletionRequestedAt is not null)
-        {
-            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "The 30-day cooling-off period has ended.");
-        }
-
-        return MemberAccountResult.Success(account);
-    }
-
-    public Task<int> PurgeDueDeletionsAsync(
-        DateTime utcNow, CancellationToken cancellationToken = default) =>
-        deletions.PurgeDueDeletionsAsync(utcNow, BlobDeleteTimeout, cancellationToken);
-
-    public const string ImmediatePurgeIncompleteError =
-        "Account deletion could not finish removing personal data. Try again shortly.";
 
     public const string SuspendedSignInError = "This account has been suspended.";
 
     public const string InvalidPasswordSignInError = "Incorrect email or password.";
-}
-
-/// <summary>Typed outcome of a member account operation so callers never branch on message text (#2436).</summary>
-public enum MemberAccountOutcome
-{
-    Succeeded,
-    NotFound,
-    Invalid,
-    InvalidCredentials,
-    Suspended,
-    PendingDeletion,
-    Conflict,
-    QuotaExceeded,
-    UploadFailed,
-    DeletionNotCancellable,
-    PurgeIncomplete,
-}
-
-public sealed record MemberAccountResult(MemberAccountOutcome Outcome, MemberAccount? Account, string? Error)
-{
-    public bool Succeeded => Outcome == MemberAccountOutcome.Succeeded;
-
-    public static MemberAccountResult Success(MemberAccount account) => new(MemberAccountOutcome.Succeeded, account, null);
-
-    public static MemberAccountResult Failure(MemberAccountOutcome outcome, string error) => new(outcome, null, error);
-}
-
-public sealed record MemberSocialLinkFieldError(MemberSocialChannel Channel, string Message);
-
-public sealed record MemberSocialLinksUpdateResult(
-    MemberAccountOutcome Outcome,
-    string? Error,
-    IReadOnlyList<MemberSocialLink> Links,
-    IReadOnlyList<MemberSocialLinkFieldError> FieldErrors)
-{
-    public bool Succeeded => Outcome == MemberAccountOutcome.Succeeded;
-
-    public static MemberSocialLinksUpdateResult Success(IReadOnlyList<MemberSocialLink> links) =>
-        new(MemberAccountOutcome.Succeeded, null, links, []);
-
-    public static MemberSocialLinksUpdateResult Failure(MemberAccountOutcome outcome, string error) =>
-        new(outcome, error, [], []);
-
-    public static MemberSocialLinksUpdateResult Invalid(
-        IReadOnlyList<MemberSocialLink> existing,
-        IReadOnlyList<MemberSocialLinkFieldError> fieldErrors) =>
-        new(MemberAccountOutcome.Invalid, null, existing, fieldErrors);
-}
-
-public enum LegacyAccountLinkKind
-{
-    None = 0,
-    Linked = 1,
-    Claimable = 2,
-    Unavailable = 3,
-}
-
-public sealed record LegacyAccountLinkState(
-    LegacyAccountLinkKind Kind,
-    LegacyMemberMatch? Match,
-    IReadOnlyList<LegacyMemberMatch> ClaimableMatches,
-    IReadOnlyList<LegacyMemberMatch> UnavailableMatches)
-{
-    public bool HasMultipleClaimable => ClaimableMatches.Count > 1;
-
-    public static LegacyAccountLinkState None() =>
-        new(LegacyAccountLinkKind.None, null, [], []);
-
-    public static LegacyAccountLinkState Linked(LegacyMemberMatch match) =>
-        new(LegacyAccountLinkKind.Linked, match, [], []);
-
-    public static LegacyAccountLinkState Claimable(
-        IReadOnlyList<LegacyMemberMatch> claimableMatches,
-        IReadOnlyList<LegacyMemberMatch>? unavailableMatches = null)
-    {
-        ArgumentNullException.ThrowIfNull(claimableMatches);
-        if (claimableMatches.Count == 0)
-        {
-            throw new ArgumentException("At least one claimable match is required.", nameof(claimableMatches));
-        }
-
-        var unavailable = unavailableMatches ?? [];
-        // Match is set for the common single-match UI/tests; multi-match leaves it null.
-        var primary = claimableMatches.Count == 1 ? claimableMatches[0] : null;
-        return new(LegacyAccountLinkKind.Claimable, primary, claimableMatches, unavailable);
-    }
-
-    public static LegacyAccountLinkState Claimable(LegacyMemberMatch match) =>
-        Claimable([match], []);
-
-    public static LegacyAccountLinkState Unavailable(IReadOnlyList<LegacyMemberMatch> unavailableMatches)
-    {
-        ArgumentNullException.ThrowIfNull(unavailableMatches);
-        var primary = unavailableMatches.Count > 0 ? unavailableMatches[0] : null;
-        return new(LegacyAccountLinkKind.Unavailable, primary, [], unavailableMatches);
-    }
-
-    public static LegacyAccountLinkState Unavailable(LegacyMemberMatch match) =>
-        Unavailable([match]);
 }

@@ -7,7 +7,7 @@ using QueenZone.Web.Infrastructure;
 namespace QueenZone.Web.Pages.Account;
 
 public sealed class ExternalLoginCallbackModel(
-    MemberAccountService memberAccountService,
+    MemberAuthenticationService memberAccountService,
     AppleAccountTokenService appleTokens) : PageModel
 {
     public async Task<IActionResult> OnGetAsync(string? returnUrl, CancellationToken cancellationToken)

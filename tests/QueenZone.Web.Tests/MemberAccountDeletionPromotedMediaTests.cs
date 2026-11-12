@@ -153,14 +153,11 @@ public sealed class MemberAccountDeletionPromotedMediaTests : IAsyncDisposable
         Assert.False((await repository.GetDeletionProgressAsync(memberId))!.IsComplete);
     }
 
-    private MemberAccountService CreateService(IBlobUploadService blobs) =>
+    private MemberAccountDeletionService CreateService(IBlobUploadService blobs) =>
         new(
             repository,
-            new LegacyAccountLinkService(
-                repository,
-                new InMemoryLegacyMemberLookupRepository(new Dictionary<string, LegacyMemberMatch>()),
-                new MemberProfileService(repository)),
-            blobs);
+            blobs, TimeProvider.System, appleTokens: null,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<MemberAccountDeletionService>.Instance, emailSender: null);
 
     private async Task<Guid> SeedDueMemberAsync(
         string email,

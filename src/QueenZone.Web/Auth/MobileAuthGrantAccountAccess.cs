@@ -4,7 +4,7 @@ using QueenZone.Data.Entities;
 namespace QueenZone.Web;
 
 public sealed class MobileAuthGrantAccountAccess(
-    MemberAccountService memberAccountService,
+    MemberAuthenticationService memberAccountService,
     MobileAuthAccountRateLimiter accountRateLimiter)
 {
     public sealed record AccountCheck(MemberAccount? Account, bool RateLimited);

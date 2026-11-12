@@ -54,7 +54,7 @@ public sealed class AdminReviewerAccountsRoutesTests : IClassFixture<QueenZoneWe
         Assert.DoesNotContain(password, list);
 
         using var scope = factory.Services.CreateScope();
-        var memberService = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var memberService = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         Assert.True((await memberService.SignInAsync(email, password)).Succeeded);
     }
 
@@ -86,7 +86,7 @@ public sealed class AdminReviewerAccountsRoutesTests : IClassFixture<QueenZoneWe
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         using var scope = factory.Services.CreateScope();
-        var memberService = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var memberService = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         Assert.False((await memberService.SignInAsync(originalEmail, oldPassword)).Succeeded);
         var signIn = await memberService.SignInAsync(newEmail, newPassword);
         Assert.True(signIn.Succeeded);
@@ -144,7 +144,7 @@ public sealed class AdminReviewerAccountsRoutesTests : IClassFixture<QueenZoneWe
     private async Task<QueenZone.Data.Entities.MemberAccount> CreateAccountAsync(string email, string password)
     {
         using var scope = factory.Services.CreateScope();
-        var service = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+        var service = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
         var result = await service.RegisterAsync(email, password, "Reviewer Account");
         Assert.True(result.Succeeded, result.Error);
         return result.Account!;

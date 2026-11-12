@@ -41,7 +41,7 @@ public sealed class MemberAvatarEndpointsTests :
         Guid memberId;
         using (var scope = scopeFactory.CreateScope())
         {
-            var members = scope.ServiceProvider.GetRequiredService<MemberAccountService>();
+            var members = scope.ServiceProvider.GetRequiredService<MemberAuthenticationService>();
             var avatars = scope.ServiceProvider.GetRequiredService<MemberAvatarService>();
             var registered = await members.RegisterAsync(
                 "avatar-serve@example.com",

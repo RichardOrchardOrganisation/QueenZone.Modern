@@ -38,7 +38,10 @@ def package_web(root, output):
             specs = [Path(spec).stem for spec in feature.get("specs", [])]
             counts = [passed_cases(data, spec) for spec in specs]
             shots = [(p.parent / shot["screenshot"]) for p, shot in snapshots
-                     if shot["fixture"] in specs and route_matches(feature["url"], shot["url"])]
+                     if shot["fixture"] in specs and any(
+                         route_matches(feature["url"], url)
+                         for url in [shot.get("url"), *(shot.get("navigatedUrls") or [])]
+                         if url)]
             if not specs or not all(counts) or not shots:
                 continue
             folder = feature["id"]

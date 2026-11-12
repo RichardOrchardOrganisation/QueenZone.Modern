@@ -10,7 +10,7 @@ namespace QueenZone.Web.Pages.Account;
 
 [Authorize(Policy = MemberAuthenticationSchemes.MemberPolicy, AuthenticationSchemes = MemberAuthenticationSchemes.MembersCookie)]
 public sealed class SettingsModel(
-    MemberAccountService memberAccountService,
+    IMemberAccountRepository memberAccountRepository,
     MemberProfileService memberProfileService,
     LegacyAccountLinkService legacyAccountLinkService,
     MemberAvatarService memberAvatarService) : PageModel
@@ -122,7 +122,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -160,7 +160,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -199,7 +199,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -264,7 +264,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -307,7 +307,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -355,7 +355,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -382,7 +382,7 @@ public sealed class SettingsModel(
             return Redirect("/account/login");
         }
 
-        var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
         if (account is null)
         {
             return Redirect("/account/login");
@@ -425,7 +425,7 @@ public sealed class SettingsModel(
         var result = await memberAvatarService.RemoveAvatarAsync(memberId.Value, cancellationToken);
         if (!result.Succeeded)
         {
-            var account = await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+            var account = await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
             if (account is null)
             {
                 return Redirect("/account/login");
@@ -451,7 +451,7 @@ public sealed class SettingsModel(
         DeviceTheme = DeviceThemeCookie.ToChoice(DeviceThemeCookie.Read(Request));
         Email = account.Email;
         HasAvatar = !string.IsNullOrWhiteSpace(account.AvatarUrl);
-        LinkedProviders = await memberAccountService.ListExternalProvidersAsync(account.Id, cancellationToken);
+        LinkedProviders = await memberAccountRepository.ListExternalProvidersAsync(account.Id, cancellationToken);
         LegacyLink = await legacyAccountLinkService.GetLegacyLinkStateAsync(account, cancellationToken);
         ScheduledDeletionAt = account.DeletionRequestedAt?.AddDays(MemberAccountDeletionPolicy.RetentionDays);
         ApplySocialInputs((await memberProfileService.ListSocialLinksAsync(account.Id, cancellationToken))
@@ -516,7 +516,7 @@ public sealed class SettingsModel(
             return null;
         }
 
-        return await memberAccountService.FindByIdAsync(memberId.Value, cancellationToken);
+        return await memberAccountRepository.FindByIdAsync(memberId.Value, cancellationToken);
     }
 
     private Task ReissueMemberCookieAsync(Data.Entities.MemberAccount account) =>

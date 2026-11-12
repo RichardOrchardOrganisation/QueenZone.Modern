@@ -6,7 +6,7 @@ using QueenZone.Web.Sitemap;
 namespace QueenZone.Web;
 
 public sealed partial class ForumPostModerationService(
-    MemberAccountService memberAccountService,
+    IMemberAccountRepository memberAccountRepository,
     IForumWriteRepository forumWriteRepository,
     ICoreSitemapService coreSitemapService,
     TimeProvider timeProvider,
@@ -22,7 +22,7 @@ public sealed partial class ForumPostModerationService(
         string? identityName,
         CancellationToken cancellationToken)
     {
-        var account = await memberAccountService.FindByIdAsync(memberId, cancellationToken);
+        var account = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (account?.IsSuspended == true)
         {
             return (ForumWriteStatus.MemberSuspended, string.Empty, null, null);
@@ -66,7 +66,7 @@ public sealed partial class ForumPostModerationService(
         var reason =
             $"Auto-flagged: posted with {signature} within {ForumPostWriteService.SpamCandidateWindow.TotalSeconds:0}s of registering "
             + "(matches automated bulk-signup pattern).";
-        var suspended = await memberAccountService.SuspendAsync(
+        var suspended = await memberAccountRepository.SuspendAsync(
             memberId, reason, ForumPostWriteService.AutoModeratorEmail, timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
         if (suspended is null)
         {

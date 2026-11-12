@@ -6,16 +6,64 @@ namespace QueenZone.Web;
 public sealed class MemberAccountDeletionService(
     IMemberAccountRepository memberAccountRepository,
     IBlobUploadService blobUploadService,
-    TimeProvider? timeProvider = null,
-    AppleAccountTokenService? appleTokens = null,
-    ILogger<MemberAccountService>? logger = null,
-    IEmailSender? emailSender = null)
+    TimeProvider timeProvider,
+    AppleAccountTokenService? appleTokens,
+    ILogger<MemberAccountDeletionService> logger,
+    IEmailSender? emailSender)
 {
-    private readonly TimeProvider clock = timeProvider ?? TimeProvider.System;
+    private readonly TimeProvider clock = timeProvider;
+
+    internal static readonly TimeSpan DefaultBlobDeleteTimeout = TimeSpan.FromSeconds(20);
+
+    internal TimeSpan BlobDeleteTimeout { get; init; } = DefaultBlobDeleteTimeout;
+
+    public const string ImmediatePurgeIncompleteError =
+        "Account deletion could not finish removing personal data. Try again shortly.";
+
+    public async Task<MemberAccountResult> RequestDeletionAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var requested = await memberAccountRepository.RequestDeletionAsync(
+            memberId,
+            DateTime.UtcNow,
+            cancellationToken);
+        if (requested is null)
+        {
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+        }
+
+        return MemberAccountResult.Success(requested.Account);
+    }
+
+    public async Task<MemberAccountResult> CancelDeletionAsync(
+        Guid memberId,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await memberAccountRepository.CancelDeletionAsync(
+            memberId,
+            DateTime.UtcNow,
+            cancellationToken);
+        if (account is null)
+        {
+            return MemberAccountResult.Failure(MemberAccountOutcome.NotFound, "Account not found.");
+        }
+
+        if (account.PersonalDataPurgedAt is not null)
+        {
+            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "Account deletion can no longer be cancelled.");
+        }
+
+        if (account.DeletionRequestedAt is not null)
+        {
+            return MemberAccountResult.Failure(MemberAccountOutcome.DeletionNotCancellable, "The 30-day cooling-off period has ended.");
+        }
+
+        return MemberAccountResult.Success(account);
+    }
 
     public async Task<MemberAccountResult> DeleteImmediatelyAsync(
         Guid memberId,
-        TimeSpan blobDeleteTimeout,
         CancellationToken cancellationToken = default)
     {
         var requested = await memberAccountRepository.RequestDeletionAsync(
@@ -32,17 +80,17 @@ public sealed class MemberAccountDeletionService(
 
         try
         {
-            await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, blobDeleteTimeout, cancellationToken);
+            await PurgeDueDeletionsAsync(clock.GetUtcNow().UtcDateTime, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger?.LogError(ex, "Immediate account deletion purge failed for {MemberId}.", memberId);
+            logger.LogError(ex, "Immediate account deletion purge failed for {MemberId}.", memberId);
         }
 
         var purged = await memberAccountRepository.FindByIdAsync(memberId, cancellationToken);
         if (purged?.PersonalDataPurgedAt is null)
         {
-            return MemberAccountResult.Failure(MemberAccountOutcome.PurgeIncomplete, MemberAccountService.ImmediatePurgeIncompleteError);
+            return MemberAccountResult.Failure(MemberAccountOutcome.PurgeIncomplete, ImmediatePurgeIncompleteError);
         }
 
         if (emailSender is not null)
@@ -58,7 +106,7 @@ public sealed class MemberAccountDeletionService(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger?.LogError("Could not email account deletion confirmation for {MemberId}: {ErrorType}.", memberId, ex.GetType().Name);
+                logger.LogError("Could not email account deletion confirmation for {MemberId}: {ErrorType}.", memberId, ex.GetType().Name);
             }
         }
 
@@ -67,7 +115,6 @@ public sealed class MemberAccountDeletionService(
 
     public async Task<int> PurgeDueDeletionsAsync(
         DateTime utcNow,
-        TimeSpan blobDeleteTimeout,
         CancellationToken cancellationToken = default)
     {
         var purgeBefore = utcNow.AddDays(-MemberAccountDeletionPolicy.RetentionDays);
@@ -79,16 +126,16 @@ public sealed class MemberAccountDeletionService(
         foreach (var blob in pendingBlobs)
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(blobDeleteTimeout);
+            timeout.CancelAfter(BlobDeleteTimeout);
             try
             {
                 await blobUploadService.DeleteAsync(blob.Container, blob.Path, timeout.Token)
-                    .WaitAsync(blobDeleteTimeout, cancellationToken);
+                    .WaitAsync(BlobDeleteTimeout, cancellationToken);
                 await memberAccountRepository.CompleteDeletionBlobAsync(blob.Id, cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
-                logger?.LogWarning(ex, "Account deletion blob cleanup will retry for {BlobId}.", blob.Id);
+                logger.LogWarning(ex, "Account deletion blob cleanup will retry for {BlobId}.", blob.Id);
             }
         }
 
