@@ -3476,6 +3476,19 @@ a.qz-forum-post__author-link:focus-visible {
   margin-right: var(--space-2);
 }
 
+.qz-forum-board {
+  min-width: 0;
+}
+
+.qz-forum-thread-title {
+  min-width: 12rem;
+}
+
+.qz-forum-board,
+.qz-forum-thread-title {
+  overflow-wrap: anywhere;
+}
+
 .qz-table-wrap {
   overflow-x: auto;
 }
@@ -7694,8 +7707,10 @@ select.qz-input {
 
 .qz-home-forum-now__title {
   display: block;
+  min-width: 0;
   font: var(--fw-semibold) 16px/1.28 var(--font-display);
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .qz-home-forum-now li a:hover .qz-home-forum-now__title { color: var(--qz-gold); }
@@ -7993,8 +8008,10 @@ select.qz-input {
 }
 
 .qz-home-forum__title {
+  min-width: 0;
   font: var(--fw-semibold) 22px/1.22 var(--font-display);
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 .qz-home-forum__stats {
