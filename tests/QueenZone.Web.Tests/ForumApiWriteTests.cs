@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Caching.Memory;
 using QueenZone.Data;
 using QueenZone.Data.Entities;
 using QueenZone.Web;
@@ -184,6 +185,33 @@ public sealed class ForumApiWriteTests :
         Assert.Equal(created.StarterPostId, payload!.Id);
         Assert.Contains($"#post-{created.StarterPostId}", payload.DetailPath, StringComparison.Ordinal);
         Assert.Equal("Patched from the app.", (await posts.GetPostAsync(created.StarterPostId))!.Body);
+    }
+
+    [Fact]
+    public async Task Patch_post_invalidates_forum_stats()
+    {
+        var memberId = Guid.NewGuid();
+        await SeedMemberAsync(memberId, "Edit cache tester");
+        using var client = CreateBearerClient(memberId, "Edit cache tester");
+        using var scope = factory.Services.CreateScope();
+        var posts = scope.ServiceProvider.GetRequiredService<IForumWriteRepository>();
+        var created = await posts.CreateThreadAsync(new NewForumThread(
+            1, memberId, "Edit cache tester", "Cache eviction topic", "Original", DateTimeOffset.UtcNow));
+        var queries = scope.ServiceProvider.GetRequiredService<PublicQueryCacheService>();
+        var cache = scope.ServiceProvider.GetRequiredService<IMemoryCache>();
+        await queries.GetForumCategoriesAsync();
+        await queries.GetForumThreadCountAsync();
+        await queries.GetForumRecentThreadsAsync(ForumRoutes.RecentThreadsCount);
+        string[] keys = [PublicQueryCacheKeys.ForumCategories, PublicQueryCacheKeys.ForumThreadCount,
+            PublicQueryCacheKeys.ForumRecentThreads(ForumRoutes.RecentThreadsCount)];
+        Assert.All(keys, key => Assert.True(cache.TryGetValue(key, out _)));
+
+        using var response = await client.PatchAsJsonAsync(
+            $"{ForumApiEndpoints.RootPath}/topics/{created.TopicId}/posts/{created.StarterPostId}",
+            new { body = "Edited" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.All(keys, key => Assert.False(cache.TryGetValue(key, out _)));
     }
 
     [Fact]

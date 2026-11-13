@@ -4,14 +4,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
-using QueenZone.Storage;
 
 namespace QueenZone.Web.Pages.Forum;
 
 public sealed class EditPostModel(
     IForumWriteRepository forumWriteRepository,
-    UgcHtml ugcHtml,
-    PublicQueryCacheService publicQueryCache,
+    ForumPostEditService editService,
     IOptions<ForumOptions> forumOptions,
     IOptions<AdminOptions> adminOptions,
     TimeProvider timeProvider) : PageModel
@@ -25,6 +23,9 @@ public sealed class EditPostModel(
 
     [BindProperty]
     public DateTimeOffset? ExpectedUpdatedAt { get; set; }
+
+    [BindProperty]
+    public int TopicId { get; set; }
 
     public ForumEditablePost? Post { get; private set; }
 
@@ -64,6 +65,7 @@ public sealed class EditPostModel(
         }
 
         Post = post;
+        TopicId = post.TopicId;
         Body = post.Body;
         PopulatePage(post);
         return Page();
@@ -77,51 +79,35 @@ public sealed class EditPostModel(
             return access.Denied;
         }
 
-        var existing = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
-        if (existing is null)
+        var result = await editService.EditAsync(
+            TopicId, postId, new ForumPostEditActor(access.MemberId ?? Guid.Empty, access.IsAdmin),
+            Body, ExpectedUpdatedAt, cancellationToken);
+        Body = result.SanitizedBody;
+        if (result.Status is not ForumPostUpdateStatus.NotFound and not ForumPostUpdateStatus.Success)
         {
-            return NotFound();
+            Post = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
+            if (Post is not null)
+            {
+                PopulatePage(Post);
+            }
         }
-
-        Post = existing;
-        PopulatePage(existing);
-
-        var sanitizedBody = ugcHtml.Sanitize(Body);
-        if (string.IsNullOrWhiteSpace(sanitizedBody))
-        {
-            ModelState.AddModelError(nameof(Body), "Body is required.");
-            Body = sanitizedBody;
-            return Page();
-        }
-
-        var isAdmin = access.IsAdmin;
-        var memberId = access.MemberId ?? Guid.Empty;
-        var result = await forumWriteRepository.UpdatePostAsync(
-            postId,
-            memberId,
-            sanitizedBody,
-            isAdmin,
-            forumOptions.PostEditWindowMinutes,
-            ExpectedUpdatedAt,
-            cancellationToken);
 
         switch (result.Status)
         {
+            case ForumPostUpdateStatus.ValidationFailed:
+                ModelState.AddModelError(nameof(Body), "Body is required.");
+                return Page();
             case ForumPostUpdateStatus.NotFound:
                 return NotFound();
             case ForumPostUpdateStatus.Success:
-                publicQueryCache.InvalidateForumStatsCache();
-                var page = ((existing.PositionInThread - 1) / ForumRoutes.PostsPageSize) + 1;
+                var page = ((result.PositionInThread - 1) / ForumRoutes.PostsPageSize) + 1;
                 var redirectPath = ForumRoutes.GetTopicCanonicalPath(result.TopicId, result.TopicSubject, page);
                 return Redirect(redirectPath + $"#post-{postId}");
             case ForumPostUpdateStatus.ConcurrencyConflict:
                 ErrorMessage = OptimisticConcurrencyException.UserMessage;
-                var current = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
-                if (current is not null)
+                if (Post is not null)
                 {
-                    Post = current;
-                    Body = current.Body;
-                    PopulatePage(current);
+                    Body = Post.Body;
                 }
 
                 break;
@@ -137,7 +123,6 @@ public sealed class EditPostModel(
         }
 
         Response.StatusCode = StatusCodes.Status403Forbidden;
-        Body = sanitizedBody;
         return Page();
     }
 
