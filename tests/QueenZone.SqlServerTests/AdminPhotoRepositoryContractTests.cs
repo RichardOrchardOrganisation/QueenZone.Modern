@@ -84,6 +84,24 @@ public sealed class AdminPhotoRepositoryContractTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Create_with_unknown_category_throws()
+    {
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Repository.CreateAsync(Request(cat: 999), Editor));
+        Assert.Equal("Category 999 was not found.", error.Message);
+    }
+
+    [Fact]
+    public async Task Update_with_unknown_category_throws_and_preserves_stored_category()
+    {
+        var id = await Repository.CreateAsync(Request(cat: 9), Editor);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => Repository.UpdateAsync(id, new("Updated", "stage", 1985, Date, 999), Editor));
+        Assert.Equal("Category 999 was not found.", error.Message);
+        var saved = await Repository.GetByIdAsync(id);
+        Assert.NotNull(saved);
+        Assert.Equal(9, saved.CatId);
+    }
+
+    [Fact]
     public async Task Missing_photos_throw_for_writes_and_read_as_null()
     {
         Assert.Null(await Repository.GetByIdAsync(999));

@@ -199,6 +199,11 @@ public sealed class EfAdminPhotoRepository(QueenZoneDbContext dbContext) : IAdmi
         string editorEmail,
         CancellationToken cancellationToken = default)
     {
+        if (await GetCategoryByIdAsync(request.CatId, cancellationToken) is null)
+        {
+            throw new InvalidOperationException($"Category {request.CatId} was not found.");
+        }
+
         const string sql = """
             INSERT INTO dbo.PIC_FILES_T
             (
@@ -244,6 +249,11 @@ public sealed class EfAdminPhotoRepository(QueenZoneDbContext dbContext) : IAdmi
         AdminPhotoConcurrencyToken? expected = null,
         CancellationToken cancellationToken = default)
     {
+        if (await GetCategoryByIdAsync(request.CatId, cancellationToken) is null)
+        {
+            throw new InvalidOperationException($"Category {request.CatId} was not found.");
+        }
+
         var sql = """
             UPDATE dbo.PIC_FILES_T
             SET Name = @Name,
