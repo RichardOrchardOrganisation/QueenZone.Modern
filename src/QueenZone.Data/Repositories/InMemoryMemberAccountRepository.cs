@@ -645,7 +645,7 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
                 });
             }
 
-            return Task.FromResult(new MemberAccountDeletionPurgeResult(dueAccounts.Count, avatarBlobPaths));
+            return Task.FromResult(new MemberAccountDeletionPurgeResult(dueAccounts.Count, avatarBlobPaths, []));
         }
     }
 
@@ -736,6 +736,19 @@ public sealed class InMemoryMemberAccountRepository : IMemberAccountRepository
             }
 
             return Task.CompletedTask;
+        }
+    }
+
+    public IReadOnlyList<(string Action, DateTime OccurredAt)> GetDeletionAuditLogs(Guid memberId)
+    {
+        lock (gate)
+        {
+            return deletionAuditLogs
+                .Select((log, index) => (Log: log, Index: index))
+                .Where(item => item.Log.MemberAccountId == memberId)
+                .OrderBy(item => item.Log.OccurredAt).ThenBy(item => item.Index)
+                .Select(item => (item.Log.Action, item.Log.OccurredAt))
+                .ToList();
         }
     }
 
