@@ -19,6 +19,12 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
         int postId;
         lock (sync)
         {
+            if (!createdCategories.Concat(SampleForumData.CreateSeedCategories())
+                .Any(category => category.Id == thread.CategoryId))
+            {
+                throw new InvalidOperationException("Forum category not found.");
+            }
+
             topicId = nextTopicId++;
             postId = nextPostId++;
             threads.Add(new ForumWriteThread(
