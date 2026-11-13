@@ -6,12 +6,13 @@ public sealed class InMemoryArticlesRepository(IReadOnlyList<ArticleItem> seedAr
         seedArticles.Where(item => item.IsPublished));
 
     public async Task<IReadOnlyList<ArticleItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default) =>
-        (await ApplyAsync(publishedItems.Take(count).ToList(), cancellationToken));
+        (await ApplyAsync(publishedItems.Take(Math.Clamp(count, 1, 100)).Select(item => item with { Body = string.Empty }).ToList(), cancellationToken));
 
     public async Task<IReadOnlyList<ArticleItem>> GetArchivePageAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        var skip = Math.Max(page - 1, 0) * pageSize;
-        return await ApplyAsync(publishedItems.Skip(skip).Take(pageSize).ToList(), cancellationToken);
+        var take = Math.Clamp(pageSize, 1, 100);
+        var skip = (Math.Max(page, 1) - 1) * take;
+        return await ApplyAsync(publishedItems.Skip(skip).Take(take).Select(item => item with { Body = string.Empty }).ToList(), cancellationToken);
     }
 
     public async Task<int> GetPublishedCountAsync(CancellationToken cancellationToken = default) =>
@@ -44,7 +45,7 @@ public sealed class InMemoryArticlesRepository(IReadOnlyList<ArticleItem> seedAr
         }
 
         var set = ids.ToHashSet();
-        return await ApplyAsync(publishedItems.Where(item => set.Contains(item.Id)).ToList(), cancellationToken);
+        return await ApplyAsync(publishedItems.Where(item => set.Contains(item.Id)).Select(item => item with { Body = string.Empty }).ToList(), cancellationToken);
     }
 
     public async Task<ArticleItem?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
