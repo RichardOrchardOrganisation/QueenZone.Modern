@@ -215,13 +215,17 @@ jobs:
       # script writes. Retry boots a new AVD (QueenZone_CI_Smoke_API_36_retry)
       # on the same isolated port; do not add a third identical attempt.
       # In-process ADB recovery cannot revive a dead emulator (#1432 / #1454).
-      - name: Classify Android smoke transport death
+      # Image/AVD/boot failures are infra (#2503) and also retry once; selector
+      # misses and APP_CRASH are not retried.
+      - name: Classify Android smoke infra retry
         id: android-smoke-classify
         if: steps.android-smoke.outcome == 'failure'
         working-directory: .
         run: |
           CRASH=src/QueenZone.Mobile/maestro-results/android-app-crash
           MARKER=src/QueenZone.Mobile/maestro-results/android-transport-death
+          BOOT=src/QueenZone.Mobile/maestro-results/android-boot-failure
+          INSTALL=src/QueenZone.Mobile/maestro-results/android-install-failure
           if [ -f "$CRASH" ]; then
             echo "retry=false" >> "$GITHUB_OUTPUT"
             echo "First Android smoke attempt was APP_CRASH. Not retrying."
@@ -234,9 +238,16 @@ jobs:
             if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md ]; then
               cat src/QueenZone.Mobile/maestro-results/android-app-crash-summary.md >> "$GITHUB_STEP_SUMMARY"
             fi
-          elif [ -f "$MARKER" ]; then
+          elif [ -f "$MARKER" ] || [ -f "$BOOT" ] || [ -f "$INSTALL" ]; then
             echo "retry=true" >> "$GITHUB_OUTPUT"
-            echo "First Android smoke attempt died on device transport. Retrying once with a fresh emulator."
+            if [ -f "$MARKER" ]; then
+              echo "First Android smoke attempt died on device transport. Retrying once with a fresh emulator."
+            else
+              echo "infra: First Android smoke attempt failed on emulator image install, AVD creation, or boot. Retrying once with a fresh AVD."
+              if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                echo "### infra: Android smoke image/AVD/boot failure (retrying once)" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
             rm -rf src/QueenZone.Mobile/maestro-results-transport-first
             mkdir -p src/QueenZone.Mobile/maestro-results-transport-first
             cp -a src/QueenZone.Mobile/maestro-results/. src/QueenZone.Mobile/maestro-results-transport-first/
@@ -249,7 +260,7 @@ jobs:
             echo "First Android smoke attempt was a selector or assertion miss. Not retrying."
           fi
 
-      - name: Retry Android device smoke after transport death
+      - name: Retry Android device smoke after infra failure
         id: android-smoke-retry
         if: steps.android-smoke-classify.outputs.retry == 'true'
         working-directory: .
@@ -342,6 +353,12 @@ jobs:
             && [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-app-crash ]; then
             CRASH_DIR=src/QueenZone.Mobile/maestro-results-transport-first
           fi
+          CUR=src/QueenZone.Mobile/maestro-results
+          FIRST=src/QueenZone.Mobile/maestro-results-transport-first
+          tests_ran=false
+          if [ -f "$CUR/junit.xml" ]; then
+            tests_ran=true
+          fi
           if [ -f "$CRASH_DIR/android-app-crash" ]; then
             echo "::error::Android smoke failed because the app process crashed (APP_CRASH). Not a selector miss."
             cat "$CRASH_DIR/android-app-crash" || true
@@ -352,6 +369,16 @@ jobs:
             if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$CRASH_DIR/android-app-crash-summary.md" ]; then
               cat "$CRASH_DIR/android-app-crash-summary.md" >> "$GITHUB_STEP_SUMMARY"
             fi
+          elif [ -f "$CUR/android-install-failure" ] \
+            || { [ "$tests_ran" = false ] && [ -f "$FIRST/android-install-failure" ]; }; then
+            echo "::error::Android smoke failed on an emulator system image install failure. The emulator never booted. Not a selector or assertion miss."
+            echo "infra: Android smoke system image install failure"
+            cat "$CUR/android-install-failure" "$FIRST/android-install-failure" 2>/dev/null || true
+          elif [ -f "$CUR/android-boot-failure" ] \
+            || { [ "$tests_ran" = false ] && [ -f "$FIRST/android-boot-failure" ]; }; then
+            echo "::error::Android smoke failed on an emulator boot or AVD creation failure. Not a selector or assertion miss."
+            echo "infra: Android smoke boot/AVD failure"
+            cat "$CUR/android-boot-failure" "$FIRST/android-boot-failure" 2>/dev/null || true
           elif [ -f src/QueenZone.Mobile/maestro-results/android-transport-death ] \
             || [ -f src/QueenZone.Mobile/maestro-results-transport-first/android-transport-death ]; then
             echo "::error::Android smoke failed after device transport death (emulator/Maestro device server). Not a selector miss."

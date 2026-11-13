@@ -383,8 +383,12 @@ describe('device-smoke harness (#1281)', () => {
     assert.match(smokeJob, /ANDROID_SMOKE_AVD: QueenZone_CI_Smoke_API_36_retry/);
     assert.match(smokeJob, /ANDROID_SMOKE_EMULATOR_PORT: "5558"/);
     assert.match(smokeJob, /ANDROID_SMOKE_FORCE_AVD: "1"/);
-    assert.match(smokeJob, /Retry Android device smoke after transport death/);
-    assert.equal((smokeJob.match(/Retry Android device smoke after transport death/g) ?? []).length, 1);
+    assert.match(smokeJob, /Retry Android device smoke after infra failure/);
+    assert.equal((smokeJob.match(/Retry Android device smoke after infra failure/g) ?? []).length, 1);
+    assert.match(smokeJob, /android-boot-failure/);
+    assert.match(smokeJob, /android-install-failure/);
+    assert.match(smokeJob, /infra: First Android smoke attempt failed on emulator image install, AVD creation, or boot/);
+    assert.doesNotMatch(smokeJob, /Retry Android device smoke after transport death/);
     assert.doesNotMatch(smokeJob, /android-emulator-runner/);
     assert.doesNotMatch(smokeJob, /ubuntu-latest/);
     assert.doesNotMatch(smokeJob, /Enable KVM/);
@@ -393,6 +397,11 @@ describe('device-smoke harness (#1281)', () => {
     assert.match(runner, /ANDROID_SMOKE_AVD:-QueenZone_CI_Smoke_API_36/);
     assert.match(runner, /ANDROID_SMOKE_EMULATOR_PORT:-5558/);
     assert.match(runner, /system-images;android-36;google_apis;arm64-v8a/);
+    assert.match(runner, /preinstall-android-emulator\.sh/);
+    assert.match(runner, /ANDROID_EMULATOR_INSTALL_EMULATOR=0/);
+    assert.match(runner, /system\.img is missing/);
+    assert.match(runner, /infra: Android smoke/);
+    assert.match(runner, /infra_fail "boot_failure"/);
     assert.match(runner, /Another Android emulator is active/);
     assert.match(runner, /-gpu host/);
     assert.match(runner, /MAESTRO_TARGET_DEVICE="\$serial"/);
@@ -494,7 +503,7 @@ describe('device-smoke harness (#1281)', () => {
     assert.match(script, /adb reconnect offline/);
     assert.match(script, /adb install -r "\$apk"/);
     assert.match(script, /Selector and assertion failures are not retried/);
-    assert.match(workflow, /Retry Android device smoke after transport death/);
+    assert.match(workflow, /Retry Android device smoke after infra failure/);
     assert.match(workflow, /Retry Android device journeys after transport death/);
     assert.match(workflow, /android-transport-death/);
     assert.match(workflow, /Not a selector miss/);

@@ -153,3 +153,36 @@ test('journeys failure label distinguishes install/boot failure from a selector 
   );
   assert.ok(classify.indexOf('android-emulator-booted') < classify.indexOf('attempt was a selector or assertion miss'));
 });
+
+test('INSTALL_EMULATOR=0 installs only the system image and skips the emulator package', () => {
+  const s = setup('ok');
+  try {
+    const run = (extra = {}) => spawnSync('bash', [script, '--results-dir', s.results], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        HOME: s.home,
+        ANDROID_SDK_ROOT: s.sdk,
+        ANDROID_HOME: s.sdk,
+        QZ_SDKMANAGER: path.join(s.tmp, 'sdkmanager'),
+        FAKE_MODE: 'ok',
+        FAKE_STATE: path.join(s.tmp, 'state'),
+        ANDROID_EMULATOR_INSTALL_BACKOFF_SECONDS: '0',
+        ANDROID_EMULATOR_INSTALL_EMULATOR: '0',
+        ...extra,
+      },
+    });
+    const r = run();
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /Installed system-images;android-34;google_apis;x86_64 on attempt 1/);
+    assert.doesNotMatch(r.stdout, /and emulator/);
+    assert.match(s.calls()[0], /--install system-images;android-34;google_apis;x86_64 --channel=0/);
+    assert.doesNotMatch(s.calls()[0], /emulator system-images/);
+    const again = run();
+    assert.equal(again.status, 0, again.stdout + again.stderr);
+    assert.match(again.stdout, /already installed/);
+    assert.equal(s.calls().length, 1);
+  } finally {
+    s.cleanup();
+  }
+});
