@@ -108,6 +108,7 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
             var owned = submissions
                 .Where(a => a.AuthorMemberId == memberId)
                 .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
+                .ThenBy(a => a.Id)
                 .ToList();
 
             var items = owned
@@ -135,6 +136,7 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
                     or ArticleSubmissionStatus.UnderReview
                     or ArticleSubmissionStatus.ApprovedForPublishing)
                 .OrderByDescending(a => a.SubmittedAt ?? DateTimeOffset.MinValue)
+                .ThenBy(a => a.Id)
                 .Skip(skip)
                 .Take(take)
                 .Select(a => new ArticleSubmissionListItem(
@@ -144,9 +146,7 @@ public sealed class InMemoryArticleSubmissionRepository : IArticleSubmissionRepo
                     a.Author?.DisplayName ?? "Unknown member",
                     a.SubmittedAt,
                     a.PublishedAt,
-                    EfArticleSubmissionRepository
-                        .CountVisibleChars(a.Body)
-                        / 5))
+                    EfArticleSubmissionRepository.EstimateWordCount(a.Body)))
                 .ToList();
 
             return Task.FromResult<IReadOnlyList<ArticleSubmissionListItem>>(result);

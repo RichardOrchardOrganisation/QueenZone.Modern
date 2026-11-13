@@ -128,6 +128,14 @@ public abstract class PhotoSubmissionRepositoryContractTests
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() => StatusAsync(row.Id, PhotoSubmissionStatus.Rejected));
         Assert.Equal("A rejection reason is required.", error.Message);
         Assert.Equal(PhotoSubmissionStatus.Pending, (await Repository.GetByIdAsync(row.Id))!.Status);
+
+        var retried = await StatusAsync(row.Id, PhotoSubmissionStatus.Rejected, "Not a Queen photo");
+        Assert.NotNull(retried);
+        Assert.Equal(PhotoSubmissionStatus.Rejected, retried.Status);
+        Assert.Equal("Not a Queen photo", retried.RejectionReason);
+        var saved = (await Repository.GetByIdAsync(row.Id))!;
+        Assert.Equal(PhotoSubmissionStatus.Rejected, saved.Status);
+        Assert.Equal("Not a Queen photo", saved.RejectionReason);
     }
 
     [Fact]
