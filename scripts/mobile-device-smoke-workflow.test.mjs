@@ -90,3 +90,27 @@ test('device smoke iOS jobs stay non-required soak jobs', () => {
   assert.match(smoke, /Not a required PR check/);
   assert.doesNotMatch(smoke, /required-on-main/);
 });
+
+test('Android smoke retries image/AVD/boot infra failures once and does not retry selector misses', () => {
+  const classify = androidSmoke.slice(
+    androidSmoke.indexOf('- name: Classify Android smoke infra retry'),
+    androidSmoke.indexOf('- name: Retry Android device smoke after infra failure'),
+  );
+  const fail = androidSmoke.slice(
+    androidSmoke.indexOf('- name: Fail Android smoke after unrecovered failure'),
+  );
+  assert.match(classify, /android-boot-failure/);
+  assert.match(classify, /android-install-failure/);
+  assert.match(classify, /android-transport-death/);
+  assert.match(classify, /infra: First Android smoke attempt failed on emulator image install, AVD creation, or boot/);
+  assert.ok(classify.indexOf('android-boot-failure') < classify.indexOf('attempt was a selector or assertion miss'));
+  assert.match(androidSmoke, /Retry Android device smoke after infra failure/);
+  assert.equal((androidSmoke.match(/Retry Android device smoke after infra failure/g) ?? []).length, 1);
+  assert.match(fail, /emulator boot or AVD creation failure/);
+  assert.match(fail, /system image install failure/);
+  const install = fail.indexOf('android-install-failure');
+  const boot = fail.indexOf('android-boot-failure');
+  const selector = fail.indexOf('::error::Android smoke failed on a selector or assertion miss.');
+  assert.ok(install !== -1 && boot !== -1 && selector !== -1);
+  assert.ok(install < selector && boot < selector);
+});

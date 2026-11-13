@@ -14,6 +14,8 @@
 #   ANDROID_EMULATOR_ARCH (x86_64), ANDROID_EMULATOR_CHANNEL (0 = stable),
 #   ANDROID_EMULATOR_INSTALL_ATTEMPTS (3),
 #   ANDROID_EMULATOR_INSTALL_BACKOFF_SECONDS (10; attempt n waits n*backoff),
+#   ANDROID_EMULATOR_INSTALL_EMULATOR (1; set 0 to install only the system image),
+#   ANDROID_EMULATOR_FORCE_INSTALL (empty; set 1 to reinstall even on a cache hit),
 #   QZ_SDKMANAGER (override sdkmanager path; tests only).
 set -euo pipefail
 
@@ -23,6 +25,8 @@ ARCH="${ANDROID_EMULATOR_ARCH:-x86_64}"
 CHANNEL="${ANDROID_EMULATOR_CHANNEL:-0}"
 MAX_ATTEMPTS="${ANDROID_EMULATOR_INSTALL_ATTEMPTS:-3}"
 BACKOFF="${ANDROID_EMULATOR_INSTALL_BACKOFF_SECONDS:-10}"
+INSTALL_EMULATOR="${ANDROID_EMULATOR_INSTALL_EMULATOR:-1}"
+FORCE_INSTALL="${ANDROID_EMULATOR_FORCE_INSTALL:-}"
 SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 results_dir=""
 
@@ -99,6 +103,21 @@ emulator_ok() {
   [[ -x "$SDK_ROOT/emulator/emulator" ]] && [[ -f "$SDK_ROOT/emulator/source.properties" ]]
 }
 
+need_emulator() {
+  [[ "$INSTALL_EMULATOR" != "0" ]]
+}
+
+packages_ok() {
+  image_ok && { ! need_emulator || emulator_ok; }
+}
+
+install_packages=("$PACKAGE")
+install_label="$PACKAGE"
+if need_emulator; then
+  install_packages=(emulator "$PACKAGE")
+  install_label="$PACKAGE and emulator"
+fi
+
 clear_partial() {
   # A truncated zip leaves a half-extracted image and cached archives behind;
   # sdkmanager then reuses them. Drop both before the next attempt.
@@ -107,8 +126,11 @@ clear_partial() {
   rm -rf "${HOME}/.android/cache" 2>/dev/null || true
 }
 
-if image_ok && emulator_ok; then
-  echo "${PACKAGE} and emulator already installed (cache hit or runner image) at $IMAGE_DIR"
+if [[ "$FORCE_INSTALL" == "1" ]]; then
+  echo "Forcing reinstall of ${install_label} at $IMAGE_DIR"
+  clear_partial
+elif packages_ok; then
+  echo "${install_label} already installed (cache hit or runner image) at $IMAGE_DIR"
   exit 0
 fi
 
@@ -122,17 +144,17 @@ yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
 
 attempt=1
 while [[ "$attempt" -le "$MAX_ATTEMPTS" ]]; do
-  echo "sdkmanager --install emulator ${PACKAGE} --channel=${CHANNEL} (attempt ${attempt}/${MAX_ATTEMPTS})"
+  echo "sdkmanager --install ${install_packages[*]} --channel=${CHANNEL} (attempt ${attempt}/${MAX_ATTEMPTS})"
   log="$(mktemp)"
   set +e
-  "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install emulator "$PACKAGE" --channel="$CHANNEL" 2>&1 | tee "$log"
+  "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install "${install_packages[@]}" --channel="$CHANNEL" 2>&1 | tee "$log"
   status=${PIPESTATUS[0]}
   set -e
   # sdkmanager can print "Error on ZipFile" as a Warning and still exit 0.
   if [[ "$status" -eq 0 ]] && ! grep -qiE 'Error on ZipFile|unknown archive|An error occurred while preparing SDK package' "$log" \
-    && image_ok && emulator_ok; then
+    && packages_ok; then
     rm -f "$log"
-    echo "Installed ${PACKAGE} and emulator on attempt ${attempt}"
+    echo "Installed ${install_label} on attempt ${attempt}"
     exit 0
   fi
   rm -f "$log"
