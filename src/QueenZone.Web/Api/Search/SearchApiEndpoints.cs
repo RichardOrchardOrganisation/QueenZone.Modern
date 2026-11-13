@@ -61,6 +61,8 @@ public static class SearchApiEndpoints
                 SiteSearchSqlTimeout.CreateAndLog(
                     loggerFactory.CreateLogger(nameof(SearchApiEndpoints)),
                     q ?? string.Empty,
+                    contentType,
+                    request.Page,
                     TimeSpan.Zero,
                     ex);
             }

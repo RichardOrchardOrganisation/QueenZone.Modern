@@ -21,7 +21,7 @@ internal sealed class TimeoutSiteSearchService : ISiteSearchService
     public TimeoutSiteSearchService(Exception? exception = null)
     {
         Exception = exception ?? new SiteSearchTimeoutException(
-            "Bohemian Rhapsody",
+            16, 2,
             TimeSpan.FromSeconds(30),
             new InvalidOperationException("Execution Timeout Expired"));
     }

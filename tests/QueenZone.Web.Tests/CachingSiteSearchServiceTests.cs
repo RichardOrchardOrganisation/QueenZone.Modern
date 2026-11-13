@@ -319,6 +319,7 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => leader);
         inner.Release.SetResult();
         var page = await follower;
+        Assert.False(inner.LastToken.IsCancellationRequested);
 
         Assert.Equal(1, inner.Calls);
         Assert.Equal("queen", page.Results[0].Title);
@@ -347,37 +348,70 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
     [Fact]
     public async Task All_waiters_cancel_then_inflight_is_removed_and_next_call_reexecutes()
     {
-        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 9, 29, 0, 0, 0, TimeSpan.Zero));
         var inner = new CountingSiteSearchService { HoldFirstCall = true };
-        var cache = new SiteSearchResultCache();
-        var sut = Create(inner, anonymous: true, timeProvider: clock, cache: cache);
+        using var cache = new SiteSearchResultCache();
+        var sut = Create(inner, anonymous: true, cache: cache);
         using var firstCts = new CancellationTokenSource();
         using var secondCts = new CancellationTokenSource();
 
         var first = sut.SearchAsync("Queen", null, 1, 20, firstCts.Token);
         await inner.Entered.Task;
         var second = sut.SearchAsync("Queen", null, 1, 20, secondCts.Token);
+        var token = inner.LastToken;
         firstCts.Cancel();
         secondCts.Cancel();
-
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
-        Assert.False(cache.Inflight.IsEmpty);
-
+        Assert.True(token.IsCancellationRequested);
         inner.Release.SetResult();
         await WaitForInflightEmpty(cache);
+        Assert.Equal(0, ((Microsoft.Extensions.Caching.Memory.MemoryCache)cache.Memory).Count);
 
-        var cached = await sut.SearchAsync("Queen", null, 1, 20);
-        Assert.Equal(1, inner.Calls);
-        Assert.Equal("queen", cached.Results[0].Title);
-
-        clock.Advance(SiteSearchResultCache.AbsoluteExpiration);
-        clock.Advance(TimeSpan.FromMilliseconds(1));
-        var replay = await sut.SearchAsync("Queen", null, 1, 20);
-
+        var recovered = await sut.SearchAsync("Queen", null, 1, 20);
         Assert.Equal(2, inner.Calls);
-        Assert.Equal("queen", replay.Results[0].Title);
-        Assert.True(cache.Inflight.IsEmpty);
+        Assert.Same(recovered, await sut.SearchAsync("Queen", null, 1, 20));
+    }
+
+    [Fact]
+    public async Task New_waiter_replaces_abandoned_fetch_before_it_finishes()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true, DelayCancellation = true };
+        using var cache = new SiteSearchResultCache();
+        var sut = Create(inner, anonymous: true, cache: cache);
+        using var cts = new CancellationTokenSource();
+        var first = sut.SearchAsync("Queen", null, 1, 20, cts.Token);
+        await inner.Entered.Task;
+        var abandoned = Assert.Single(cache.Inflight).Value.Fetch.Value;
+        var token = inner.LastToken;
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        Assert.True(token.IsCancellationRequested);
+
+        var recovered = await sut.SearchAsync("Queen", null, 1, 20);
+        Assert.Equal(2, inner.Calls);
+        Assert.False(inner.LastToken.IsCancellationRequested);
+        inner.Release.SetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => abandoned);
+        Assert.Same(recovered, await sut.SearchAsync("Queen", null, 1, 20));
+    }
+
+    [Fact]
+    public async Task Late_joiner_keeps_partially_aborted_fetch_alive()
+    {
+        var inner = new CountingSiteSearchService { HoldFirstCall = true };
+        var sut = Create(inner, anonymous: true);
+        using var cts = new CancellationTokenSource();
+        var first = sut.SearchAsync("Queen", null, 1, 20, cts.Token);
+        await inner.Entered.Task;
+        var second = sut.SearchAsync("Queen", null, 1, 20);
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => first);
+        var late = sut.SearchAsync("Queen", null, 1, 20);
+        Assert.False(inner.LastToken.IsCancellationRequested);
+        inner.Release.SetResult();
+        Assert.Same(await second, await late);
+        Assert.False(inner.LastToken.IsCancellationRequested);
+        Assert.Equal(1, inner.Calls);
     }
 
     [Fact]
@@ -596,11 +630,15 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
 
         public int LastPageSize { get; private set; }
 
+        public CancellationToken LastToken { get; private set; }
+
         public int ThrowOnCall { get; init; }
 
         public int CancelOnCall { get; init; }
 
         public bool HoldFirstCall { get; init; }
+
+        public bool DelayCancellation { get; init; }
 
         public bool EmptyResults { get; init; }
 
@@ -621,6 +659,7 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
             LastContentType = contentType;
             LastPage = page;
             LastPageSize = pageSize;
+            LastToken = cancellationToken;
 
             if (CancelOnCall == call)
             {
@@ -630,12 +669,13 @@ public sealed class CachingSiteSearchServiceTests : IDisposable
             if (HoldFirstCall && call == 1)
             {
                 Entered.SetResult();
-                await Release.Task;
+                await Release.Task.WaitAsync(DelayCancellation ? CancellationToken.None : cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
             }
 
             if (ThrowOnCall == call)
             {
-                throw new SiteSearchTimeoutException(query, TimeSpan.FromSeconds(30), new InvalidOperationException("timeout"));
+                throw new SiteSearchTimeoutException(query.Length, 1, TimeSpan.FromSeconds(30), new InvalidOperationException("timeout"));
             }
 
             if (EmptyResults)
