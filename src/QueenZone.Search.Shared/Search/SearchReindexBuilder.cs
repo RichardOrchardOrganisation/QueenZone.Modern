@@ -32,6 +32,7 @@ public sealed class SearchReindexBuilder(
     CatalogSearchReindexer catalogReindexer)
 {
     private const int BatchSize = 200;
+    private const int ArchivePageSize = 100;
 
     /// <param name="onContentTypeStarted">
     /// Optional progress callback with the <see cref="SiteSearchContentType"/> key about to be replaced.
@@ -67,10 +68,11 @@ public sealed class SearchReindexBuilder(
         var totalCount = await newsRepository.GetPublishedCountAsync(cancellationToken: cancellationToken);
         var documents = new List<SearchDocumentEntity>();
 
-        for (var page = 1; (page - 1) * BatchSize < totalCount; page++)
+        for (var page = 1; (page - 1) * ArchivePageSize < totalCount; page++)
         {
-            var items = await newsRepository.GetArchivePageAsync(page, BatchSize, cancellationToken: cancellationToken);
-            documents.AddRange(items.Select(MapNews));
+            var items = await newsRepository.GetArchivePageAsync(page, ArchivePageSize, cancellationToken: cancellationToken);
+            var details = await newsRepository.GetByIdsAsync(items.Select(item => item.Id).ToArray(), cancellationToken);
+            documents.AddRange(details.Select(MapNews));
         }
 
         await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.News, documents, cancellationToken);
@@ -109,10 +111,17 @@ public sealed class SearchReindexBuilder(
         var totalCount = await articlesRepository.GetPublishedCountAsync(cancellationToken);
         var documents = new List<SearchDocumentEntity>();
 
-        for (var page = 1; (page - 1) * BatchSize < totalCount; page++)
+        for (var page = 1; (page - 1) * ArchivePageSize < totalCount; page++)
         {
-            var items = await articlesRepository.GetArchivePageAsync(page, BatchSize, cancellationToken);
-            documents.AddRange(items.Select(MapLegacyArticle));
+            var items = await articlesRepository.GetArchivePageAsync(page, ArchivePageSize, cancellationToken);
+            foreach (var item in items)
+            {
+                var detail = await articlesRepository.GetByIdAsync(item.Id, cancellationToken);
+                if (detail is not null)
+                {
+                    documents.Add(MapLegacyArticle(detail));
+                }
+            }
         }
 
         await searchIndexService.ReplaceContentTypeAsync(SiteSearchContentType.LegacyArticle, documents, cancellationToken);

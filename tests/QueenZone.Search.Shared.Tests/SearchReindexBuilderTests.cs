@@ -6,12 +6,14 @@ namespace QueenZone.Search.Shared.Tests;
 
 public sealed class SearchReindexBuilderTests
 {
-    private static (SearchReindexBuilder Builder, SharedSearchIndexStore Store) CreateBuilder()
+    private static (SearchReindexBuilder Builder, SharedSearchIndexStore Store) CreateBuilder(
+        IEnumerable<AdminNewsArticle>? news = null,
+        IReadOnlyList<ArticleItem>? articles = null)
     {
         var store = new SharedSearchIndexStore();
         var indexService = new InMemorySearchIndexService(store, new SearchIndexRevision());
 
-        var newsStore = new SharedNewsStore(SampleNewsData.CreateSeedArticles());
+        var newsStore = new SharedNewsStore(news ?? SampleNewsData.CreateSeedArticles());
         var newsRepository = new InMemoryNewsRepository(newsStore);
 
         var forumWriteRepository = new InMemoryForumWriteRepository();
@@ -25,7 +27,7 @@ public sealed class SearchReindexBuilderTests
         var articleSubmissionRepository = new InMemoryArticleSubmissionRepository();
         var articleRepository = new InMemoryArticleRepository(articleSubmissionRepository);
 
-        var articlesRepository = new InMemoryArticlesRepository(SampleArticlesData.CreateSeedArticles());
+        var articlesRepository = new InMemoryArticlesRepository(articles ?? SampleArticlesData.CreateSeedArticles());
         var biographyRepository = new InMemoryBiographyRepository(SampleBiographyData.CreateSeedChapters());
         var discographyRepository = new InMemoryDiscographyRepository(SampleDiscographyData.CreateSeedAlbums());
         var queenHistoryRepository = new InMemoryQueenHistoryRepository(SampleQueenHistoryData.CreateSeedEvents());
@@ -38,6 +40,28 @@ public sealed class SearchReindexBuilderTests
             articlesRepository,
             new CatalogSearchReindexer(indexService, biographyRepository, discographyRepository, queenHistoryRepository, fanPerformanceRepository));
         return (builder, store);
+    }
+
+    [Fact]
+    public async Task ReindexNewsAsync_IndexesEveryItemAndBodyBeyondTwoHundredItems()
+    {
+        var publishedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var items = Enumerable.Range(1, 251)
+            .Select(id => new AdminNewsArticle(
+                id, $"News {id}", $"news-{id}", "Excerpt", $"<p>News body content {id}.</p>",
+                publishedAt, null, true, null, null, null))
+            .ToList();
+        var (builder, store) = CreateBuilder(news: items);
+
+        await builder.ReindexNewsAsync();
+
+        var documents = store.GetAll().Where(d => d.ContentType == SiteSearchContentType.News).ToList();
+        Assert.Equal(items.Count, documents.Count);
+        foreach (var item in items)
+        {
+            var document = Assert.Single(documents, doc => doc.SourceKey == $"news:{item.Id}");
+            Assert.Equal($"News body content {item.Id}.", document.Body);
+        }
     }
 
     [Fact]
@@ -143,6 +167,28 @@ public sealed class SearchReindexBuilderTests
         Assert.Contains(articleDocuments, doc => doc.Title == "Published community feature");
         Assert.DoesNotContain(articleDocuments, doc => doc.Title == "Still a draft");
         _ = draft;
+    }
+
+    [Fact]
+    public async Task ReindexLegacyArticlesAsync_IndexesEveryItemAndBodyBeyondTwoHundredItems()
+    {
+        var publishedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var items = Enumerable.Range(1, 251)
+            .Select(id => new ArticleItem(
+                id, $"Article {id}", "Excerpt", $"<p>Article body content {id}.</p>",
+                publishedAt, null, null, true))
+            .ToList();
+        var (builder, store) = CreateBuilder(articles: items);
+
+        await builder.ReindexLegacyArticlesAsync();
+
+        var documents = store.GetAll().Where(d => d.ContentType == SiteSearchContentType.LegacyArticle).ToList();
+        Assert.Equal(items.Count, documents.Count);
+        foreach (var item in items)
+        {
+            var document = Assert.Single(documents, doc => doc.SourceKey == $"legacy-article:{item.Id}");
+            Assert.Equal($"Article body content {item.Id}.", document.Body);
+        }
     }
 
     [Fact]
