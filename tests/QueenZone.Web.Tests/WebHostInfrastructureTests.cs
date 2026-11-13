@@ -165,8 +165,11 @@ public sealed class WebHostInfrastructureTests
         var trackingHost = cache.Get(WebHostVariants.TrackingPromotedNews);
         using var trackingClient = trackingHost.CreateAnonymousClient();
         Assert.NotNull(trackingHost.TrackingNews);
+        // SearchIndexSeedHostedService reindexes news on startup and now hydrates
+        // bodies with GetByIdsAsync, so the baseline may already be non-zero.
+        var getByIdsBeforeCall = trackingHost.TrackingNews.GetByIdsCallCount;
         await trackingHost.Services.GetRequiredService<INewsRepository>().GetByIdsAsync([1002]);
-        Assert.Equal(1, trackingHost.TrackingNews!.GetByIdsCallCount);
+        Assert.Equal(getByIdsBeforeCall + 1, trackingHost.TrackingNews.GetByIdsCallCount);
         await trackingHost.ResetAsync();
         Assert.Equal(0, trackingHost.TrackingNews.GetByIdsCallCount);
 
