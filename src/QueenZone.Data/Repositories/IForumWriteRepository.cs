@@ -19,8 +19,10 @@ public interface IForumWriteRepository
 
     Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default);
 
+    /// <summary>Counts visible member posts, excluding imported legacy posts with null AuthorMemberId.</summary>
     Task<int> CountPostsByMemberSinceAsync(Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default);
 
+    /// <summary>Counts visible member posts, excluding imported legacy posts with null AuthorMemberId.</summary>
     Task<int> CountApprovedPostsByMemberAsync(Guid memberId, CancellationToken cancellationToken = default);
 
     Task<ForumAuthorContentSummary> GetAuthorForumContentSummaryAsync(
