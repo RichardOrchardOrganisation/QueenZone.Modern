@@ -52,6 +52,7 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
                     row.Status is NewsSuggestionStatus.Pending
                         or NewsSuggestionStatus.UnderReview)
                 .OrderByDescending(row => row.SubmittedAt)
+                .ThenBy(row => row.Id)
                 .Skip(skip)
                 .Take(take)
                 .Select(row =>
@@ -123,6 +124,7 @@ public sealed class InMemoryNewsSuggestionRepository : INewsSuggestionRepository
             var owned = suggestions
                 .Where(row => row.SubmitterMemberId == submitterMemberId)
                 .OrderByDescending(row => row.SubmittedAt)
+                .ThenBy(row => row.Id)
                 .ToList();
 
             IReadOnlyList<NewsSuggestion> items = owned
