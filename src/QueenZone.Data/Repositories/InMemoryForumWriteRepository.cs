@@ -19,6 +19,11 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
         int postId;
         lock (sync)
         {
+            if (!HasCategory(thread.CategoryId))
+            {
+                throw new InvalidOperationException("Forum category not found.");
+            }
+
             topicId = nextTopicId++;
             postId = nextPostId++;
             threads.Add(new ForumWriteThread(
@@ -333,6 +338,21 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
             .Select(group => group.Key)
             .ToHashSet();
     }
+
+    public void AddCategory(ForumCategoryItem category)
+    {
+        lock (sync)
+        {
+            if (!HasCategory(category.Id))
+            {
+                createdCategories.Add(category);
+            }
+        }
+    }
+
+    private bool HasCategory(int categoryId) =>
+        createdCategories.Concat(SampleForumData.CreateSeedCategories())
+            .Any(category => category.Id == categoryId);
 
     public Task<int> EnsureCategoryAsync(
         string slug,

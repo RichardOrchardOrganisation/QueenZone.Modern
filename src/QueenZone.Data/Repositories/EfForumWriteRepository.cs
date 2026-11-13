@@ -296,36 +296,26 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
                 thread.StartedAt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(thread.StartedAt.Value, DateTimeKind.Utc)) : DateTimeOffset.MinValue,
                 thread.LastActivityAt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(thread.LastActivityAt.Value, DateTimeKind.Utc)) : DateTimeOffset.MinValue,
                 thread.ReplyCount + 1,
-                IsLocked: false))
+                IsLocked: false,
+                HasPoll: false,
+                IsHidden: thread.IsHidden))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<int> CountPostsByMemberSinceAsync(Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default)
     {
-        var displayName = await GetDisplayNameAsync(memberId, cancellationToken);
-        if (displayName is null)
-        {
-            return 0;
-        }
-
         var sinceUtc = ToUtcDateTime(since);
         return await dbContext.ModernForumPosts
             .AsNoTracking()
             .CountAsync(
-                post => post.AuthorDisplayName == displayName && post.PostedAt >= sinceUtc && !post.IsHidden,
+                post => post.AuthorMemberId == memberId && post.PostedAt >= sinceUtc && !post.IsHidden,
                 cancellationToken);
     }
 
     public async Task<int> CountApprovedPostsByMemberAsync(Guid memberId, CancellationToken cancellationToken = default)
     {
-        var displayName = await GetDisplayNameAsync(memberId, cancellationToken);
-        if (displayName is null)
-        {
-            return 0;
-        }
-
         return await dbContext.ModernForumPosts
             .AsNoTracking()
-            .CountAsync(post => post.AuthorDisplayName == displayName && !post.IsHidden, cancellationToken);
+            .CountAsync(post => post.AuthorMemberId == memberId && !post.IsHidden, cancellationToken);
     }
 
     public async Task<ForumAuthorContentSummary> GetAuthorForumContentSummaryAsync(
@@ -533,13 +523,6 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
 
         return Convert.ToInt32(result);
     }
-
-    private async Task<string?> GetDisplayNameAsync(Guid memberId, CancellationToken cancellationToken) =>
-        await dbContext.MemberAccounts
-            .AsNoTracking()
-            .Where(member => member.Id == memberId)
-            .Select(member => member.DisplayName)
-            .SingleOrDefaultAsync(cancellationToken);
 
     private async Task ApplyCreateThreadStatsAsync(
         long threadId,
