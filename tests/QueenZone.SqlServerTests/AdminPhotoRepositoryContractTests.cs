@@ -151,6 +151,28 @@ public sealed class AdminPhotoRepositoryContractTests : IAsyncLifetime
             .UseSqlServer(ConnectionString).Options);
         await schema.Database.EnsureCreatedAsync();
         await schema.Database.ExecuteSqlRawAsync(LegacyPhotoSchema.CreateTablesSql);
+        // Production EfPhotoRepository detail/sitemap SQL joins USERS_T (and optional
+        // MemberAccounts / PhotoSubmissions). Same minimal schema as PhotoRepositorySqlServerTests.
+        await schema.Database.ExecuteSqlRawAsync("""
+            CREATE TABLE dbo.USERS_T
+            (
+                USER_ID int NOT NULL PRIMARY KEY,
+                USERNAME char(40) NULL
+            );
+            CREATE TABLE dbo.MemberAccounts
+            (
+                Id uniqueidentifier NOT NULL PRIMARY KEY,
+                DisplayName nvarchar(100) NOT NULL,
+                LinkedLegacyUserId int NULL
+            );
+            CREATE TABLE dbo.PhotoSubmissions
+            (
+                Id uniqueidentifier NOT NULL PRIMARY KEY,
+                SubmitterMemberId uniqueidentifier NOT NULL,
+                ReviewedAt datetimeoffset NULL,
+                PromotedPicId int NULL
+            );
+            """);
         db = CreateContext();
         Repository = new EfAdminPhotoRepository(db);
         PublicRepository = new EfPhotoRepository(db);
