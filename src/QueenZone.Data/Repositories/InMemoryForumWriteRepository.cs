@@ -19,8 +19,7 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
         int postId;
         lock (sync)
         {
-            if (!createdCategories.Concat(SampleForumData.CreateSeedCategories())
-                .Any(category => category.Id == thread.CategoryId))
+            if (!HasCategory(thread.CategoryId))
             {
                 throw new InvalidOperationException("Forum category not found.");
             }
@@ -339,6 +338,21 @@ public sealed class InMemoryForumWriteRepository : IForumWriteRepository
             .Select(group => group.Key)
             .ToHashSet();
     }
+
+    public void AddCategory(ForumCategoryItem category)
+    {
+        lock (sync)
+        {
+            if (!HasCategory(category.Id))
+            {
+                createdCategories.Add(category);
+            }
+        }
+    }
+
+    private bool HasCategory(int categoryId) =>
+        createdCategories.Concat(SampleForumData.CreateSeedCategories())
+            .Any(category => category.Id == categoryId);
 
     public Task<int> EnsureCategoryAsync(
         string slug,
