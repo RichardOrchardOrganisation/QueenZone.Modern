@@ -296,7 +296,9 @@ public sealed class EfForumWriteRepository(QueenZoneDbContext dbContext) : IForu
                 thread.StartedAt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(thread.StartedAt.Value, DateTimeKind.Utc)) : DateTimeOffset.MinValue,
                 thread.LastActivityAt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(thread.LastActivityAt.Value, DateTimeKind.Utc)) : DateTimeOffset.MinValue,
                 thread.ReplyCount + 1,
-                IsLocked: false))
+                IsLocked: false,
+                HasPoll: false,
+                IsHidden: thread.IsHidden))
             .SingleOrDefaultAsync(cancellationToken);
 
     public async Task<int> CountPostsByMemberSinceAsync(Guid memberId, DateTimeOffset since, CancellationToken cancellationToken = default)
