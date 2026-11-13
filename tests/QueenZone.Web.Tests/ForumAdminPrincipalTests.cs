@@ -47,7 +47,7 @@ public sealed class ForumAdminPrincipalTests(PrincipalPinnedWebApplicationFactor
         var path = $"/forum/post/{created.PostId}/edit";
         using var get = await client.GetAsync(path);
         Assert.Equal(pinned ? HttpStatusCode.OK : HttpStatusCode.Redirect, get.StatusCode);
-        using var response = await PostAsync(client, path, new() { ["Body"] = "Rewritten" });
+        using var response = await PostAsync(client, path, new() { ["Body"] = "Rewritten", ["TopicId"] = created.TopicId.ToString() });
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         if (!pinned) Assert.Contains("/account/login", response.Headers.Location!.OriginalString);

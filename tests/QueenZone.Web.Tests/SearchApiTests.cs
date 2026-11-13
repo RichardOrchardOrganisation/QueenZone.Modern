@@ -312,8 +312,9 @@ public sealed class SearchApiTests :
         Assert.Equal(SearchApiEndpoints.TimeoutDetail, problem.ProblemDetails.Detail);
         var warning = Assert.Single(logger.Entries);
         Assert.Equal(LogLevel.Warning, warning.Level);
-        Assert.Contains("Bohemian Rhapsody", warning.Message, StringComparison.Ordinal);
-        Assert.Same(timeout, warning.Exception);
+        Assert.DoesNotContain("Bohemian Rhapsody", warning.Message, StringComparison.Ordinal);
+        Assert.Equal(new EventId(1443, "SiteSearchAborted"), warning.EventId);
+        Assert.Null(warning.Exception);
     }
 
     [Fact]

@@ -38,6 +38,7 @@
             data-busy-submit
             data-busy-label="Saving…">
         @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="TopicId" />
         @if (Model.Post?.UpdatedAt is DateTimeOffset updatedAt)
         {
           <input type="hidden" name="expectedUpdatedAt" value="@updatedAt.UtcDateTime.ToString("o")" />

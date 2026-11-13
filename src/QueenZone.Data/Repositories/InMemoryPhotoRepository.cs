@@ -48,9 +48,11 @@ public sealed class InMemoryPhotoRepository(SharedPhotoStore store) : IPhotoRepo
             .Select(ToPhotoItem)
             .Where(activeFilter.Matches)
             .ToList();
+        var safePage = Math.Max(page, 1);
+        var safePageSize = Math.Clamp(pageSize, 1, 200);
         var paged = items
-            .Skip(Math.Max(page - 1, 0) * pageSize)
-            .Take(pageSize)
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
             .ToList();
 
         return Task.FromResult(new PhotoCategoryPage(category.Name, paged, items.Count));

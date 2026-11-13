@@ -118,6 +118,12 @@ public sealed class EfPhotoSubmissionRepository(QueenZoneDbContext dbContext) : 
             return null;
         }
 
+        if (string.Equals(status.Trim(), PhotoSubmissionStatus.Rejected, StringComparison.OrdinalIgnoreCase))
+        {
+            SubmissionReview.EnsureTransition(entity.Status, status, PhotoSubmissionWorkflow.TryValidateStatusChange);
+            SubmissionReview.RequireRejectionReason(rejectionReason);
+        }
+
         var next = PhotoSubmissionRecords.ApplyStatusChange(
             entity, status, reviewerEmail, reviewNotes, rejectionReason, approvedCategory);
 

@@ -7,7 +7,7 @@ public sealed class InMemoryNewsRepository(
     public async Task<IReadOnlyList<NewsItem>> GetLatestAsync(int count, CancellationToken cancellationToken = default)
     {
         var published = store.GetPublishedNewsItems();
-        return await AddSubmissionAttributionAsync(published.Take(count).ToList(), cancellationToken);
+        return await AddSubmissionAttributionAsync(published.Take(Math.Clamp(count, 1, 100)).Select(item => item with { Body = string.Empty }).ToList(), cancellationToken);
     }
 
     public async Task<IReadOnlyList<NewsItem>> GetArchivePageAsync(
@@ -17,8 +17,9 @@ public sealed class InMemoryNewsRepository(
         CancellationToken cancellationToken = default)
     {
         var published = NewsArchiveFiltering.Apply(store.GetPublishedNewsItems(), filter);
-        var skip = Math.Max(page - 1, 0) * pageSize;
-        return await AddSubmissionAttributionAsync(published.Skip(skip).Take(pageSize).ToList(), cancellationToken);
+        var take = Math.Clamp(pageSize, 1, 100);
+        var skip = (Math.Max(page, 1) - 1) * take;
+        return await AddSubmissionAttributionAsync(published.Skip(skip).Take(take).Select(item => item with { Body = string.Empty }).ToList(), cancellationToken);
     }
 
     public Task<int> GetPublishedCountAsync(NewsArchiveFilter filter = default, CancellationToken cancellationToken = default) =>

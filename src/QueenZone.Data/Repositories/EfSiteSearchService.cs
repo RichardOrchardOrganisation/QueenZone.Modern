@@ -44,6 +44,8 @@ public sealed class EfSiteSearchService(
                 },
                 logger,
                 trimmed,
+                contentType,
+                normalizedPage,
                 cancellationToken);
         }
 
@@ -52,6 +54,8 @@ public sealed class EfSiteSearchService(
             ct => ExecuteSearchAsync(trimmed, contentType, offset, take, normalizedPage, ct),
             logger,
             trimmed,
+            contentType,
+            normalizedPage,
             cancellationToken);
     }
 

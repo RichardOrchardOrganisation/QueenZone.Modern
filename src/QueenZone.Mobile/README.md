@@ -70,7 +70,7 @@ Doctor this morning can fail CI later the same day when Expo publishes a
 patch. Fix with `npx expo install <package>` (or `npx expo install --fix`)
 and commit the lockfile. Do not add packages to `expo.install.exclude`
 just to silence Doctor. There is no `expo` exclude and no `expo-modules-core`
-override since the unpin (https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2407). Any other exclude needs Richard's approval. Typecheck + `npm test` alone is not a local
+override since the unpin (https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2407). The `expo-dev-launcher` transitive dependency is temporarily pinned at 58.0.19 because 58.0.20 fails to compile on Xcode 27 (`axisBehavior`); this hold comes out with the unpin ([#2407](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2407)). Any other exclude needs Richard's approval. Typecheck + `npm test` alone is not a local
 substitute for the CI `mobile-js` job. Publish workflows still run
 `npm run preflight`. CI `mobile-js` runs the npm advisory gate, typecheck, lint,
 `npm run test:coverage`, the coverage gate, and Doctor so the same suites

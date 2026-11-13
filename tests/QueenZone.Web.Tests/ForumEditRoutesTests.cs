@@ -56,6 +56,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
         var response = await client.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
+            ["TopicId"] = Regex.Match(form, "name=\"TopicId\"[^>]*value=\"(\\d+)\"").Groups[1].Value,
             ["Body"] = "<p>Updated body<script>alert(1)</script></p>",
         }));
 
@@ -89,6 +90,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
         var response = await adminClient.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
+            ["TopicId"] = Regex.Match(form, "name=\"TopicId\"[^>]*value=\"(\\d+)\"").Groups[1].Value,
             ["Body"] = "Admin rewrite",
         }));
 
@@ -150,6 +152,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
         var response = await client.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
+            ["TopicId"] = Regex.Match(form, "name=\"TopicId\"[^>]*value=\"(\\d+)\"").Groups[1].Value,
             ["Body"] = "Own rewrite",
         }));
 
@@ -188,6 +191,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
         var first = await client.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = token,
+            ["TopicId"] = Regex.Match(form, "name=\"TopicId\"[^>]*value=\"(\\d+)\"").Groups[1].Value,
             ["Body"] = "<p>First writer</p>",
             ["ExpectedUpdatedAt"] = expectedUpdatedAt,
         }));
@@ -198,6 +202,7 @@ public sealed class ForumEditRoutesTests : IClassFixture<QueenZoneWebApplication
         var response = await client.PostAsync($"/forum/post/{postId}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = tokenAgain,
+            ["TopicId"] = Regex.Match(form, "name=\"TopicId\"[^>]*value=\"(\\d+)\"").Groups[1].Value,
             ["Body"] = "<p>Stale overwrite</p>",
             ["ExpectedUpdatedAt"] = expectedUpdatedAt,
         }));

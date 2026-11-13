@@ -423,6 +423,28 @@ public sealed class EfForumWriteRepositoryTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task GetThreadAsync_MapsHiddenState()
+    {
+        var hiddenAuthor = await SeedMemberAsync();
+        var visibleAuthor = await SeedMemberAsync("visible@example.com", "Visible Fan");
+        await SeedCategoryAsync();
+        var hiddenThread = await repository.CreateThreadAsync(new NewForumThread(
+            1, hiddenAuthor.Id, hiddenAuthor.DisplayName, "Hidden thread", "<p>Hidden</p>", DateTimeOffset.UtcNow));
+        var visibleThread = await repository.CreateThreadAsync(new NewForumThread(
+            1, visibleAuthor.Id, visibleAuthor.DisplayName, "Visible thread", "<p>Visible</p>", DateTimeOffset.UtcNow));
+
+        await repository.HideAuthorForumContentAsync(hiddenAuthor.Id, hiddenAuthor.DisplayName);
+
+        var hidden = await repository.GetThreadAsync(hiddenThread.TopicId);
+        var visible = await repository.GetThreadAsync(visibleThread.TopicId);
+
+        Assert.NotNull(hidden);
+        Assert.True(hidden.IsHidden);
+        Assert.NotNull(visible);
+        Assert.False(visible.IsHidden);
+    }
+
+    [Fact]
     public async Task GetPostAsync_UsesIndexedThreadIdForArchivedPostPosition_WithoutChangingPost()
     {
         var member = await SeedMemberAsync();

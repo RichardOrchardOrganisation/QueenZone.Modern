@@ -60,6 +60,7 @@ public sealed class ForumPromotionWebApplicationFactory : QueenZoneWebApplicatio
         var categories = SampleForumData.CreateSeedCategories().Append(
             new ForumCategoryItem(7, "Queenzone.com", "Website support", 0, null, null, 70)).ToArray();
         var writes = new InMemoryForumWriteRepository();
+        writes.AddCategory(categories[^1]);
         var now = new DateTimeOffset(2026, 8, 3, 0, 0, 0, TimeSpan.Zero);
         WebsiteTopicId = writes.CreateThreadAsync(new NewForumThread(
             7, Guid.NewGuid(), "Member", "Reviewer Test Message", "App check", now)).GetAwaiter().GetResult().TopicId;

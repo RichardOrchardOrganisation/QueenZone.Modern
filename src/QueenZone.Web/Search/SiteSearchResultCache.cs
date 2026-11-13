@@ -34,7 +34,65 @@ public sealed class SiteSearchResultCache : IDisposable
 
     public IMemoryCache Memory { get; }
 
-    internal ConcurrentDictionary<SiteSearchCacheKey, Lazy<Task<SiteSearchPage>>> Inflight { get; } = new();
+    internal ConcurrentDictionary<SiteSearchCacheKey, InflightSearch> Inflight { get; } = new();
 
     public void Dispose() => Memory.Dispose();
+
+    internal sealed class InflightSearch(Func<InflightSearch, Task<SiteSearchPage>> fetch)
+    {
+        private readonly object gate = new();
+        private readonly CancellationTokenSource cancellation = new();
+        private int waiters;
+        private bool completed;
+        private bool abandoned;
+        private Lazy<Task<SiteSearchPage>>? task;
+
+        public CancellationToken Token => cancellation.Token;
+
+        public Lazy<Task<SiteSearchPage>> Fetch
+        {
+            get
+            {
+                lock (gate)
+                {
+                    return task ??= new(() => fetch(this));
+                }
+            }
+        }
+
+        public bool TryJoin()
+        {
+            lock (gate)
+            {
+                if (abandoned)
+                {
+                    return false;
+                }
+
+                waiters++;
+                return true;
+            }
+        }
+
+        public void Leave()
+        {
+            lock (gate)
+            {
+                if (--waiters == 0 && !completed && !(task?.IsValueCreated == true && task.Value.IsCompleted))
+                {
+                    abandoned = true;
+                    cancellation.Cancel();
+                }
+            }
+        }
+
+        public void Complete()
+        {
+            lock (gate)
+            {
+                completed = true;
+                cancellation.Dispose();
+            }
+        }
+    }
 }
