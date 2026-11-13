@@ -6,7 +6,7 @@ namespace QueenZone.Data;
 
 /// <summary>
 /// Detects <c>SqlException</c> command timeouts from <c>dbo.SearchDocument_Search</c>
-/// and logs the query (sanitized) plus duration at Warning.
+/// and logs timeout/cancellation metadata without query text at Warning.
 /// </summary>
 public static class SiteSearchSqlTimeout
 {
@@ -27,45 +27,37 @@ public static class SiteSearchSqlTimeout
         return false;
     }
 
-    public static string SanitizeQuery(string? query)
-    {
-        if (string.IsNullOrEmpty(query))
-        {
-            return string.Empty;
-        }
-
-        var sanitized = query
-            .Replace("\r\n", " ", StringComparison.Ordinal)
-            .Replace("\n", " ", StringComparison.Ordinal)
-            .Replace("\r", " ", StringComparison.Ordinal)
-            .Trim();
-
-        const int maxLength = 200;
-        return sanitized.Length <= maxLength ? sanitized : sanitized[..maxLength];
-    }
-
     public static SiteSearchTimeoutException CreateAndLog(
         ILogger logger,
         string query,
+        string? contentType,
+        int page,
         TimeSpan duration,
         Exception exception)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(exception);
 
-        var safeQuery = SanitizeQuery(query);
-        logger.LogWarning(
-            exception,
-            "Site search SQL command timed out after {DurationMs}ms for query {Query}",
-            (int)Math.Round(duration.TotalMilliseconds),
-            safeQuery);
-        return new SiteSearchTimeoutException(safeQuery, duration, exception);
+        LogAborted(logger, "Timeout", query, contentType, page, duration);
+        return new SiteSearchTimeoutException(query.Length, CountTerms(query), duration, exception);
     }
+
+    private static int CountTerms(string query) =>
+        query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
+    private static void LogAborted(
+        ILogger logger, string outcome, string query, string? contentType, int page, TimeSpan duration) =>
+        logger.LogWarning(
+            new EventId(1443, "SiteSearchAborted"),
+            "Site search {Outcome} after {ElapsedMs}ms (ContentType {ContentType}, Page {Page}, QueryLength {QueryLength}, TermCount {TermCount})",
+            outcome, (int)Math.Round(duration.TotalMilliseconds), contentType, page, query.Length, CountTerms(query));
 
     public static async Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> execute,
         ILogger logger,
         string query,
+        string? contentType,
+        int page,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(execute);
@@ -76,9 +68,20 @@ public static class SiteSearchSqlTimeout
         {
             return await execute(cancellationToken);
         }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested && !IsCommandTimeout(ex))
+        {
+            // SqlClient can surface a cancelled command as SqlException ("Operation cancelled by user").
+            LogAborted(logger, "Cancelled", query, contentType, page, started.Elapsed);
+            if (ex is OperationCanceledException)
+            {
+                throw;
+            }
+
+            throw new OperationCanceledException("Site search was cancelled.", ex, cancellationToken);
+        }
         catch (Exception ex) when (IsCommandTimeout(ex))
         {
-            throw CreateAndLog(logger, query, started.Elapsed, ex);
+            throw CreateAndLog(logger, query, contentType, page, started.Elapsed, ex);
         }
     }
 

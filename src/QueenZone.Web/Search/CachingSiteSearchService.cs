@@ -8,7 +8,7 @@ namespace QueenZone.Web.Search;
 /// never caches short queries, pages beyond <see cref="SiteSearchLimits.MaxPage"/>, exceptions,
 /// timeouts, cancellations, or unavailable results. Successful empty pages for real queries
 /// are cached. Concurrent misses for the same key share one inner call that runs in its own
-/// DI scope so it can outlive the request that started it.
+/// DI scope so it can outlive the request that started it, until its last waiter leaves.
 /// </summary>
 public sealed class CachingSiteSearchService(
     ISiteSearchService inner,
@@ -54,36 +54,70 @@ public sealed class CachingSiteSearchService(
             return hit;
         }
 
-        Lazy<Task<SiteSearchPage>> created = null!;
-        created = new Lazy<Task<SiteSearchPage>>(() => StartSharedFetch(key, created));
-        var lazy = cache.Inflight.GetOrAdd(key, created);
+        SiteSearchResultCache.InflightSearch entry;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var created = new SiteSearchResultCache.InflightSearch(
+                owner => StartSharedFetch(key, owner));
+            entry = cache.Inflight.GetOrAdd(key, created);
+            if (!ReferenceEquals(entry, created))
+            {
+                created.Complete();
+            }
 
-        return await lazy.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+            if (entry.TryJoin())
+            {
+                break;
+            }
+
+            var replacement = new SiteSearchResultCache.InflightSearch(
+                owner => StartSharedFetch(key, owner));
+            // Reserve this waiter before publishing the replacement.
+            replacement.TryJoin();
+            if (cache.Inflight.TryUpdate(key, replacement, entry))
+            {
+                entry = replacement;
+                break;
+            }
+
+            replacement.Complete();
+        }
+
+        try
+        {
+            return await entry.Fetch.Value.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            entry.Leave();
+        }
     }
 
     private Task<SiteSearchPage> StartSharedFetch(
         SiteSearchCacheKey key,
-        Lazy<Task<SiteSearchPage>> lazy)
+        SiteSearchResultCache.InflightSearch entry)
     {
-        var fetch = FetchAndCacheAsync(key);
+        var fetch = FetchAndCacheAsync(key, entry.Token);
         // Always drop the inflight entry when the shared task finishes — RanToCompletion,
         // Faulted, or Canceled. Waiters must not be the ones that TryRemove.
         _ = fetch.ContinueWith(
             static (task, state) =>
             {
-                var (ownerCache, cacheKey, ownerLazy) =
-                    ((SiteSearchResultCache Cache, SiteSearchCacheKey Key, Lazy<Task<SiteSearchPage>> Lazy))state!;
-                ownerCache.Inflight.TryRemove(KeyValuePair.Create(cacheKey, ownerLazy));
+                var (ownerCache, cacheKey, ownerEntry) =
+                    ((SiteSearchResultCache Cache, SiteSearchCacheKey Key, SiteSearchResultCache.InflightSearch Entry))state!;
+                ownerCache.Inflight.TryRemove(KeyValuePair.Create(cacheKey, ownerEntry));
+                ownerEntry.Complete();
                 _ = task.Exception;
             },
-            (cache, key, lazy),
+            (cache, key, entry),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
         return fetch;
     }
 
-    private async Task<SiteSearchPage> FetchAndCacheAsync(SiteSearchCacheKey key)
+    private async Task<SiteSearchPage> FetchAndCacheAsync(SiteSearchCacheKey key, CancellationToken cancellationToken)
     {
         if (TryGetFresh(key, out var hit))
         {
@@ -103,7 +137,7 @@ public sealed class CachingSiteSearchService(
             key.ContentType,
             key.Page,
             key.PageSize,
-            CancellationToken.None).ConfigureAwait(false);
+            cancellationToken).ConfigureAwait(false);
 
         cache.Memory.Set(
             key,

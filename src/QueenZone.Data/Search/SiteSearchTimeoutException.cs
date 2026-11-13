@@ -6,14 +6,17 @@ namespace QueenZone.Data;
 /// </summary>
 public sealed class SiteSearchTimeoutException : Exception
 {
-    public SiteSearchTimeoutException(string query, TimeSpan duration, Exception innerException)
+    public SiteSearchTimeoutException(int queryLength, int termCount, TimeSpan duration, Exception innerException)
         : base("Site search SQL command timed out.", innerException)
     {
-        Query = query;
+        QueryLength = queryLength;
+        TermCount = termCount;
         Duration = duration;
     }
 
-    public string Query { get; }
+    public int QueryLength { get; }
+
+    public int TermCount { get; }
 
     public TimeSpan Duration { get; }
 }
