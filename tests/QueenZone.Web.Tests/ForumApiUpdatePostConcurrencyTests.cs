@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Storage;
@@ -7,11 +8,13 @@ using QueenZone.Web;
 
 namespace QueenZone.Web.Tests;
 
-public sealed class ForumApiUpdatePostConcurrencyTests
+public sealed class ForumApiUpdatePostConcurrencyTests(QueenZoneWebApplicationFactory factory) : IClassFixture<QueenZoneWebApplicationFactory>
 {
     [Fact]
     public async Task UpdatePostAsync_maps_each_write_status()
     {
+        using var scope = factory.Services.CreateScope();
+        var effects = scope.ServiceProvider.GetRequiredService<ForumPostWriteEffects>();
         var memberId = Guid.NewGuid();
         var user = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, memberId.ToString("D"))],
@@ -34,6 +37,7 @@ public sealed class ForumApiUpdatePostConcurrencyTests
         foreach (var (status, code) in new (ForumPostUpdateStatus Status, int Code)[]
         {
             (ForumPostUpdateStatus.Success, StatusCodes.Status200OK),
+            (ForumPostUpdateStatus.ValidationFailed, StatusCodes.Status400BadRequest),
             (ForumPostUpdateStatus.NotFound, StatusCodes.Status404NotFound),
             (ForumPostUpdateStatus.ConcurrencyConflict, StatusCodes.Status409Conflict),
             (ForumPostUpdateStatus.EditWindowExpired, StatusCodes.Status403Forbidden),
@@ -44,10 +48,8 @@ public sealed class ForumApiUpdatePostConcurrencyTests
             var result = await ForumApiEndpoints.UpdatePostAsync(
                 user,
                 new ForumPostRouteIds(existing.TopicId, existing.PostId),
-                new ForumPostUpdateRequestDto { Body = "Updated body text." },
-                new StatusForumWriteRepository(existing, status),
-                ugc,
-                forumOptions,
+                new ForumPostUpdateRequestDto { Body = status == ForumPostUpdateStatus.ValidationFailed ? " " : "Updated body text." },
+                new ForumPostEditService(new StatusForumWriteRepository(existing, status), ugc, effects, forumOptions),
                 CancellationToken.None);
             var http = Assert.IsAssignableFrom<IStatusCodeHttpResult>(result);
             Assert.Equal(code, http.StatusCode);
@@ -57,25 +59,30 @@ public sealed class ForumApiUpdatePostConcurrencyTests
             new ClaimsPrincipal(),
             new ForumPostRouteIds(3, 10),
             new ForumPostUpdateRequestDto { Body = "Updated body text." },
-            new StatusForumWriteRepository(existing, ForumPostUpdateStatus.Success),
-            ugc,
-            forumOptions,
+            new ForumPostEditService(new StatusForumWriteRepository(existing, ForumPostUpdateStatus.Success), ugc, effects, forumOptions),
             CancellationToken.None);
         Assert.Equal(StatusCodes.Status401Unauthorized, Assert.IsAssignableFrom<IStatusCodeHttpResult>(anonymous).StatusCode);
     }
 
-    private sealed class StatusForumWriteRepository(
+    internal sealed class StatusForumWriteRepository(
         ForumEditablePost existing,
         ForumPostUpdateStatus status) : IForumWriteRepository
     {
+        public int GetCalls { get; private set; }
+        public int UpdateCalls { get; private set; }
+        public (Guid MemberId, string Body, bool IsAdmin, int Window, DateTimeOffset? Expected, CancellationToken Token) Update { get; private set; }
+
         public Task<ForumThreadCreateResult> CreateThreadAsync(NewForumThread thread, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<int> CreatePostAsync(NewForumPost post, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
-        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default) =>
-            Task.FromResult<ForumEditablePost?>(postId == existing.PostId ? existing : null);
+        public Task<ForumEditablePost?> GetPostAsync(int postId, CancellationToken cancellationToken = default)
+        {
+            GetCalls++;
+            return Task.FromResult<ForumEditablePost?>(postId == existing.PostId ? existing : null);
+        }
 
         public Task<ForumPostUpdateResult> UpdatePostAsync(
             int postId,
@@ -84,8 +91,12 @@ public sealed class ForumApiUpdatePostConcurrencyTests
             bool isAdmin,
             int editWindowMinutes,
             DateTimeOffset? expectedUpdatedAt = null,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ForumPostUpdateResult(status, existing.TopicId, existing.TopicSubject));
+            CancellationToken cancellationToken = default)
+        {
+            UpdateCalls++;
+            Update = (editorMemberId, sanitisedBody, isAdmin, editWindowMinutes, expectedUpdatedAt, cancellationToken);
+            return Task.FromResult(new ForumPostUpdateResult(status, existing.TopicId, existing.TopicSubject));
+        }
 
         public Task<ForumWriteThread?> GetThreadAsync(int topicId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

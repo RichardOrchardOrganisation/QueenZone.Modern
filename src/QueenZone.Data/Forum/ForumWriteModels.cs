@@ -50,6 +50,7 @@ public enum ForumPostUpdateStatus
     EditWindowExpired,
     EditingDisabled,
     ConcurrencyConflict,
+    ValidationFailed,
 }
 
 public sealed record ForumPostUpdateResult(

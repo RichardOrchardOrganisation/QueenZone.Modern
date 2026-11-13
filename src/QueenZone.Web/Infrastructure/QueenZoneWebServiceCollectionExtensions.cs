@@ -384,6 +384,7 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<ForumPostWriteEffects>();
         services.AddScoped<ForumPostModerationService>();
         services.AddScoped<ForumPostWriteService>();
+        services.AddScoped<ForumPostEditService>();
         services.AddScoped<ForumPostReportService>();
         services.AddScoped<HomePollVoteService>();
         services.AddScoped<QuizSprintService>();

@@ -350,9 +350,7 @@ public static class ForumApiEndpoints
         ClaimsPrincipal user,
         [AsParameters] ForumPostRouteIds route,
         ForumPostUpdateRequestDto request,
-        IForumWriteRepository forumWriteRepository,
-        UgcHtml ugcHtml,
-        Microsoft.Extensions.Options.IOptions<ForumOptions> forumOptions,
+        ForumPostEditService editService,
         CancellationToken cancellationToken)
     {
         var id = route.Id;
@@ -365,32 +363,9 @@ public static class ForumApiEndpoints
                 title: "Unauthorized");
         }
 
-        var sanitizedBody = ugcHtml.Sanitize(request.Body ?? string.Empty);
-        if (string.IsNullOrWhiteSpace(sanitizedBody))
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Bad Request",
-                detail: "Body is required.");
-        }
-
-        var existing = await forumWriteRepository.GetPostAsync(postId, cancellationToken);
-        if (existing is null || existing.TopicId != id)
-        {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: "Not Found",
-                detail: $"No public forum post with id '{postId}'.");
-        }
-
-        var result = await forumWriteRepository.UpdatePostAsync(
-            postId,
-            memberId.Value,
-            sanitizedBody,
-            isAdmin: false,
-            forumOptions.Value.PostEditWindowMinutes,
-            request.UpdatedAt,
-            cancellationToken);
+        var result = await editService.EditAsync(
+            id, postId, new ForumPostEditActor(memberId.Value, false),
+            request.Body, request.UpdatedAt, cancellationToken);
 
         return result.Status switch
         {
@@ -398,6 +373,10 @@ public static class ForumApiEndpoints
                 postId,
                 result.TopicId,
                 ForumRoutes.GetTopicCanonicalPath(result.TopicId, result.TopicSubject) + $"#post-{postId}")),
+            ForumPostUpdateStatus.ValidationFailed => Results.Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Bad Request",
+                detail: "Body is required."),
             ForumPostUpdateStatus.NotFound => Results.Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Not Found",
