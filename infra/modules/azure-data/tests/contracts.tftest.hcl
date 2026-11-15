@@ -50,6 +50,11 @@ run "existing_production_shape_remains_managed" {
   }
 
   assert {
+    condition     = azapi_resource.sql_server[0].body.properties.retentionDays == 7
+    error_message = "The imported SQL server must retain its seven-day soft-delete recovery window."
+  }
+
+  assert {
     condition     = length(azurerm_mssql_firewall_rule.azure_services) == 1 && azurerm_mssql_server_extended_auditing_policy.production[0].enabled == false
     error_message = "The imported server shape must keep its Azure-services firewall rule and leave auditing off until a caller opts in."
   }
