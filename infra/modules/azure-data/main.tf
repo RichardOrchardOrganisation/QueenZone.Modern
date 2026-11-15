@@ -47,9 +47,10 @@ resource "azapi_resource" "sql_server" {
         sid                       = "95e57126-c09d-4737-a76b-8281fac1ad6d"
         tenantId                  = "c9f094fd-23bf-4a35-a406-bcaacd7e1a8e"
       }
-      minimalTlsVersion             = "1.2"
-      publicNetworkAccess           = "Enabled"
-      retentionDays                 = -1
+      minimalTlsVersion   = "1.2"
+      publicNetworkAccess = "Enabled"
+      # Preserve the live seven-day server recovery window (#2403).
+      retentionDays                 = 7
       restrictOutboundNetworkAccess = "Disabled"
       version                       = "12.0"
     }
