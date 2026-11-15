@@ -114,3 +114,12 @@ test('Android smoke retries image/AVD/boot infra failures once and does not retr
   assert.ok(install !== -1 && boot !== -1 && selector !== -1);
   assert.ok(install < selector && boot < selector);
 });
+
+test('manual device runs share one bounded admission group without cancelling active work', () => {
+  const block = smoke.slice(smoke.indexOf('\nconcurrency:'), smoke.indexOf('\nenv:'));
+  const group = block.split('\n').find((line) => line.trim().startsWith('group:'));
+  assert.ok(group);
+  assert.match(group, /github.event_name == 'workflow_dispatch' && 'manual' \|\| github.event.schedule/);
+  assert.doesNotMatch(group, /github.ref|inputs|run_id/);
+  assert.match(block, /cancel-in-progress: \$\{\{ github.event_name == 'schedule' \}\}/);
+});

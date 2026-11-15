@@ -67,8 +67,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: mobile-device-${{ github.event.inputs.suite || github.event.schedule || 'smoke' }}-${{ github.event.inputs.platform || 'both' }}-${{ github.ref }}-${{ github.event.inputs.reliability_trial || 'off' }}
-  cancel-in-progress: true
+  # One active and one pending manual run across ALL branches/platforms (#2431).
+  # GitHub replaces an older pending request with the newest; dispatch proof
+  # sequentially. Never cancel an active device run to admit another request.
+  # Scheduled runs have separate groups and cannot be displaced by manual proof.
+  group: mobile-device-${{ github.event_name == 'workflow_dispatch' && 'manual' || github.event.schedule }}
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 env:
   SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}

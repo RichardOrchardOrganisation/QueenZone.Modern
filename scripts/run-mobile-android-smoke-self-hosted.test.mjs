@@ -34,6 +34,7 @@ function setup() {
   writeFileSync(path.join(root, 'scripts', scriptName), readFileSync(path.join(scriptsDir, scriptName)));
   chmodSync(path.join(root, 'scripts', scriptName), 0o755);
   writeFileSync(path.join(root, 'scripts', preinstallName), readFileSync(path.join(scriptsDir, preinstallName)));
+  writeFileSync(path.join(root, 'scripts/run-with-timeout.sh'), readFileSync(path.join(scriptsDir, 'run-with-timeout.sh')));
   chmodSync(path.join(root, 'scripts', preinstallName), 0o755);
   writeExec(
     path.join(root, 'scripts/run-mobile-device-smoke.sh'),
@@ -81,6 +82,9 @@ exit 0
     path.join(bin, 'adb'),
     `#!/usr/bin/env bash
 echo "adb $*" >> "${state}/calls"
+if [ "\${FAKE_ADB_HANG:-}" = "$1" ]; then
+  exec sleep 60
+fi
 case "\$1" in
   devices) exit 0 ;;
   emu)
@@ -232,3 +236,22 @@ test('labels an emulator exit with no initial system image as infra and writes a
     s.cleanup();
   }
 });
+
+for (const command of ['devices', 'emu', 'get-state', 'shell']) {
+  test(`fails fast with infrastructure evidence when adb ${command} hangs`, () => {
+    const s = setup();
+    s.env.FAKE_ADB_HANG = command;
+    s.env.ANDROID_ADB_PROBE_TIMEOUT_SECONDS = '1';
+    try {
+      const r = s.run();
+      assert.equal(r.error, undefined, 'the harness must terminate itself before the test deadline');
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      const marker = readFileSync(path.join(s.results, 'android-boot-failure'), 'utf8');
+      assert.match(marker, /^class=boot_failure$/m);
+      assert.match(marker, /ADB.*timed out/);
+      assert.doesNotMatch(r.stdout, /maestro-stub/);
+    } finally {
+      s.cleanup();
+    }
+  });
+}

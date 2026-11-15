@@ -153,3 +153,23 @@ Locator-only RealData fixes are not covered by the PR-gate Deterministic suite (
 - **Job fails immediately with a missing SDK/tool error**: re-check the prerequisites above; the self-hosted runner uses whatever is already on `PATH` on this machine, unlike GitHub-hosted runners which come preconfigured.
 - **Stale Chromium after a Playwright version bump**: remove the runner account's Playwright browser cache and let the next run re-download it (`%USERPROFILE%\AppData\Local\ms-playwright` on Windows; `~/Library/Caches/ms-playwright` on macOS).
 - **Checkout fails with `EPERM: operation not permitted, unlink ... QueenZone.Web.exe`**: a previous run failed to terminate the real `QueenZone.Web.exe` process (the child-process PID lookup during app start can occasionally miss it), leaving it orphaned and holding its own exe file locked. `scripts/Run-E2E.ps1` kills leftover `QueenZone.Web` processes by image name both before start and after stop, and the `e2e-test` job still sweeps before checkout, so this should self-heal on the next run. If it still happens, the orphaned process may be running with higher privileges than the runner's own session (this has happened when a run was started or affected by an elevated/admin process) — open an elevated PowerShell on this machine and run `Stop-Process -Name QueenZone.Web -Force`, then re-run the job.
+
+## Manual mobile proof admission
+
+Mobile device runs share the Mac with scheduled health checks. To prevent a
+cross-branch proof backlog (#2431), `mobile-device-smoke.yml` admits one active
+manual workflow and one pending manual workflow across branches, platforms and
+suites. New requests replace the older pending request; they do not cancel the
+active run. Dispatch proofs sequentially and check cancelled pending requests
+before assuming evidence will arrive.
+
+Scheduled mobile runs have separate concurrency groups. This bounds manual
+contention; it does not promise runner priority or eliminate waiting for an
+active job. Nightly DB checks and the live-site sweep remain separate,
+non-required health checks.
+
+The self-hosted Android smoke wrapper bounds each ADB probe to 10 seconds
+(plus timeout termination grace) and emulator boot to four minutes plus the
+last bounded probe and cleanup. A hung probe writes `android-boot-failure`
+before returning failure, so existing infrastructure classification applies.
+The shared timeout helper supports both coreutils and the macOS Bash fallback.
