@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, cleanup, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { Image } from 'expo-image';
 import { AccessibilityInfo, Linking, Platform } from 'react-native';
 import { fetchPhotoDetail } from '../../api';
@@ -126,7 +126,7 @@ async function panEnd(dx: number, dy: number, startPageX = 80) {
 
 async function flushGallerySwipe() {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await jest.advanceTimersByTimeAsync(0);
   });
 }
 
@@ -140,9 +140,17 @@ async function withFakeTimers<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } finally {
+    await cleanup();
     jest.useRealTimers();
   }
 }
+
+// Image and status timers must never update React outside an act boundary.
+beforeEach(() => jest.useFakeTimers());
+afterEach(async () => {
+  await cleanup();
+  jest.useRealTimers();
+});
 
 describe('PhotoViewerScreen', () => {
   beforeEach(() => {
@@ -713,14 +721,25 @@ describe('PhotoViewerScreen', () => {
   });
 
   it('shows a fallback save error for unexpected failures', async () => {
-    savePhoto.mockRejectedValueOnce('boom');
-    await loadPhoto();
-    const user = userEvent.setup();
-    await user.press(screen.getByTestId(testIds.photoViewerSave));
-    await waitFor(() =>
-      expect(screen.getByText('Unable to save this picture.')).toBeOnTheScreen(),
-    );
-    expectStatusBanner(saveGalleryPhotoCopy.failed);
+    await withFakeTimers(async () => {
+      savePhoto.mockRejectedValueOnce('boom');
+      const { unmount } = await loadPhoto();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+      try {
+        // Exercise the delayed image spinner before saving, even on a fast host.
+        await act(async () => {
+          jest.advanceTimersByTime(photoImageLoadOverlayDelayMs);
+        });
+        await user.press(screen.getByTestId(testIds.photoViewerSave));
+        await waitFor(() =>
+          expect(screen.getByText('Unable to save this picture.')).toBeOnTheScreen(),
+        );
+        expectStatusBanner(saveGalleryPhotoCopy.failed);
+        expect(savePhoto).toHaveBeenCalledWith('https://cdn.queenzone.org/brian-may/img-101.jpg');
+      } finally {
+        await unmount();
+      }
+    });
   });
 
   it('omits Save when the image URL is not on the CDN', async () => {
