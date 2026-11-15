@@ -26,6 +26,8 @@ mkdir -p "$results_dir"
 printf 'avd=%s\nserial=%s\n' "$avd_name" "$serial" > "$results_dir/harness.log"
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
+source "$script_dir/run-with-timeout.sh"
+adb_timeout="${ANDROID_ADB_PROBE_TIMEOUT_SECONDS:-10}"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
 
 # Package form: system-images;android-<api>;<target>;<arch>
@@ -82,7 +84,10 @@ if ! command -v adb >/dev/null; then
   echo "adb is not installed or is not on PATH." >&2
   exit 1
 fi
-other_emulators="$(adb devices | awk -v target="$serial" '$1 ~ /^emulator-/ && $2 == "device" && $1 != target { print $1 }')"
+if ! devices="$(run_with_timeout "$adb_timeout" adb devices)"; then
+  infra_fail "boot_failure" "ADB device discovery failed or timed out after ${adb_timeout}s."
+fi
+other_emulators="$(printf '%s\n' "$devices" | awk -v target="$serial" '$1 ~ /^emulator-/ && $2 == "device" && $1 != target { print $1 }')"
 if [[ -n "$other_emulators" ]]; then
   echo "Another Android emulator is active; close it before Android device smoke:" >&2
   printf '%s\n' "$other_emulators" >&2
@@ -150,8 +155,13 @@ emulator_pid=""
 cleanup() {
   local status=$?
   if [[ -n "$emulator_pid" ]] && kill -0 "$emulator_pid" 2>/dev/null; then
-    ANDROID_SERIAL="$serial" adb emu kill >/dev/null 2>&1 || true
+    ANDROID_SERIAL="$serial" run_with_timeout "$adb_timeout" adb emu kill >/dev/null 2>&1 || true
     kill "$emulator_pid" 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+      kill -0 "$emulator_pid" 2>/dev/null || break
+      sleep 1
+    done
+    kill -KILL "$emulator_pid" 2>/dev/null || true
     wait "$emulator_pid" 2>/dev/null || true
   fi
   exit "$status"
@@ -160,7 +170,11 @@ trap cleanup EXIT INT TERM
 
 # Port 5558 is reserved for scheduled/dispatch Android smoke so it cannot
 # attach to the P0 release AVD on 5556 or an interactive emulator on 5554.
-ANDROID_SERIAL="$serial" adb emu kill >/dev/null 2>&1 || true
+stop_status=0
+ANDROID_SERIAL="$serial" run_with_timeout "$adb_timeout" adb emu kill >/dev/null 2>&1 || stop_status=$?
+if [[ "$stop_status" == 124 || "$stop_status" == 137 ]]; then
+  infra_fail "boot_failure" "ADB timed out stopping the previous isolated emulator."
+fi
 "$emulator_bin" \
   -avd "$avd_name" \
   -port "$emulator_port" \
@@ -173,16 +187,28 @@ ANDROID_SERIAL="$serial" adb emu kill >/dev/null 2>&1 || true
 emulator_pid=$!
 
 ready=false
-for _ in $(seq 1 120); do
+boot_deadline=$((SECONDS + 240))
+boot_completed() {
+  local state boot
+  state="$(ANDROID_SERIAL="$serial" run_with_timeout "$adb_timeout" adb get-state 2>/dev/null)" || return $?
+  [[ "$state" == "device" ]] || return 1
+  boot="$(ANDROID_SERIAL="$serial" run_with_timeout "$adb_timeout" adb shell getprop sys.boot_completed 2>/dev/null)" || return $?
+  [[ "${boot//$'\r'/}" == "1" ]]
+}
+while (( SECONDS < boot_deadline )); do
   if ! kill -0 "$emulator_pid" 2>/dev/null \
     || grep -q "No initial system image for this configuration" "$results_dir/emulator-self-hosted.log" 2>/dev/null; then
     echo "Android emulator exited before boot completed." >&2
     break
   fi
-  if [[ "$(ANDROID_SERIAL="$serial" adb get-state 2>/dev/null || true)" = "device" ]] \
-    && [[ "$(ANDROID_SERIAL="$serial" adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]]; then
+  if boot_completed; then
     ready=true
     break
+  else
+    boot_status=$?
+    if [[ "$boot_status" == 124 || "$boot_status" == 137 ]]; then
+      infra_fail "boot_failure" "ADB boot probe timed out after ${adb_timeout}s."
+    fi
   fi
   sleep 2
 done

@@ -51,6 +51,9 @@ jobs:
       - name: Test Android app-crash classifier harness
         run: ./scripts/run-mobile-device-smoke.sh --self-test-app-crash
 
+      - name: Test Android ADB deadlines and macOS fallback
+        run: ./scripts/run-mobile-device-smoke.sh --self-test-adb-timeout
+
       - name: Test Kudu action contracts without network
         run: python3 scripts/test_kudu_actions.py
 
