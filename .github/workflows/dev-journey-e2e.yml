@@ -34,7 +34,8 @@ jobs:
           github.event.workflow_run.event == 'push'
         )
       )
-    runs-on: ubuntu-latest
+    # Microsoft.Playwright 1.55 does not support ubuntu-latest (26.04). See #2518.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     environment: dev-deploy
     permissions:
