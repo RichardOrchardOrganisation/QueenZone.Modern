@@ -20,7 +20,7 @@ jobs:
   member-auth:
     name: Sign in and out on dev
     if: |
-      (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') &&
+      github.ref == 'refs/heads/main' &&
       (
         github.event_name != 'workflow_run' ||
         (

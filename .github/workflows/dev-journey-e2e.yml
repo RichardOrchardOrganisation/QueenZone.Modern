@@ -25,7 +25,7 @@ jobs:
   dev-journey:
     name: Home search forum articles discography on dev
     if: |
-      (github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') &&
+      github.ref == 'refs/heads/main' &&
       (
         github.event_name != 'workflow_run' ||
         (
