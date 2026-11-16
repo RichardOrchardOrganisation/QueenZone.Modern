@@ -1,27 +1,17 @@
-import { useEffect, useState } from 'react';
-import { Alert, AppState, Text, type AppStateStatus } from 'react-native';
+import { useEffect } from 'react';
+import { Alert, AppState, Linking, Text } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import * as Sentry from '@sentry/react-native';
 import { act, screen, waitFor, userEvent } from '@testing-library/react-native';
 import { ApiError, fetchJson } from '../api/client';
-import { TokenEndpointError } from '../api/errors';
-import { authTokensFixture, deferred, memberProfilePayload } from '../test/fixtures';
-import { initials } from '../ui/initials';
+import { authTokensFixture, memberProfilePayload } from '../test/fixtures';
 import { renderWithProviders } from '../test/render';
 import { SessionProvider, useSession, useSessionActions, type SessionActions, type Session } from './SessionContext';
 import * as oauth from './oauth';
 import * as tokenStore from './tokenStore';
 import * as notifications from '../notifications';
-import * as downloadManager from '../downloads/manager';
 import { setDownloadManifestStorageForTests } from '../downloads/manifest';
 import * as offlineQueue from '../offlineQueue/store';
-import {
-  ContentCache,
-  conversationCacheKey,
-  createMemoryStorage,
-  forumTopicCacheKey,
-  setContentCacheForTests,
-} from '../cache';
+import { setContentCacheForTests } from '../cache';
 
 const mockAppConfig = {
   apiBaseUrl: 'http://qz.test',
@@ -62,16 +52,16 @@ jest.mock('./tokenStore', () => {
       ...tokens,
       expiresAt: Date.now() + 60_000,
     })),
-    writeStoredIdentityShell: jest.fn(async () => {}),
-    clearStoredSession: jest.fn(async () => {}),
+    writeStoredIdentityShell: jest.fn(async () => { }),
+    clearStoredSession: jest.fn(async () => { }),
     isKeychainLockedError: actual.isKeychainLockedError,
   };
 });
 
 jest.mock('../notifications', () => ({
-  syncPushRegistration: jest.fn(async () => {}),
-  refreshPushRegistration: jest.fn(async () => {}),
-  clearPushRegistration: jest.fn(async () => {}),
+  syncPushRegistration: jest.fn(async () => { }),
+  refreshPushRegistration: jest.fn(async () => { }),
+  clearPushRegistration: jest.fn(async () => { }),
 }));
 
 const fetchJsonMock = fetchJson as jest.MockedFunction<typeof fetchJson>;
@@ -98,55 +88,12 @@ let capturedActions: SessionActions & Session;
 function Probe() {
   const session = useSession();
   useEffect(() => { capturedActions = session; }, [session]);
-  const [smokeResult, setSmokeResult] = useState('smoke-idle');
   return (
     <>
       <Text>{session.isRestoring ? 'restoring' : session.isSignedIn ? 'signed-in' : 'signed-out'}</Text>
       <Text>{session.displayName ?? 'anonymous'}</Text>
-      <Text>{session.isSignedIn ? initials(session.displayName) || 'no-initials' : 'signed-out-avatar'}</Text>
       <Text>{session.accessToken ?? 'no-token'}</Text>
-      <Text>{smokeResult}</Text>
-      <Text
-        onPress={() => {
-          void session.signIn('Google').catch(() => {});
-        }}
-      >
-        do-sign-in
-      </Text>
-      <Text
-        onPress={() => {
-          void session.signInWithPassword('reviewer@example.com', 'review-pass').catch(() => {});
-        }}
-      >
-        do-password-sign-in
-      </Text>
-      <Text onPress={() => void session.signOut()}>do-sign-out</Text>
-      <Text
-        onPress={() => {
-          void session.applySmokeSession('smoke-access').then((ok) => {
-            setSmokeResult(ok ? 'smoke-applied' : 'smoke-rejected');
-          });
-        }}
-      >
-        do-smoke-auth
-      </Text>
-      <Text onPress={() => session.setAccessToken('manual-token')}>set-token</Text>
-      <Text onPress={() => session.setAccessToken(null)}>clear-token</Text>
-      <Text onPress={() => session.setAccessToken('')}>set-empty-token</Text>
-      <Text
-        onPress={() => {
-          void session.ensureAccessToken();
-        }}
-      >
-        do-ensure-token
-      </Text>
-      <Text
-        onPress={() => {
-          void session.refreshProfile().catch(() => {});
-        }}
-      >
-        do-refresh-profile
-      </Text>
+      <Text onPress={() => { void session.ensureAccessToken(); }}>do-ensure-token</Text>
     </>
   );
 }
@@ -164,9 +111,6 @@ async function renderSession() {
 // `jest.replaceProperty` refuses it. Redefine it per test and put it back after.
 const originalAppStateDescriptor = Object.getOwnPropertyDescriptor(AppState, 'currentState');
 
-function setAppState(state: string) {
-  Object.defineProperty(AppState, 'currentState', { value: state, configurable: true, writable: true });
-}
 
 afterEach(() => {
   setDownloadManifestStorageForTests(null);
@@ -212,397 +156,7 @@ beforeEach(() => {
   clearPushRegistration.mockResolvedValue(undefined);
 });
 
-describe('SessionProvider', () => {
-  it('finishes restore with no stored session as signed out', async () => {
-    readStored.mockResolvedValue(null);
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-  });
-
-  it.each(['development', 'production'])('finishes restore and reports an unexpected credential read failure in %s', async (environment) => {
-    mockAppConfig.appEnv = environment;
-    const error = new Error('credential storage failed');
-    readStored.mockRejectedValue(error);
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.profile?.memberId ?? null).toBeNull();
-    expect(Sentry.captureException).toHaveBeenCalledWith(error, {
-      tags: { operation: 'session.restore.credentials' },
-    });
-    expect(clearStored).not.toHaveBeenCalled();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(reconcile).not.toHaveBeenCalled();
-  });
-
-  it.each(['sign-in', 'sign-out', 'unmount'] as const)(
-    'ignores a credential read failure after %s supersedes restore', async (action) => {
-      const read = deferred<tokenStore.StoredSession | null>();
-      readStored.mockReturnValue(read.promise);
-      const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-      const view = await renderSession();
-      await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
-      if (action === 'sign-in') {
-        signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-        // Sign-in changes generation before its credential write joins the read queue.
-        let signingIn!: Promise<void>;
-        await act(async () => { signingIn = capturedActions.signIn('Google'); });
-        await act(async () => {
-          read.reject(new Error('stale read failure'));
-          await signingIn;
-        });
-        expect(screen.getByText('new-account')).toBeOnTheScreen();
-        expect(capturedActions.profile?.memberId).toBe('member-1');
-        expect(reconcile).toHaveBeenCalledTimes(1);
-      } else {
-        if (action === 'sign-out') {
-          await act(async () => { await capturedActions.signOut(); });
-        } else {
-          await view.unmount();
-        }
-        await act(async () => { read.reject(new Error('stale read failure')); });
-        expect(reconcile).not.toHaveBeenCalled();
-        if (action === 'sign-out') {
-          expect(screen.getByText('signed-out')).toBeOnTheScreen();
-          expect(screen.getByText('no-token')).toBeOnTheScreen();
-          expect(capturedActions.isRestoring).toBe(false);
-          expect(capturedActions.profile).toBeNull();
-        }
-      }
-      expect(Sentry.captureException).not.toHaveBeenCalled();
-      expect(refreshAccessToken).not.toHaveBeenCalled();
-      expect(clearStored).toHaveBeenCalledTimes(action === 'sign-out' ? 1 : 0);
-    },
-  );
-
-  it('single-flights repeated foreground restore attempts while the keychain retry is pending', async () => {
-    const handlers: ((state: AppStateStatus) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, handler) => {
-      handlers.push(handler);
-      return { remove: jest.fn() };
-    });
-    const read = deferred<tokenStore.StoredSession | null>();
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    readStored.mockRejectedValueOnce(new Error('User interaction is not allowed'));
-    readStored.mockReturnValue(read.promise);
-    refreshAccessToken.mockReturnValue(refresh.promise);
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
-    expect(capturedActions.isRestoring).toBe(true);
-    await act(async () => {
-      handlers.forEach((handler) => handler('active'));
-      handlers.forEach((handler) => handler('active'));
-    });
-    expect(readStored).toHaveBeenCalledTimes(2);
-    await act(async () => {
-      read.resolve({ ...authTokensFixture(), expiresAt: Date.now() - 1_000 });
-    });
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBe('access-token');
-    expect(capturedActions.profile).toBeNull();
-    await act(async () => {
-      handlers.forEach((handler) => handler('active'));
-      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(capturedActions.profile?.memberId).toBe('member-1');
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(clearStored).not.toHaveBeenCalled();
-    expect(reconcile).toHaveBeenCalledTimes(1);
-  });
-
-  it('clears an expired grant without a cached member when foreground refresh is rejected', async () => {
-    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() - 1_000 });
-    refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'Expired'));
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(reconcile).not.toHaveBeenCalled();
-  });
-
-  it('clears an expired stored session when refresh yields no token or cached member', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture({ accessToken: '', refreshToken: '' }),
-      expiresAt: Date.now() - 1_000,
-    });
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(clearStored).toHaveBeenCalledTimes(1));
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(reconcile).not.toHaveBeenCalled();
-  });
-
-  it('clears a grant that expires while the restore profile request is pending', async () => {
-    const now = Date.now();
-    const clock = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const profile = deferred<unknown>();
-    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-    fetchJsonMock.mockReturnValue(profile.promise);
-    await renderSession();
-    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
-    clock.mockReturnValue(now + 120_000);
-    await act(async () => { profile.reject(ApiError.http(401, 'Unauthorized')); });
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it.each([false, true])('ignores a superseded restore profile (reject=%s)', async (reject) => {
-    const profile = deferred<unknown>();
-    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
-    fetchJsonMock.mockReturnValue(profile.promise);
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledTimes(1));
-    await act(async () => { await capturedActions.signOut(); });
-    await act(async () => {
-      if (reject) profile.reject(ApiError.http(401, 'Unauthorized'));
-      else profile.resolve(memberProfilePayload());
-    });
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(reconcile).not.toHaveBeenCalled();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('ignores stored credentials resolved after sign-out', async () => {
-    const read = deferred<tokenStore.StoredSession | null>();
-    readStored.mockReturnValue(read.promise);
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    await renderSession();
-    await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
-    await act(async () => { await capturedActions.signOut(); });
-    await act(async () => {
-      read.resolve({ ...authTokensFixture(), expiresAt: Date.now() - 1_000,
-        identity: { displayName: 'Freddie', memberId: 'member-1' } });
-    });
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(reconcile).not.toHaveBeenCalled();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('keeps the restored token when profile reconciliation fails synchronously', async () => {
-    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => {
-      throw new Error('storage unavailable');
-    });
-    await renderSession();
-    await waitFor(() => expect(reconcile).toHaveBeenCalledWith('member-1'));
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBe('access-token');
-    expect(capturedActions.profile).toBeNull();
-    expect(clearStored).not.toHaveBeenCalled();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('finishes restore when unexpected shell reconciliation fails synchronously', async () => {
-    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' } });
-    jest.spyOn(downloadManager, 'reconcileDownloads').mockImplementation(() => { throw new Error('storage unavailable'); });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBeNull();
-    expect(capturedActions.profile).toBeNull();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('applies the smoke session when Release smokeEmbed is baked', async () => {
-    const user = userEvent.setup();
-    const runtime = globalThis as typeof globalThis & { __DEV__?: boolean };
-    const previous = runtime.__DEV__;
-    runtime.__DEV__ = false;
-    mockAppConfig.smokeEmbed = true;
-    try {
-      readStored.mockReturnValue(new Promise(() => {}));
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-      expect(readStored).not.toHaveBeenCalled();
-
-      await user.press(screen.getByText('do-smoke-auth'));
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-      expect(screen.getByText('smoke-applied')).toBeOnTheScreen();
-      expect(signInWithProvider).not.toHaveBeenCalled();
-      expect(writeStored).not.toHaveBeenCalled();
-      expect(writeIdentity).not.toHaveBeenCalled();
-      expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'smoke-access' });
-    } finally {
-      runtime.__DEV__ = previous;
-    }
-  });
-
-  it('rejects the smoke session when __DEV__ is false', async () => {
-    const user = userEvent.setup();
-    const runtime = globalThis as typeof globalThis & { __DEV__?: boolean };
-    const previous = runtime.__DEV__;
-    runtime.__DEV__ = false;
-    try {
-      readStored.mockResolvedValue(null);
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-      await user.press(screen.getByText('do-smoke-auth'));
-      await waitFor(() => expect(screen.getByText('smoke-rejected')).toBeOnTheScreen());
-      expect(screen.getByText('signed-out')).toBeOnTheScreen();
-      expect(writeStored).not.toHaveBeenCalled();
-    } finally {
-      runtime.__DEV__ = previous;
-    }
-  });
-
-  it('restores a valid stored access token and profile', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-  });
-
-  it('refreshes an expired stored token', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-    });
-    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
-  });
-
-  it('applies a cached identity shell before an expired-access refresh resolves', async () => {
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    let tokenCalls = 0;
-    refreshAccessToken.mockImplementation(async () => {
-      tokenCalls += 1;
-      if (tokenCalls > 1) {
-        throw new Error('invalid_grant');
-      }
-      return refresh.promise;
-    });
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    await renderSession();
-
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(screen.getByText('FR')).toBeOnTheScreen();
-    expect(screen.queryByText('restoring')).toBeNull();
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
-    expect(screen.getByText('access-token')).toBeOnTheScreen();
-
-    await act(async () => {
-      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(screen.getByText('FR')).toBeOnTheScreen();
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  it('single-flights concurrent ensureAccessToken callers onto one /token', async () => {
-    const user = userEvent.setup();
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    let tokenCalls = 0;
-    refreshAccessToken.mockImplementation(async () => {
-      tokenCalls += 1;
-      if (tokenCalls > 1) {
-        throw new Error('invalid_grant');
-      }
-      return refresh.promise;
-    });
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    await renderSession();
-
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(screen.queryByText('restoring')).toBeNull();
-
-    await user.press(screen.getByText('do-ensure-token'));
-    await user.press(screen.getByText('do-ensure-token'));
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  it('clears local state when refresh fails', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockRejectedValue(new Error('expired'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearStored).toHaveBeenCalled();
-    expect(screen.getByText('anonymous')).toBeOnTheScreen();
-    expect(screen.getByText('signed-out-avatar')).toBeOnTheScreen();
-  });
-
-  it('keeps local member identity when an expired refresh fails offline', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockRejectedValue(new TypeError('Network request failed'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(clearStored).not.toHaveBeenCalled();
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-  });
-
-  it('clears local state on a definite invalid_grant refresh failure', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockRejectedValue(new Error('invalid_grant'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearStored).toHaveBeenCalled();
-  });
-
+describe('SessionProvider wiring', () => {
   it('does not clear a stored grant when the app version changes', async () => {
     const stored = {
       ...authTokensFixture(),
@@ -620,119 +174,6 @@ describe('SessionProvider', () => {
     await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
     expect(screen.getByText('Freddie')).toBeOnTheScreen();
     expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  it('signs in through the provider hop and can sign out', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    signInWithProvider.mockResolvedValue(authTokensFixture());
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-    expect(signInWithProvider).toHaveBeenCalledWith('http://qz.test', 'Google');
-    await waitFor(() =>
-      expect(syncPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1'),
-    );
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1');
-    expect(logoutRemote).toHaveBeenCalled();
-    expect(revokeRefreshToken).toHaveBeenCalled();
-    expect(clearStored).toHaveBeenCalled();
-    expect(writeIdentity).toHaveBeenCalledWith({
-      displayName: 'Freddie',
-      memberId: 'member-1',
-      avatarPath: null,
-    });
-  });
-
-  it('signs in with email and password through the same token store as OAuth', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    signInWithPassword.mockResolvedValue(authTokensFixture({ accessToken: 'password-access' }));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-password-sign-in'));
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(signInWithPassword).toHaveBeenCalledWith('http://qz.test', 'reviewer@example.com', 'review-pass');
-    expect(signInWithProvider).not.toHaveBeenCalled();
-    expect(writeStored).toHaveBeenCalledWith({
-      accessToken: 'password-access',
-      refreshToken: 'refresh-token',
-      expiresIn: 900,
-    }, true);
-    await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('password-access', 'member-1'));
-  });
-
-  it('signs out locally even when remote logout never completes', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    clearPushRegistration.mockImplementation(() => new Promise(() => {}));
-    logoutRemote.mockImplementation(() => new Promise(() => {}));
-    revokeRefreshToken.mockImplementation(() => new Promise(() => {}));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearStored).toHaveBeenCalled();
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-  });
-
-  it('does not call remote logout when already signed out', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(clearStored).toHaveBeenCalled());
-    expect(clearPushRegistration).not.toHaveBeenCalled();
-    expect(logoutRemote).not.toHaveBeenCalled();
-    expect(revokeRefreshToken).not.toHaveBeenCalled();
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-  });
-
-  it('signs out in memory when SecureStore delete fails', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    clearStored.mockRejectedValue(new Error('secure-store-unavailable'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-  });
-
-  it('does not register for push before sign-in', async () => {
-    readStored.mockResolvedValue(null);
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(syncPushRegistration).not.toHaveBeenCalled();
-  });
-
-  it('registers for push when a stored session is restored', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    await waitFor(() =>
-      expect(syncPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1'),
-    );
   });
 
   it('re-syncs push with the current member when the native token rotates', async () => {
@@ -758,665 +199,6 @@ describe('SessionProvider', () => {
     expect(syncPushRegistration).toHaveBeenCalledWith(authTokensFixture().accessToken, 'member-1');
   });
 
-  it('re-registers push after signing out and back in as a different member (#1094)', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    signInWithProvider
-      .mockResolvedValueOnce(authTokensFixture({ accessToken: 'token-a' }))
-      .mockResolvedValueOnce(authTokensFixture({ accessToken: 'token-b' }));
-    fetchJsonMock
-      .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-a', displayName: 'Alice' }))
-      .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-b', displayName: 'Bob' }));
-
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('Alice')).toBeOnTheScreen());
-    await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('token-a', 'member-a'));
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearPushRegistration).toHaveBeenCalledWith('token-a', 'member-a');
-
-    syncPushRegistration.mockClear();
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('Bob')).toBeOnTheScreen());
-    await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('token-b', 'member-b'));
-  });
-
-  it('re-registers push when signing in as a different member without signing out first', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    signInWithProvider
-      .mockResolvedValueOnce(authTokensFixture({ accessToken: 'token-a' }))
-      .mockResolvedValueOnce(authTokensFixture({ accessToken: 'token-b' }));
-    fetchJsonMock
-      .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-a', displayName: 'Alice' }))
-      .mockResolvedValueOnce(memberProfilePayload({ memberId: 'member-b', displayName: 'Bob' }));
-
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('Alice')).toBeOnTheScreen());
-    await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('token-a', 'member-a'));
-
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('Bob')).toBeOnTheScreen());
-    await waitFor(() => expect(syncPushRegistration).toHaveBeenCalledWith('token-b', 'member-b'));
-  });
-
-  it('stays signed out when the provider hop is cancelled', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    signInWithProvider.mockRejectedValue(new Error('Sign-in was cancelled.'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-in'));
-    expect(signInWithProvider).toHaveBeenCalledWith('http://qz.test', 'Google');
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  it('applies a Debug smoke access token without the OAuth hop when appEnv is development', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-smoke-auth'));
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('smoke-applied')).toBeOnTheScreen();
-    expect(signInWithProvider).not.toHaveBeenCalled();
-    expect(writeStored).toHaveBeenCalledWith({
-      accessToken: 'smoke-access',
-      refreshToken: 'smoke-debug-no-refresh',
-      expiresIn: 3600,
-    }, true);
-  });
-
-  it.each(['staging', 'production'] as const)(
-    'rejects the smoke session when appEnv is %s',
-    async (appEnv) => {
-      const user = userEvent.setup();
-      mockAppConfig.appEnv = appEnv;
-      mockAppConfig.smokeEmbed = true;
-      readStored.mockResolvedValue(null);
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-      await user.press(screen.getByText('do-smoke-auth'));
-      await waitFor(() => expect(screen.getByText('smoke-rejected')).toBeOnTheScreen());
-      expect(screen.getByText('signed-out')).toBeOnTheScreen();
-      expect(screen.getByText('no-token')).toBeOnTheScreen();
-      expect(writeStored).not.toHaveBeenCalled();
-    },
-  );
-
-  it('derives isSignedIn from setAccessToken and stays signed out without a token', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue(null);
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('clear-token'));
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-
-    await user.press(screen.getByText('set-empty-token'));
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-
-    await user.press(screen.getByText('set-token'));
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(screen.getByText('manual-token')).toBeOnTheScreen();
-
-    await user.press(screen.getByText('clear-token'));
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-  });
-
-  it('fail-opens a hung development restore so Profile is not stuck restoring', async () => {
-    jest.useFakeTimers();
-    try {
-      readStored.mockReturnValue(new Promise(() => {}));
-      await renderSession();
-      expect(screen.getByText('restoring')).toBeOnTheScreen();
-      await act(async () => {
-        jest.advanceTimersByTime(5_000);
-      });
-      expect(screen.getByText('signed-out')).toBeOnTheScreen();
-      expect(clearStored).not.toHaveBeenCalled();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it('does not sign out when a locked keychain blocks restore, and retries on active', async () => {
-    const locked = Object.assign(new Error('User interaction is not allowed'), {
-      name: 'KeyChainException',
-    });
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-
-    readStored.mockRejectedValueOnce(locked);
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-
-    await renderSession();
-    await waitFor(() => expect(readStored).toHaveBeenCalledTimes(1));
-    expect(screen.getByText('restoring')).toBeOnTheScreen();
-    expect(screen.queryByText('signed-out')).toBeNull();
-    expect(clearStored).not.toHaveBeenCalled();
-
-    await act(async () => {
-      for (const handler of appStateHandlers) {
-        handler('active');
-      }
-    });
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  it('retries a locked session write when the app becomes active', async () => {
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const locked = Object.assign(new Error('User interaction is not allowed'), {
-      name: 'KeyChainException',
-    });
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-
-    try {
-      readStored.mockResolvedValue({
-        ...authTokensFixture(),
-        expiresAt: now + 60_000,
-      });
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-      writeStored.mockRejectedValueOnce(locked);
-      writeStored.mockImplementation(async (tokens) => ({
-        ...tokens,
-        expiresAt: now + 180_000,
-      }));
-      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-
-      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-      expect(screen.getByText('signed-in')).toBeOnTheScreen();
-      expect(clearStored).not.toHaveBeenCalled();
-
-      writeStored.mockClear();
-      writeStored.mockImplementation(async (tokens) => ({
-        ...tokens,
-        expiresAt: now + 180_000,
-      }));
-      await act(async () => {
-        for (const handler of appStateHandlers) {
-          handler('active');
-        }
-      });
-      await waitFor(() => expect(writeStored).toHaveBeenCalled());
-      expect(clearStored).not.toHaveBeenCalled();
-      expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('stays signed in when profile load fails', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    fetchJsonMock.mockRejectedValue(new Error('offline'));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('anonymous')).toBeOnTheScreen();
-  });
-
-  it('exposes the stored access token before profile load finishes', async () => {
-    let resolveProfile: (value: unknown) => void = () => {};
-    fetchJsonMock.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveProfile = resolve;
-        }),
-    );
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('access-token')).toBeOnTheScreen();
-    expect(screen.getByText('anonymous')).toBeOnTheScreen();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-
-    await act(async () => {
-      resolveProfile(memberProfilePayload());
-    });
-    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-  });
-
-  it('refreshes a locally valid token when /me returns 401', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    fetchJsonMock.mockRejectedValueOnce(ApiError.http(401, 'Unauthorized'));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload());
-    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-  });
-
-  it('single-flights a refreshProfile 401 recovery with a concurrent refresh', async () => {
-    // The server treats a reused refresh token as theft and revokes every grant
-    // the member holds, so two concurrent recoveries must not present the same
-    // rotating grant twice.
-    const user = userEvent.setup();
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    refreshAccessToken.mockImplementation(async () => refresh.promise);
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    fetchJsonMock.mockResolvedValue(memberProfilePayload());
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-    // Every /me from here on is a 401, so both presses take the recovery path.
-    fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
-    await user.press(screen.getByText('do-refresh-profile'));
-    await user.press(screen.getByText('do-refresh-profile'));
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-
-    fetchJsonMock.mockResolvedValue(memberProfilePayload());
-    await act(async () => {
-      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-
-  // Each of these used to read as a dead grant and sign the member out on the
-  // first launch after an overnight idle.
-  async function expectSessionSurvives(failure: Error): Promise<void> {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockRejectedValue(failure);
-    await renderSession();
-
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(clearStored).not.toHaveBeenCalled();
-  }
-
-  it('keeps the session when the per-account limiter rate limits a refresh', async () => {
-    await expectSessionSurvives(
-      new TokenEndpointError(429, 'temporarily_unavailable', 'Too many attempts. Try again later.'),
-    );
-  });
-
-  it('keeps the session when the token endpoint is down', async () => {
-    await expectSessionSurvives(new TokenEndpointError(503, '', 'Could not complete sign-in.'));
-  });
-
-  it('keeps the session when mobile auth is unconfigured after a deploy', async () => {
-    await expectSessionSurvives(
-      new TokenEndpointError(400, 'temporarily_unavailable', 'Mobile auth is not configured.'),
-    );
-  });
-
-  it('still signs out on a dead grant from the token endpoint', async () => {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockRejectedValue(new TokenEndpointError(400, 'invalid_grant', 'invalid_grant'));
-    await renderSession();
-
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-    expect(clearStored).toHaveBeenCalled();
-  });
-
-  it('refreshes an expired token from ensureAccessToken and app foreground', async () => {
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-    try {
-      readStored.mockResolvedValue({
-        ...authTokensFixture(),
-        expiresAt: now + 60_000,
-      });
-      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-      expect(refreshAccessToken).not.toHaveBeenCalled();
-
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-
-      refreshAccessToken.mockClear();
-      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'foreground' }));
-      dateNow.mockReturnValue(now + 180_000);
-      await act(async () => {
-        for (const handler of appStateHandlers) {
-          handler('active');
-        }
-      });
-      await waitFor(() => expect(screen.getByText('foreground')).toBeOnTheScreen());
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('defers an expired-token refresh on an iOS background launch until the app is active', async () => {
-    // A BGTask wake (home widget) mounts the app and suspends it when the task
-    // ends; a rotation started there can be lost and later replayed as reuse.
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-    setAppState('background');
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(fetchJsonMock).not.toHaveBeenCalled();
-    expect(clearStored).not.toHaveBeenCalled();
-
-    setAppState('active');
-    await act(async () => {
-      for (const handler of appStateHandlers) {
-        handler('active');
-      }
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    expect(refreshAccessToken).toHaveBeenCalledWith('http://qz.test', 'refresh-token');
-  });
-
-  it('does not rotate or sign out when /me returns 401 during a background launch', async () => {
-    const reconcile = jest.spyOn(downloadManager, 'reconcileDownloads');
-    setAppState('background');
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
-    fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
-
-    await renderSession();
-    await waitFor(() => expect(fetchJsonMock).toHaveBeenCalledWith('/me', { accessToken: 'access-token' }));
-    expect(refreshAccessToken).not.toHaveBeenCalled();
-    expect(clearStored).not.toHaveBeenCalled();
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(capturedActions.isRestoring).toBe(false);
-    expect(capturedActions.accessToken).toBe('access-token');
-    expect(capturedActions.profile?.memberId).toBe('member-1');
-    expect(reconcile).toHaveBeenCalledWith('member-1');
-  });
-
-  it('does not rotate the grant from ensureAccessToken while backgrounded', async () => {
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    try {
-      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-      setAppState('background');
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-
-      expect(refreshAccessToken).not.toHaveBeenCalled();
-      expect(clearStored).not.toHaveBeenCalled();
-      expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('keeps a rotated grant in memory when persisting it fails for a non-lock reason', async () => {
-    // The server has already spent the previous refresh token; losing the new
-    // one would replay a dead grant on the next refresh.
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-    try {
-      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-      writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
-      refreshAccessToken.mockResolvedValueOnce(
-        authTokensFixture({ accessToken: 'next', refreshToken: 'next-refresh' }),
-      );
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-
-      refreshAccessToken.mockResolvedValueOnce(
-        authTokensFixture({ accessToken: 'third', refreshToken: 'third-refresh' }),
-      );
-      dateNow.mockReturnValue(now + 2_000_000);
-      await user.press(screen.getByText('do-ensure-token'));
-      await waitFor(() => expect(screen.getByText('third')).toBeOnTheScreen());
-      expect(refreshAccessToken).toHaveBeenLastCalledWith('http://qz.test', 'next-refresh');
-      expect(clearStored).not.toHaveBeenCalled();
-
-      writeStored.mockClear();
-      await act(async () => {
-        for (const handler of appStateHandlers) {
-          handler('active');
-        }
-      });
-      // The later refresh persisted successfully, so there is nothing pending.
-      expect(writeStored).not.toHaveBeenCalledWith(expect.objectContaining({ refreshToken: 'next-refresh' }));
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('retries a failed non-lock session write when the app becomes active', async () => {
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    const appStateHandlers: ((state: string) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, handler) => {
-      if (type === 'change') {
-        appStateHandlers.push(handler as (state: string) => void);
-      }
-      return { remove: jest.fn() };
-    });
-    try {
-      readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: now + 60_000 });
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-      writeStored.mockRejectedValueOnce(new Error('SecureStore staging write could not be confirmed'));
-      writeStored.mockRejectedValueOnce(new Error('still failing'));
-      refreshAccessToken.mockResolvedValueOnce(
-        authTokensFixture({ accessToken: 'next', refreshToken: 'next-refresh' }),
-      );
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-
-      // First retry fails without an unhandled rejection; the second succeeds.
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        await act(async () => {
-          for (const handler of appStateHandlers) {
-            handler('active');
-          }
-        });
-      }
-      await waitFor(() =>
-        expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ refreshToken: 'next-refresh' })),
-      );
-      expect(writeStored).toHaveBeenCalledTimes(3);
-      expect(clearStored).not.toHaveBeenCalled();
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('stays signed in with the refreshed token when a background refresh still gets a 401 from /me', async () => {
-    const user = userEvent.setup();
-    const now = 1_700_000_000_000;
-    const dateNow = jest.spyOn(Date, 'now').mockReturnValue(now);
-    try {
-      readStored.mockResolvedValue({
-        ...authTokensFixture(),
-        expiresAt: now + 60_000,
-      });
-      await renderSession();
-      await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-
-      refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-      fetchJsonMock.mockReset();
-      fetchJsonMock.mockRejectedValue(ApiError.http(401, 'Unauthorized'));
-      dateNow.mockReturnValue(now + 120_000);
-      await user.press(screen.getByText('do-ensure-token'));
-
-      await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-      expect(screen.getByText('signed-in')).toBeOnTheScreen();
-      expect(screen.getByText('Freddie')).toBeOnTheScreen();
-      expect(screen.getByText('FR')).toBeOnTheScreen();
-      expect(clearStored).not.toHaveBeenCalled();
-    } finally {
-      dateNow.mockRestore();
-    }
-  });
-
-  it('keeps a cached identity shell when /me fails after a successful refresh', async () => {
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() - 1_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1', avatarPath: '/avatars/1.jpg' },
-    });
-    refreshAccessToken.mockReturnValue(refresh.promise);
-    fetchJsonMock.mockRejectedValue(new Error('offline'));
-    await renderSession();
-
-    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-    await act(async () => {
-      refresh.resolve(authTokensFixture({ accessToken: 'next' }));
-    });
-    await waitFor(() => expect(screen.getByText('next')).toBeOnTheScreen());
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(screen.getByText('Freddie')).toBeOnTheScreen();
-    expect(clearStored).not.toHaveBeenCalled();
-  });
-});
-
-describe('SessionProvider private cache isolation', () => {
-  let cache: ContentCache;
-
-  beforeEach(async () => {
-    cache = new ContentCache({ storage: createMemoryStorage() });
-    setContentCacheForTests(cache);
-    await cache.put(conversationCacheKey('member-1', 'c1'), { body: 'secret from A' });
-    await cache.put(forumTopicCacheKey(1002), { id: 1002 });
-  });
-
-  afterEach(() => {
-    setContentCacheForTests(null);
-  });
-
-  it('purges conversations on sign-out and leaves the public forum cache', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('signed-in')).toBeOnTheScreen());
-
-    await user.press(screen.getByText('do-sign-out'));
-    await waitFor(() => expect(screen.getByText('signed-out')).toBeOnTheScreen());
-
-    expect(await cache.get(conversationCacheKey('member-1', 'c1'))).toBeNull();
-    expect(await cache.get(forumTopicCacheKey(1002))).toEqual({ id: 1002 });
-  });
-
-  it('purges member A conversations when session restore establishes member B', async () => {
-    const user = userEvent.setup();
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-    });
-    await renderSession();
-    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'next' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await user.press(screen.getByText('do-sign-in'));
-    await waitFor(() => expect(screen.getByText('Brian')).toBeOnTheScreen());
-
-    expect(await cache.get(conversationCacheKey('member-1', 'c1'))).toBeNull();
-    expect(await cache.get(conversationCacheKey('member-2', 'c1'))).toBeNull();
-    expect(await cache.get(forumTopicCacheKey(1002))).toEqual({ id: 1002 });
-  });
-});
-
-describe('SessionProvider actions context stability', () => {
   it('keeps actions identity stable across a token refresh and a profile load', async () => {
     const user = userEvent.setup();
     const now = 1_700_000_000_000;
@@ -1429,7 +211,7 @@ describe('SessionProvider actions context stability', () => {
       return <Text>actions-only</Text>;
     }
 
-    let resolveProfile: (value: unknown) => void = () => {};
+    let resolveProfile: (value: unknown) => void = () => { };
     fetchJsonMock.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -1478,373 +260,93 @@ describe('SessionProvider actions context stability', () => {
       dateNow.mockRestore();
     }
   });
-});
 
-
-describe('SessionProvider sign-out failure and race isolation', () => {
-  async function restoreMember() {
-    readStored.mockResolvedValue({
-      ...authTokensFixture(),
-      expiresAt: Date.now() + 60_000,
-      identity: { displayName: 'Freddie', memberId: 'member-1' },
-    });
+  it('maps restoring, signed-out and signed-in snapshots onto the public hook', async () => {
+    readStored.mockResolvedValue(null);
     await renderSession();
-    await waitFor(() => expect(screen.getByText('Freddie')).toBeOnTheScreen());
-  }
-
-  it.each(['read', 'delete'] as const)('signs out and retries a failed download manifest %s', async (failure) => {
-    await restoreMember();
-    const storage = createMemoryStorage();
-    const failedOperation = failure === 'read'
-      ? jest.spyOn(storage, 'getItem').mockRejectedValueOnce(new Error('private storage failure'))
-      : jest.spyOn(storage, 'removeItem').mockRejectedValueOnce(new Error('private storage failure'));
-    setDownloadManifestStorageForTests(storage);
-    const alert = jest.spyOn(Alert, 'alert');
-
-    await act(async () => { await capturedActions.signOut(); });
-
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(screen.getByText('no-token')).toBeOnTheScreen();
-    await waitFor(() => expect(clearStored).toHaveBeenCalled());
-    await waitFor(() => expect(alert).toHaveBeenCalledWith(
-      'Sign-out cleanup incomplete', expect.any(String), expect.any(Array),
-    ));
-    const attempts = failedOperation.mock.calls.length;
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
-    });
-    expect(failedOperation.mock.calls.length).toBeGreaterThan(attempts);
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(JSON.stringify(alert.mock.calls)).not.toContain('private storage failure');
+    await waitFor(() => expect(capturedActions.isRestoring).toBe(false));
+    expect(capturedActions.isSignedIn).toBe(false);
+    await act(async () => { capturedActions.setAccessToken(' manual-token '); });
+    expect(capturedActions.accessToken).toBe('manual-token');
+    expect(capturedActions.isSignedIn).toBe(true);
+    expect(capturedActions.displayName).toBeNull();
+    expect(capturedActions.profile).toBeNull();
+    await act(async () => { capturedActions.setAccessToken(null); });
+    expect(capturedActions.isSignedIn).toBe(false);
   });
 
-  it('does not await stalled download cleanup or remote revocation before resetting auth', async () => {
-    await restoreMember();
-    const cleanup = deferred<void>();
-    const purge = jest.spyOn(downloadManager, 'purgeAllDownloads').mockReturnValue(cleanup.promise);
-    logoutRemote.mockReturnValue(new Promise(() => {}));
-    await act(async () => { await capturedActions.signOut(); });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(clearStored).toHaveBeenCalled();
-    expect(purge).toHaveBeenCalledWith('member-1', expect.any(Function), true);
-
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await act(async () => { await capturedActions.signIn('Google'); });
-    await act(async () => { cleanup.resolve(); });
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
-    expect(screen.getByText('new-account')).toBeOnTheScreen();
-    expect(clearStored).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports failed private cache erasure and retries it without deleting the public cache', async () => {
-    await restoreMember();
-    const storage = createMemoryStorage();
-    const cache = new ContentCache({ storage });
-    setContentCacheForTests(cache);
-    await cache.put(conversationCacheKey('member-1', 'old'), { body: 'private' });
-    await cache.put(forumTopicCacheKey(10), { public: true });
-    jest.spyOn(storage, 'multiRemove').mockRejectedValueOnce(new Error('disk failure'));
+  it('shows cleanupFailed with the existing copy and delegates Retry', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    clearStored.mockRejectedValueOnce(new Error('private storage error')).mockResolvedValue(undefined);
     const alert = jest.spyOn(Alert, 'alert');
-
+    await renderSession();
+    await waitFor(() => expect(capturedActions.displayName).toBe('Freddie'));
     await act(async () => { await capturedActions.signOut(); });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(clearStored).toHaveBeenCalled();
     await waitFor(() => expect(alert).toHaveBeenCalled());
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
-    });
-    expect(await cache.get(conversationCacheKey('member-1', 'old'))).toBeNull();
-    expect(await cache.get(forumTopicCacheKey(10))).toEqual({ public: true });
-  });
-
-  it.each([false, true])('preserves pending-send consent when inspection fails (confirm=%s)', async (confirm) => {
-    await restoreMember();
-    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockRejectedValue(new Error('inspection failed'));
-    const discard = jest.fn(async () => {});
-    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
-    const alert = jest.spyOn(Alert, 'alert');
-    let signOut!: Promise<void>;
-    await act(async () => { signOut = capturedActions.signOut(); });
-    expect(alert.mock.lastCall?.[0]).toBe('Unable to check pending sends');
-    expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    expect(clearStored).not.toHaveBeenCalled();
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === (confirm ? 'Sign out' : 'Cancel'))?.onPress?.();
-      await signOut;
-    });
-    expect(screen.getByText(confirm ? 'signed-out' : 'signed-in')).toBeOnTheScreen();
-    expect(discard).toHaveBeenCalledTimes(confirm ? 1 : 0);
-    expect(clearStored).toHaveBeenCalledTimes(confirm ? 1 : 0);
-  });
-
-  it.each([false, true])('preserves known pending-send confirmation (confirm=%s)', async (confirm) => {
-    await restoreMember();
-    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(2);
-    const discard = jest.fn(async () => {});
-    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
-    const alert = jest.spyOn(Alert, 'alert');
-    let signOut!: Promise<void>;
-    await act(async () => { signOut = capturedActions.signOut(); });
-    expect(alert.mock.lastCall?.[0]).toBe('Discard pending sends?');
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === (confirm ? 'Sign out' : 'Cancel'))?.onPress?.();
-      await signOut;
-    });
-    expect(screen.getByText(confirm ? 'signed-out' : 'signed-in')).toBeOnTheScreen();
-    expect(discard).toHaveBeenCalledTimes(confirm ? 1 : 0);
-  });
-
-  it('does not block auth reset on confirmed pending-send deletion failure', async () => {
-    await restoreMember();
-    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(1);
-    const discard = jest.fn(async () => {}).mockRejectedValue(new Error('queue deletion failed'));
-    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
-    const alert = jest.spyOn(Alert, 'alert');
-    let signOut!: Promise<void>;
-    await act(async () => { signOut = capturedActions.signOut(); });
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Sign out')?.onPress?.();
-      await signOut;
-    });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(clearStored).toHaveBeenCalled();
-    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
-  });
-
-  it('ignores a late refreshed grant after sign-out and a new account sign-in', async () => {
-    await restoreMember();
-    const refresh = deferred<ReturnType<typeof authTokensFixture>>();
-    refreshAccessToken.mockReturnValue(refresh.promise);
-    const now = Date.now();
-    jest.spyOn(Date, 'now').mockReturnValue(now + 120_000);
-    let pendingRefresh!: Promise<string | null>;
-    await act(async () => { pendingRefresh = capturedActions.ensureAccessToken(); });
-    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
-    await act(async () => { await capturedActions.signOut(); });
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await act(async () => { await capturedActions.signIn('Google'); });
-    await act(async () => {
-      refresh.resolve(authTokensFixture({ accessToken: 'stale-access', refreshToken: 'stale-refresh' }));
-      expect(await pendingRefresh).toBeNull();
-    });
-    expect(writeStored).not.toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'stale-access' }));
-    expect(screen.getByText('new-account')).toBeOnTheScreen();
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
-  });
-
-  it('ignores a late profile after sign-out and does not queue its identity write', async () => {
-    await restoreMember();
-    const profile = deferred<ReturnType<typeof memberProfilePayload>>();
-    fetchJsonMock.mockReturnValue(profile.promise);
-    let pendingProfile!: ReturnType<SessionActions['refreshProfile']>;
-    await act(async () => { pendingProfile = capturedActions.refreshProfile(); });
-    await act(async () => { await capturedActions.signOut(); });
-    writeIdentity.mockClear();
-    await act(async () => {
-      profile.resolve(memberProfilePayload({ displayName: 'Stale identity' }));
-      expect(await pendingProfile).toBeNull();
-    });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(writeIdentity).not.toHaveBeenCalled();
-  });
-
-  it('orders a pending credential write, sign-out deletion, and a new account write', async () => {
-    await restoreMember();
-    const write = deferred<tokenStore.StoredSession>();
-    const order: string[] = [];
-    writeStored.mockImplementationOnce(async () => { order.push('old-write'); return write.promise; });
-    clearStored.mockImplementation(async () => { order.push('delete'); });
-    signInWithProvider.mockResolvedValueOnce(authTokensFixture({ accessToken: 'old-attempt' }));
-    let oldSignIn!: Promise<void>;
-    await act(async () => { oldSignIn = capturedActions.signIn('Google'); });
-    expect(order).toEqual(['old-write']);
-    await act(async () => { await capturedActions.signOut(); });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    signInWithProvider.mockResolvedValueOnce(authTokensFixture({ accessToken: 'new-account' }));
-    writeStored.mockImplementation(async (tokens) => {
-      order.push('new-write');
-      return { ...tokens, expiresAt: Date.now() + 60_000 };
-    });
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    let newSignIn!: Promise<void>;
-    await act(async () => { newSignIn = capturedActions.signIn('Google'); });
-    expect(order).toEqual(['old-write']);
-    await act(async () => {
-      write.resolve({ ...authTokensFixture({ accessToken: 'old-attempt' }), expiresAt: Date.now() + 60_000 });
-      await Promise.all([oldSignIn, newSignIn]);
-    });
-    expect(order).toEqual(['old-write', 'delete', 'new-write']);
-    expect(screen.getByText('new-account')).toBeOnTheScreen();
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
-  });
-
-  it('does not retry an old failed credential deletion after a new session is stored', async () => {
-    await restoreMember();
-    clearStored.mockRejectedValueOnce(new Error('locked keychain'));
-    const alert = jest.spyOn(Alert, 'alert');
-    await act(async () => { await capturedActions.signOut(); });
-    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
-    const retry = alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup');
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await act(async () => { await capturedActions.signIn('Google'); });
-    await act(async () => { retry?.onPress?.(); });
-    expect(clearStored).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('new-account')).toBeOnTheScreen();
-  });
-
-  it('offers Cancel when pending-send inspection stalls instead of assuming no sends', async () => {
-    await restoreMember();
-    jest.useFakeTimers();
-    try {
-      jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockReturnValue(new Promise(() => {}));
-      const alert = jest.spyOn(Alert, 'alert');
-      let signOut!: Promise<void>;
-      await act(async () => { signOut = capturedActions.signOut(); });
-      await act(async () => { jest.advanceTimersByTime(5_000); });
-      expect(alert.mock.lastCall?.[0]).toBe('Unable to check pending sends');
-      expect(clearStored).not.toHaveBeenCalled();
-      await act(async () => {
-        alert.mock.lastCall?.[2]?.find((button) => button.text === 'Cancel')?.onPress?.();
-        await signOut;
-      });
-      expect(screen.getByText('signed-in')).toBeOnTheScreen();
-    } finally {
-      jest.useRealTimers();
-    }
-  });
-
-  it('retries failed credential deletion while the same sign-out is current', async () => {
-    await restoreMember();
-    clearStored.mockRejectedValueOnce(new Error('locked keychain')).mockResolvedValue(undefined);
-    const alert = jest.spyOn(Alert, 'alert');
-    await act(async () => { await capturedActions.signOut(); });
-    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup')?.onPress?.();
-    });
+    expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete');
+    expect(alert.mock.lastCall?.[1]).toBe('You are signed out in this app. Saved sign-in or offline data may remain on this device. Retry cleanup before closing the app or signing in again. A restart could restore a session or pending sends.');
+    expect(JSON.stringify(alert.mock.calls)).not.toContain('private storage error');
+    await act(async () => { alert.mock.lastCall?.[2]?.find(button => button.text === 'Retry cleanup')?.onPress?.(); });
     expect(clearStored).toHaveBeenCalledTimes(2);
-    expect(await capturedActions.ensureAccessToken()).toBeNull();
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
   });
 
-  it('ignores a sign-in response that arrives after sign-out', async () => {
-    await restoreMember();
-    const login = deferred<ReturnType<typeof authTokensFixture>>();
-    signInWithProvider.mockReturnValue(login.promise);
-    let signingIn!: Promise<void>;
-    await act(async () => { signingIn = capturedActions.signIn('Google'); });
-    await act(async () => { await capturedActions.signOut(); });
-    writeStored.mockClear();
-    await act(async () => {
-      login.resolve(authTokensFixture({ accessToken: 'late-login' }));
-      await signingIn;
-    });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(writeStored).not.toHaveBeenCalled();
-  });
-
-  it('does not restore a delayed stored identity after sign-out', async () => {
-    const read = deferred<tokenStore.StoredSession | null>();
-    readStored.mockReturnValue(read.promise);
+  it.each([false, true])('maps pending-send confirmation and cancellation (inspectionFailed=%s)', async inspectionFailed => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    const count = jest.spyOn(offlineQueue, 'countPendingOfflineItems');
+    if (inspectionFailed) count.mockRejectedValue(new Error('inspection failed'));
+    else count.mockResolvedValue(2);
+    const discard = jest.fn(async () => { });
+    jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
+    const alert = jest.spyOn(Alert, 'alert');
     await renderSession();
-    await act(async () => { await capturedActions.signOut(); });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    await act(async () => {
-      read.resolve({
-        ...authTokensFixture({ accessToken: 'stale-stored' }),
-        expiresAt: Date.now() + 60_000,
-        identity: { memberId: 'member-1', displayName: 'Old identity' },
+    await waitFor(() => expect(capturedActions.displayName).toBe('Freddie'));
+    for (const choice of ['Cancel', 'dismiss', 'Sign out']) {
+      let pending!: Promise<void>;
+      await act(async () => { pending = capturedActions.signOut(); });
+      expect(alert.mock.lastCall?.[0]).toBe(inspectionFailed ? 'Unable to check pending sends' : 'Discard pending sends?');
+      expect(alert.mock.lastCall?.[1]).toBe(inspectionFailed
+        ? 'Pending messages, replies and crossword saves could not be checked. Sign out and discard pending changes when storage is available?'
+        : 'Messages, replies and crossword saves waiting to sync will be deleted.');
+      expect(capturedActions.isSignedIn).toBe(true);
+      await act(async () => {
+        if (choice === 'dismiss') alert.mock.lastCall?.[3]?.onDismiss?.();
+        else alert.mock.lastCall?.[2]?.find(button => button.text === choice)?.onPress?.();
+        await pending;
       });
-    });
-    expect(screen.getByText('signed-out')).toBeOnTheScreen();
-    expect(screen.queryByText('Old identity')).toBeNull();
-    expect(clearStored).toHaveBeenCalled();
+      expect(capturedActions.isSignedIn).toBe(choice !== 'Sign out');
+    }
+    expect(discard).toHaveBeenCalledTimes(1);
   });
 
-
-  it('clears the old identity during fresh sign-in while the new profile is delayed', async () => {
-    await restoreMember();
-    const profile = deferred<ReturnType<typeof memberProfilePayload>>();
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-    fetchJsonMock.mockReturnValue(profile.promise);
-    let signingIn!: Promise<void>;
-    await act(async () => { signingIn = capturedActions.signIn('Google'); });
-    await waitFor(() => expect(screen.getByText('new-account')).toBeOnTheScreen());
-    expect(screen.queryByText('Freddie')).toBeNull();
-    expect(screen.getByText('anonymous')).toBeOnTheScreen();
-    expect(writeStored).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'new-account' }), true);
-    await act(async () => {
-      profile.resolve(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-      await signingIn;
-    });
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
-  });
-
-
-  it('defers the new identity shell until its failed grant write is successfully retried', async () => {
-    const listeners: ((state: AppStateStatus) => void)[] = [];
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, listener) => {
-      listeners.push(listener);
+  it('delegates a smoke-auth link to the manager', async () => {
+    readStored.mockResolvedValue(null);
+    let onUrl: ((event: { url: string }) => void) | undefined;
+    jest.spyOn(Linking, 'addEventListener').mockImplementation((_type, listener) => {
+      onUrl = listener;
       return { remove: jest.fn() };
     });
-    await restoreMember();
-    writeIdentity.mockClear();
-    writeStored.mockRejectedValueOnce(new Error('fresh grant not stored'));
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-account' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await act(async () => { await capturedActions.signIn('Google'); });
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
-    expect(writeIdentity).not.toHaveBeenCalled();
-    await act(async () => { listeners.forEach((listener) => listener('active')); });
-    await waitFor(() => expect(writeIdentity).toHaveBeenCalledWith({
-      displayName: 'Brian', memberId: 'member-2', avatarPath: null,
-    }));
-    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'new-account' }), true);
+    await renderSession();
+    await waitFor(() => expect(capturedActions.isRestoring).toBe(false));
+    await act(async () => { onUrl?.({ url: 'queenzone://smoke-auth?accessToken=linked-smoke' }); });
+    expect(capturedActions.accessToken).toBe('linked-smoke');
+    expect(writeStored).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'linked-smoke' }), true);
   });
 
-
-  it('retries confirmed operation-scoped discard after same-member sign-in', async () => {
-    await restoreMember();
-    jest.spyOn(offlineQueue, 'countPendingOfflineItems').mockResolvedValue(1);
-    const discard = jest.fn(async () => {}).mockRejectedValueOnce(new Error('queue deletion failed'));
-    const prepare = jest.spyOn(offlineQueue, 'prepareOfflineQueueDiscard').mockReturnValue(discard);
-    const alert = jest.spyOn(Alert, 'alert');
-    let signOut!: Promise<void>;
-    await act(async () => { signOut = capturedActions.signOut(); });
-    await act(async () => {
-      alert.mock.lastCall?.[2]?.find((button) => button.text === 'Sign out')?.onPress?.();
-      await signOut;
-    });
-    expect(prepare).toHaveBeenCalledWith('member-1');
-    await waitFor(() => expect(alert.mock.lastCall?.[0]).toBe('Sign-out cleanup incomplete'));
-    const retry = alert.mock.lastCall?.[2]?.find((button) => button.text === 'Retry cleanup');
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'new-same-member-session' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload());
-    await act(async () => { await capturedActions.signIn('Google'); });
-    await act(async () => { retry?.onPress?.(); });
-    expect(prepare).toHaveBeenCalledTimes(1);
-    expect(discard).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('new-same-member-session')).toBeOnTheScreen();
+  it('returns null for non-401 profile errors at the platform port', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    fetchJsonMock.mockRejectedValue(new TypeError('offline'));
+    await renderSession();
+    await waitFor(() => expect(capturedActions.isRestoring).toBe(false));
+    expect(capturedActions.isSignedIn).toBe(true);
+    expect(capturedActions.profile).toBeNull();
   });
 
-
-  it('carries a failed fresh identity reset into a replacing refresh grant', async () => {
-    await restoreMember();
-    writeStored.mockRejectedValueOnce(new Error('old identity deletion failed'));
-    signInWithProvider.mockResolvedValue(authTokensFixture({ accessToken: 'fresh-account' }));
-    fetchJsonMock.mockResolvedValue(memberProfilePayload({ memberId: 'member-2', displayName: 'Brian' }));
-    await act(async () => { await capturedActions.signIn('Google'); });
-    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'fresh-account' }), true);
-    jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 2_000_000);
-    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'refreshed-account' }));
-    fetchJsonMock.mockRejectedValue(new TypeError('offline profile'));
-    await act(async () => { await capturedActions.ensureAccessToken(); });
-    expect(writeStored).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: 'refreshed-account' }), true);
-    expect(screen.getByText('refreshed-account')).toBeOnTheScreen();
-    expect(screen.getByText('Brian')).toBeOnTheScreen();
+  it('preserves a 401 from the profile port for manager recovery', async () => {
+    readStored.mockResolvedValue({ ...authTokensFixture(), expiresAt: Date.now() + 60_000 });
+    fetchJsonMock.mockRejectedValueOnce(ApiError.http(401, 'Unauthorized')).mockResolvedValue(memberProfilePayload());
+    refreshAccessToken.mockResolvedValue(authTokensFixture({ accessToken: 'recovered' }));
+    await renderSession();
+    await waitFor(() => expect(capturedActions.accessToken).toBe('recovered'));
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
   });
-
 });
