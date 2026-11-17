@@ -88,7 +88,8 @@ public static class OutboundUrlSafety
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(uri.Host))
+        var host = NormalizeHost(uri.DnsSafeHost);
+        if (host.Length == 0)
         {
             error = "Article URL host is required.";
             return false;
@@ -101,14 +102,14 @@ public static class OutboundUrlSafety
         }
 
         // Literal IP in the URL — check immediately (no DNS required).
-        if (IPAddress.TryParse(uri.DnsSafeHost, out var literal)
+        if (IPAddress.TryParse(host, out var literal)
             && IsBlockedAddress(literal))
         {
             error = $"Article URL host resolves to a blocked address family ({literal}).";
             return false;
         }
 
-        if (IsBlockedHostName(uri.DnsSafeHost))
+        if (IsBlockedHostName(host))
         {
             error = $"Article URL host '{uri.DnsSafeHost}' is not allowed.";
             return false;
@@ -120,7 +121,8 @@ public static class OutboundUrlSafety
 
     public static bool IsBlockedHostName(string host)
     {
-        if (string.IsNullOrWhiteSpace(host))
+        host = NormalizeHost(host);
+        if (host.Length == 0)
         {
             return true;
         }
@@ -138,6 +140,9 @@ public static class OutboundUrlSafety
         // link-local metadata services. The .internal suffix above covers GCP.
         return IPAddress.TryParse(host, out var address) && IsBlockedAddress(address);
     }
+
+    private static string NormalizeHost(string? host) =>
+        (host ?? string.Empty).Trim().TrimEnd('.').ToLowerInvariant();
 
     public static bool IsBlockedAddress(IPAddress address)
     {
