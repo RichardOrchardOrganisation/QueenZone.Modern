@@ -17,7 +17,7 @@ public static class ArchivePagination
             return 0;
         }
 
-        return (totalCount + pageSize - 1) / pageSize;
+        return (int)(((long)totalCount + pageSize - 1) / pageSize);
     }
 
     public static int ResolveTotalPages(int currentPage, int itemCount, int publishedCount, int totalPages, int pageSize)

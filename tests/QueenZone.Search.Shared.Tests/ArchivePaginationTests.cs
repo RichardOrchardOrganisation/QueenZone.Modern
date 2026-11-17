@@ -51,6 +51,28 @@ public sealed class ArchivePaginationTests
         Assert.Equal("/p/9", nav.NextHref);
     }
 
+    [Theory]
+    [InlineData(77635519, int.MaxValue, 1)]
+    [InlineData(1, int.MaxValue, 1)]
+    [InlineData(100, int.MaxValue, 1)]
+    [InlineData(int.MaxValue, int.MaxValue, 1)]
+    [InlineData(int.MaxValue, 2, 1073741824)]
+    [InlineData(int.MaxValue, 1, int.MaxValue)]
+    [InlineData(20, 10, 2)]
+    [InlineData(21, 10, 3)]
+    [InlineData(0, 10, 0)]
+    [InlineData(0, int.MaxValue, 0)]
+    public void GetTotalPages_ReturnsExpectedTotal(int totalCount, int pageSize, int expected)
+    {
+        Assert.Equal(expected, ArchivePagination.GetTotalPages(totalCount, pageSize));
+    }
+
+    [Fact]
+    public void GetTotalPages_PositiveCountWithZeroPageSize_ThrowsDivideByZeroException()
+    {
+        Assert.Throws<DivideByZeroException>(() => ArchivePagination.GetTotalPages(1, 0));
+    }
+
     [Fact]
     public void GetTotalPages_NegativeCount_ReturnsZero()
     {
