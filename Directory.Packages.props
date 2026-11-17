@@ -41,6 +41,7 @@
     <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.15" />
 
     <!-- tests -->
+    <PackageVersion Include="CsCheck" Version="5.0.1" />
     <PackageVersion Include="AngleSharp" Version="1.10.1" />
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="Deque.AxeCore.Playwright" Version="4.12.0" />
