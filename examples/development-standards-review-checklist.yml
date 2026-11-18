@@ -4,15 +4,13 @@ name: Review checklist
 on:
   pull_request:
   merge_group:
-  push:
-    branches: [main]
 permissions:
   contents: read
 jobs:
   review-checklist:
     runs-on: ubuntu-latest
     env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

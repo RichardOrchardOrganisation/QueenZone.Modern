@@ -28,4 +28,4 @@ jobs:
     steps:
       # Pinned shared code reads only default-branch JSON. No application checkout.
       - name: Link uploaded evidence and refresh required gate
-        uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@a4e27ec2ca288ec676b45dc8bb7be964b834274f # 0.6.0 // pragma: allowlist secret
+        uses: RichardOrchardOrganisation/development-standards/actions/publish-ui-proof@510aa4d4d5f8abfdae064bb142ca58c3b4ace5de # 0.6.1 pragma: allowlist secret

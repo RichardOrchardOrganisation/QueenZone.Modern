@@ -7,10 +7,10 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Version | 0.6.0 |
-| Commit | `a4e27ec2ca288ec676b45dc8bb7be964b834274f` |
-| Kit version | `0.6.0` |
-| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2 and 0.6.0 updates were clean, so the current lock has no keptLocal entries |
+| Version | 0.6.1 |
+| Commit | `510aa4d4d5f8abfdae064bb142ca58c3b4ace5de` |
+| Kit version | `0.6.1` |
+| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2, 0.6.0, and 0.6.1 updates were clean, so the current lock has no keptLocal entries |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
 
 | Kit version | Commit | How QueenZone took it |
@@ -26,6 +26,7 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.5.2 | `5177138cc46168b5cea669b1ae77231e53e23ed0` | Preserve GitHub Context repository metadata in evidence gates and make feature-ID ordering explicit; clean updater pass |
 | 0.5.2 revision | `b039e00e721f38ab9801272e821015b21bc78335` | Split six High-severity complexity hotspots into focused helpers; preserve carried-producer rerun evidence and publish the existing QueenZone regression upstream (#2319) |
 | 0.6.0 | `a4e27ec2ca288ec676b45dc8bb7be964b834274f` | Review checklist kit: empty v1 `config/review-checklist.json`, `scripts/review-checklist.mjs`, and opt-in `examples/development-standards-review-checklist.yml`; property-test guidance in shared docs and the managed `AGENTS.md` section. Clean updater pass |
+| 0.6.1 | `510aa4d4d5f8abfdae064bb142ca58c3b4ace5de` | Checklist checker uses an absolute `git` path and a three-way item sort; example workflow is pull-request and merge-group only. Clean updater pass from 0.6.0 |
 
 0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. Local quality gates use committed kit copies. The privileged proof publisher is the one exception: GitHub downloads a shared action pinned to the same reviewed kit commit; that action reads only default-branch project JSON, never application code.
 
@@ -257,3 +258,5 @@ No workflow was installed automatically. Existing QueenZone capture/upload jobs 
 The clean 0.5.2 update fixes the inherited GitHub Context repository getter and the Sonar feature-ID comparison finding. The privileged action pin advances with the lock.
 
 The clean 0.6.0 update installs empty v1 review rules, `scripts/review-checklist.mjs`, and `examples/development-standards-review-checklist.yml` (not copied into `.github/workflows`). The privileged action pin advances with the lock.
+
+The clean 0.6.1 update refreshes the checker and unused example from the same managed paths. The privileged action pin advances with the lock.
