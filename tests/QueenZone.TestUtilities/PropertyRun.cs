@@ -47,9 +47,9 @@ public static class PropertyRun
                     await AwaitAssertionAsync(assert, t, iterationTimeout ?? DefaultIterationTimeout, cancellationToken).ConfigureAwait(false);
                 }
             }
-            catch (ArgumentNullException)
+            catch (NullAssertionTaskException)
             {
-                throw;
+                throw new ArgumentNullException("task");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -97,8 +97,15 @@ public static class PropertyRun
         TimeSpan iterationTimeout, CancellationToken cancellationToken)
     {
         var task = assert(value);
-        ArgumentNullException.ThrowIfNull(task);
+        if (task is null)
+        {
+            throw new NullAssertionTaskException();
+        }
         await task.WaitAsync(iterationTimeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed class NullAssertionTaskException : Exception
+    {
     }
 
     private static InvalidOperationException Failure<T>(string propertyName, string initialSeed,

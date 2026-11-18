@@ -116,6 +116,28 @@ public sealed class PropertyRunAsyncTests
         Assert.DoesNotContain("The generator threw.", exception.Message);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Argument_null_in_assertion_is_reported_with_seed(bool faultedTask)
+    {
+        const string propertyName = nameof(Argument_null_in_assertion_is_reported_with_seed);
+        var failure = new ArgumentNullException("value");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PropertyRun.RunAsync(propertyName, Gen.Const(42),
+                _ => faultedTask ? Task.FromException(failure) : throw failure, iter: 1));
+
+        var expectedSeed = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(propertyName)))[..16];
+        Assert.Same(failure, exception.InnerException);
+        Assert.Contains(propertyName, exception.Message);
+        Assert.Contains($"initial seed: {expectedSeed}", exception.Message);
+        Assert.Contains("\nseed: ", exception.Message);
+        Assert.Contains("\n42\nShrinks: 0\n", exception.Message);
+        Assert.Contains(failure.Message, exception.Message);
+        Assert.DoesNotContain("The generator threw.", exception.Message);
+    }
+
     [Fact]
     public async Task Run_and_RunAsync_share_default_seed()
     {
