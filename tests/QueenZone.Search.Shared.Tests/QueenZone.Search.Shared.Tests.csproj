@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="CsCheck" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.Extensions.Configuration" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
@@ -22,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Search.Shared\QueenZone.Search.Shared.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Data\QueenZone.Data.csproj" />
   </ItemGroup>
