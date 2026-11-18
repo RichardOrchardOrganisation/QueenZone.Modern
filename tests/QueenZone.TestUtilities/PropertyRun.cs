@@ -11,6 +11,15 @@ public static class PropertyRun
 
     public static void Run<T>(string propertyName, Gen<T> gen, Action<T> assert, int iter = DefaultIterations)
     {
+        RunAsync(propertyName, gen, t =>
+        {
+            assert(t);
+            return Task.CompletedTask;
+        }, iter).GetAwaiter().GetResult();
+    }
+
+    public static async Task RunAsync<T>(string propertyName, Gen<T> gen, Func<T, Task> assert, int iter = DefaultIterations)
+    {
         var seed = Environment.GetEnvironmentVariable("QZ_PROPERTY_SEED");
         if (string.IsNullOrEmpty(seed))
         {
@@ -37,7 +46,7 @@ public static class PropertyRun
                 generating = false;
                 if (minSize is null || Size.IsLessThan(size, minSize))
                 {
-                    assert(t);
+                    await assert(t).ConfigureAwait(false);
                 }
             }
             catch (Exception exception)
