@@ -11,7 +11,7 @@ import { existsSync, globSync, mkdirSync, readFileSync, rmSync, writeFileSync } 
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveGitExecutable } from './review-checklist.mjs';
+import { resolveGitExecutable } from './lib/git-executable.mjs';
 
 export { resolveGitExecutable };
 
