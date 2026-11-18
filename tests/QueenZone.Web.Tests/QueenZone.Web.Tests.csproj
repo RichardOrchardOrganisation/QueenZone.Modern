@@ -28,12 +28,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Web\QueenZone.Web.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.NewsAgent\QueenZone.NewsAgent.csproj" />
     <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="contract-approved-differences.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\data\crosswords\*.json" Link="data\crosswords\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

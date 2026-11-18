@@ -20,6 +20,10 @@ public sealed class InMemoryPrivateMessageRepositoryTests : PrivateMessageReposi
     }
 
     protected override IPrivateMessageRepository Repository => contractRepository;
+
+    protected override async Task AddContractMemberAsync(MemberAccount member) =>
+        await contractMembers.CreateAsync(member);
+
     protected override Guid AliceId => contractAliceId;
     protected override Guid BobId => contractBobId;
     protected override Guid CarolId => contractCarolId;

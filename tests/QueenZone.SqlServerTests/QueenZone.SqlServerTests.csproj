@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
+    <PackageReference Include="CsCheck" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -19,10 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\QueenZone.Web.Tests\PrivateMessageContractProperty.cs" Link="PrivateMessageContractProperty.cs" />
     <Compile Include="..\QueenZone.Web.Tests\SqlExceptionFactory.cs" Link="SqlExceptionFactory.cs" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Data\QueenZone.Data.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Tools\QueenZone.Tools.csproj" />
   </ItemGroup>
