@@ -18,6 +18,13 @@ public sealed class EfPrivateMessageRepositoryTests : PrivateMessageRepositoryCo
     private readonly Guid carolId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
     protected override IPrivateMessageRepository Repository => repository;
+
+    protected override async Task AddContractMemberAsync(MemberAccount member)
+    {
+        dbContext.MemberAccounts.Add(member);
+        await dbContext.SaveChangesAsync();
+    }
+
     protected override Guid AliceId => aliceId;
     protected override Guid BobId => bobId;
     protected override Guid CarolId => carolId;

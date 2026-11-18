@@ -133,4 +133,85 @@ public sealed class PropertyRunAsyncTests
         Assert.Equal(expectedSeed, syncSeed);
         Assert.Equal(syncSeed, asyncSeed);
     }
+
+    [Fact]
+    public async Task Hung_assertion_fails_on_first_timeout_with_seed()
+    {
+        var calls = 0;
+        var pending = new TaskCompletionSource();
+        var run = PropertyRun.RunAsync(nameof(Hung_assertion_fails_on_first_timeout_with_seed), Gen.Int, _ =>
+        {
+            calls++;
+            return pending.Task;
+        }, iter: 20, iterationTimeout: TimeSpan.FromMilliseconds(50));
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => run.WaitAsync(TimeSpan.FromSeconds(1)));
+
+        Assert.Contains(nameof(Hung_assertion_fails_on_first_timeout_with_seed), exception.Message);
+        Assert.Contains("initial seed:", exception.Message);
+        Assert.Contains("\nseed: ", exception.Message);
+        Assert.Contains("Shrinks: 0", exception.Message);
+        Assert.Contains("timed out", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.IsType<TimeoutException>(exception.InnerException);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task Null_task_is_a_usage_error()
+    {
+        var exception = await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            PropertyRun.RunAsync(nameof(Null_task_is_a_usage_error), Gen.Int, _ => null!));
+
+        Assert.Equal("task", exception.ParamName);
+        Assert.DoesNotContain("initial seed:", exception.Message);
+    }
+
+    [Fact]
+    public async Task Caller_cancellation_aborts_pending_assertion()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var pending = new TaskCompletionSource();
+        var entered = new TaskCompletionSource();
+        var calls = 0;
+        var run = PropertyRun.RunAsync(nameof(Caller_cancellation_aborts_pending_assertion), Gen.Int, _ =>
+        {
+            calls++;
+            entered.SetResult();
+            return pending.Task;
+        }, cancellationToken: cancellation.Token);
+        await entered.Task;
+        cancellation.Cancel();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(() => run);
+        Assert.Equal(cancellation.Token, exception.CancellationToken);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
+    public async Task Already_cancelled_run_does_not_assert()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var calls = 0;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            PropertyRun.RunAsync(nameof(Already_cancelled_run_does_not_assert), Gen.Int, _ =>
+            {
+                calls++;
+                return Task.CompletedTask;
+            }, cancellationToken: cancellation.Token));
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task Unrelated_cancellation_is_a_counterexample()
+    {
+        var failure = new OperationCanceledException();
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            PropertyRun.RunAsync(nameof(Unrelated_cancellation_is_a_counterexample), Gen.Int,
+                _ => Task.FromException(failure), iter: 1));
+
+        Assert.Same(failure, exception.InnerException);
+        Assert.Contains("initial seed:", exception.Message);
+    }
 }
