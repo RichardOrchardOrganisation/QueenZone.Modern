@@ -139,6 +139,70 @@ export function validateFindingRules(rules) {
   return errors;
 }
 
+function nonemptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validChecklistDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+}
+
+export function validateReviewChecklist(checklist, findingRules, today = new Date().toISOString().slice(0, 10)) {
+  if (!isObject(checklist) || checklist.version !== 1 || !Array.isArray(checklist.items)) {
+    return ['review-checklist.json requires numeric version 1 and an items array'];
+  }
+  const errors = [];
+  const ids = new Set();
+  const rules = Array.isArray(findingRules) ? findingRules : [];
+  checklist.items.forEach((item, index) => {
+    const label = `review-checklist.items[${index}]`;
+    if (!isObject(item)) {
+      errors.push(`${label} must be an object`);
+      return;
+    }
+    for (const field of ['id', 'check', 'owner']) {
+      if (!nonemptyString(item[field])) errors.push(`${label}.${field} must be a nonempty string`);
+    }
+    if (ids.has(item.id)) errors.push(`${label}.id is a duplicate: ${item.id}`);
+    ids.add(item.id);
+    if (!Array.isArray(item.paths) || !item.paths.length || !item.paths.every(nonemptyString)) {
+      errors.push(`${label}.paths must be a nonempty array of nonempty globs`);
+    }
+    if (!isObject(item.source) || !['incident', 'repeated-finding'].includes(item.source.type)
+        || !nonemptyString(item.source.ref)) {
+      errors.push(`${label}.source requires a valid type and nonempty ref`);
+    }
+    if (item.automatedCheck != null && typeof item.automatedCheck !== 'string') {
+      errors.push(`${label}.automatedCheck must be a string or null`);
+    }
+    if (!validChecklistDate(item.expires)) {
+      errors.push(`${label}.expires must be a UTC calendar date YYYY-MM-DD`);
+    } else if (item.expires < today) {
+      errors.push(`${label}.expires is expired: ${item.expires}`);
+    }
+    const repeated = item.source?.type === 'repeated-finding';
+    if (repeated) {
+      if (item.id !== item.source.ref) errors.push(`${label}.id must equal source.ref`);
+      if (!rules.some((rule) => rule?.id === item.source.ref)) {
+        errors.push(`${label}.source.ref is not a registered finding rule: ${item.source.ref}`);
+      }
+    }
+    for (const rule of rules) {
+      if (rule && (rule.id === item.id || (repeated && rule.id === item.source.ref))
+          && (item.automatedCheck ?? null) !== (rule.check ?? null)) {
+        errors.push(`${label}.automatedCheck disagrees with finding rule ${rule.id}.check`);
+      }
+    }
+  });
+  return errors;
+}
+
 export function loadFilerFiles(root) {
   const dir = filerDir(root);
   const config = readJson(path.join(dir, 'config.json'));
@@ -147,14 +211,22 @@ export function loadFilerFiles(root) {
   return { config, ignore, findingRules };
 }
 
-export function validateFilerFiles(root) {
+export function validateFilerFiles(root, today = new Date().toISOString().slice(0, 10)) {
   const loaded = loadFilerFiles(root);
+  let checklistErrors;
+  try {
+    const checklist = readJson(path.join(root, 'config', 'review-checklist.json'));
+    checklistErrors = validateReviewChecklist(checklist, loaded.findingRules, today);
+  } catch (error) {
+    checklistErrors = [`review-checklist.json could not be read: ${error.message}`];
+  }
   return {
     ...loaded,
     errors: [
       ...validateConfig(loaded.config),
       ...validateIgnore(loaded.ignore),
       ...validateFindingRules(loaded.findingRules),
+      ...checklistErrors,
     ],
   };
 }

@@ -1,1 +1,32 @@
-[]
+[
+  {
+    "id": "test.weak-contract-assertion",
+    "title": "Weak contract assertion in tests",
+    "level": "L2",
+    "check": null
+  },
+  {
+    "id": "test.in-memory-not-sql",
+    "title": "In-memory test used where SQL behaviour is required",
+    "level": "L2",
+    "check": null
+  },
+  {
+    "id": "mobile.swallowed-error-state",
+    "title": "Mobile screen swallowed error state",
+    "level": "L1",
+    "check": null
+  },
+  {
+    "id": "data.unbounded-or-nplus1",
+    "title": "Unbounded or N+1 query",
+    "level": "L2",
+    "check": null
+  },
+  {
+    "id": "app.lost-update-race",
+    "title": "Lost-update race",
+    "level": "L1",
+    "check": null
+  }
+]
