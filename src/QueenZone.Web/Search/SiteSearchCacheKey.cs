@@ -15,7 +15,7 @@ internal readonly record struct SiteSearchCacheKey(
 {
     public static SiteSearchCacheKey Normalize(string query, string? contentType, int page, int pageSize)
     {
-        var normalizedQuery = (query ?? string.Empty).Trim().ToLowerInvariant();
+        var normalizedQuery = string.Join(' ', (query ?? string.Empty).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
         var normalizedType = string.IsNullOrWhiteSpace(contentType)
             ? null
             : contentType.Trim().ToLowerInvariant();
