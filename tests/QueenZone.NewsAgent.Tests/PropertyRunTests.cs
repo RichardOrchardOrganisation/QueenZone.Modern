@@ -32,18 +32,26 @@ public sealed class PropertyRunTests
     [Fact]
     public void Default_seed_is_deterministic_and_depends_on_property_name()
     {
-        Assert.True(string.IsNullOrEmpty(Environment.GetEnvironmentVariable("QZ_PROPERTY_SEED")));
-        const string firstName = "First property";
-        const string secondName = "Second property";
+        var previousSeed = Environment.GetEnvironmentVariable("QZ_PROPERTY_SEED");
+        Environment.SetEnvironmentVariable("QZ_PROPERTY_SEED", null);
+        try
+        {
+            const string firstName = "First property";
+            const string secondName = "Second property";
 
-        var first = InitialSeed(firstName);
-        var repeated = InitialSeed(firstName);
-        var second = InitialSeed(secondName);
+            var first = InitialSeed(firstName);
+            var repeated = InitialSeed(firstName);
+            var second = InitialSeed(secondName);
 
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(firstName)))[..16], first);
-        Assert.Equal(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secondName)))[..16], second);
-        Assert.Equal(first, repeated);
-        Assert.NotEqual(first, second);
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(firstName)))[..16], first);
+            Assert.Equal(Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(secondName)))[..16], second);
+            Assert.Equal(first, repeated);
+            Assert.NotEqual(first, second);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("QZ_PROPERTY_SEED", previousSeed);
+        }
     }
 
     [Fact]

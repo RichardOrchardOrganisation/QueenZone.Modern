@@ -11,6 +11,8 @@ Other surfaces exist and are out of scope unless a feature file says otherwise: 
 
 This guide applies to every agent and editor. The `.cursor` path is historical and does not require Cursor or its orchestration loop. The local process helper currently requires Windows and PowerShell 7; agents on other hosts should use CI Playwright runs and explicitly report missing local/interactive proof.
 
+High-risk pure logic needs [property-based tests](../../../docs/architecture/testing-policy.md#property-based-tests) using `PropertyRun`, a fixed seed and an independent oracle. Example tests alone are not enough for those invariants.
+
 ## One-command automated verification
 
 ```powershell

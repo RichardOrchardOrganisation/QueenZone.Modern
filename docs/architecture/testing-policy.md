@@ -72,6 +72,16 @@ For each run:
 
 Scheduled advisory runs or merge gates need a separate reviewed change, measured runtime on the intended runner and an agreed approach to survivors. The [October 2026 pilot assessment](mutation-testing-pilot.md) records the initial findings and costs; its selected-module scores are not repository-wide baselines.
 
+#### Property-based tests
+
+Use CsCheck for .NET, centrally versioned in `Directory.Packages.props` and referenced only by test projects and the shared test utility. Mobile TypeScript uses fast-check as a devDependency through the existing Jest and Node runners; mobile wiring comes in a later PR.
+
+Write a property test for high-risk pure logic with a clear invariant: pagination tiling, slugs, HTML sanitisation, search normalisation and similar rules. Use an independent oracle, not the production implementation to calculate expected values. Example tests alone are not enough for these invariants. The `ArchivePagination.GetTotalPages` integer overflow (#2524) is an example of a bug that example tests missed and a property would have caught.
+
+Use `PropertyRun` from `tests/QueenZone.TestUtilities` with a fixed per-property seed, 100 iterations by default and 1,000 for cheap properties such as pagination. `QZ_PROPERTY_SEED` overrides the seed to replay failures. Failure output includes the property name, seed and shrunk input. Random-seed runs are local or opt-in only. A failing seed found locally becomes a named example test next to the property.
+
+Properties run in the existing unit jobs. Keep the total budget under 60 seconds and aim for about 2 seconds per property. Do not add a CI job or required check. A real bug found by a property gets its own bug issue and fix PR, with the property landing alongside the fix. Never loosen an invariant, add `Skip` or narrow a generator just to pass.
+
 ### Web Integration Tests
 
 Use ASP.NET Core integration tests for route and page behavior. These tests should use fake, in-memory, or sample repositories by default so they can run in CI without SQL Server.
@@ -836,6 +846,7 @@ Playwright browser smoke tests live in `tests/QueenZone.Web.E2E` and run in CI o
 ## Test Selection Rules
 
 - Pure logic belongs in unit tests.
+- High-risk pure invariants need [property-based tests](#property-based-tests) with independent oracles.
 - Route and page behavior belongs in web integration tests.
 - SQL mapping belongs in opt-in data integration tests.
 - Migration confidence belongs in content validation reports.
