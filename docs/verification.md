@@ -70,3 +70,30 @@ Adapt `examples/development-standards-proof-publisher.yml` as a separate trusted
 A maintainer must deliberately apply `no-ui-verification` and include a visible non-empty `Verification-skip-reason:` line. Hidden comments and fenced examples do not count. Report unavailable checks honestly, then obtain a waiver when appropriate; agents must not waive their own missing evidence without authorization.
 
 This tightens the previous documentation-only gate. Configure producers, arrange capture/upload, and update required-check wiring in the same adoption PR. The updater installs examples but never modifies active workflows. A project retaining its map adapter should delegate policy to the shared core. Keep project platform requirements explicit; the kit does not impose Android/iOS on a web-only project.
+
+## Base-branch review checklist
+
+Record review guidance in consumer repositories at `config/review-checklist.json`. Use schema v1 and file-path globs only; added-line patterns are not supported. Keep `version` so the schema can be extended later.
+
+```json
+{
+  "version": 1,
+  "items": [{
+    "id": "data.collation-lookup",
+    "paths": ["src/**/*.cs"],
+    "check": "Lookups must not depend on collation.",
+    "source": { "type": "incident", "ref": "#123" },
+    "automatedCheck": null,
+    "owner": "@handle",
+    "expires": "2027-05-18"
+  }]
+}
+```
+
+Require numeric `version: 1` and an `items` array. Give each item a nonempty `id`, `check`, and `paths` array of nonempty globs. Require a `source` with type `incident` or `repeated-finding` and a nonempty `ref`. Optionally set `automatedCheck` to a string or null, `owner` to a string, and `expires` to a valid UTC calendar date (`YYYY-MM-DD`).
+
+Run `node scripts/review-checklist.mjs --base origin/main [--rules config/review-checklist.json] [--format md|json]`. Supply a repository-relative rules path without `..` segments. Run from the consumer Git repository. The checker reads rules from the base ref with `git show`, never from the PR head or working tree, and matches files from `git diff --name-only --no-renames -z <base>...HEAD`.
+
+Use the default Markdown checklist for review or JSON for active `items` and expired `stale` matches. Empty or missing base rules and unmatched rules produce empty Markdown output; JSON always returns an object, with `{"items":[],"stale":[]}` when nothing matches. Invalid files, arguments, or Git failures exit 1. Valid matches exit 0; this checklist does not enforce a build gate. Expired items stop firing after their expiry day in UTC and appear in the stale list only when their paths match. Review stale items for removal or renewal.
+
+Move findings to the lowest practical level: code, static check, repository rule, skill, then review guidance, as described in [Suppressions and recurring findings](suppressions.md). Turn repeated findings into enforceable code or static guardrails, normally once seen twice, and track the work with an issue. Point `automatedCheck` at the enforceable check when one exists.

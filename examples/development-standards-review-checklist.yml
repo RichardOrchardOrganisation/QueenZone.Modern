@@ -1,0 +1,24 @@
+# Copy/adapt to .github/workflows/review-checklist.yml to enable in the project.
+# Off by default: the kit never enables this workflow; the updater never modifies active workflows.
+name: Review checklist
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  review-checklist:
+    runs-on: ubuntu-latest
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - name: Print review checklist
+        run: node scripts/review-checklist.mjs --base "$BASE_SHA"

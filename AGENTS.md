@@ -548,6 +548,7 @@ Read `docs/testing.md`, `docs/coverage.md`, `docs/verification.md`, and `docs/su
 
 - Assert observable behavior, including boundaries, validation, permissions, state transitions, and error paths. Avoid tests that merely repeat implementation or execute code without meaningful assertions.
 - Add a regression test for a behavior bug when practical. Test pure logic without I/O; use deterministic integration tests for routes and composition; keep browser/device journeys focused on critical behavior. Choose tests by risk, not by an urge to maximize test count.
+- Follow `When to write a property test` in `docs/testing.md` for pure logic with an invariant.
 - Default tests must run without production credentials, network services, or real databases. Put provider-specific behavior in opt-in probes against a safe test database. Fakes and SQLite do not establish SQL Server locking, mapping, or retry behavior.
 - Cover shared repository behavior through the interface against each implementation. Document intentional differences beside provider-specific tests.
 - Run the same build, formatting, tests, and coverage gates locally and in CI. Merge overlapping coverage by file/line hits. Include unexecuted production files; do not manufacture coverage by omitting them.

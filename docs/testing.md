@@ -12,7 +12,15 @@ Tests protect observable behavior. Select the smallest layer that proves the ris
 
 Tests should fail when the promised behavior is wrong. Cover happy paths plus meaningful boundaries, missing/hidden resources, rejected input, permission failures, and state transitions. For a bug fix, capture the trigger and expected result as a regression test. Avoid asserting private method structure, snapshots without a clear contract, and “does not throw” tests when there is a concrete result to assert.
 
-Repository contract tests should define behavior once and exercise each implementation with equivalent seeds. Keep provider-specific checks separate. SQLite and in-memory providers cannot prove production SQL mappings, locks, execution strategies, or server-side ordering.
+## When to write a property test
+
+Use property tests for pure logic with an invariant: round trips, idempotence, no gaps or overlaps, and output that is always safe after sanitising. Default to CsCheck for .NET and fast-check for TypeScript.
+
+Use a fixed seed per property in CI, overridable by an environment variable. On failure, print the seed and the shrunk input so the case can be reproduced. Run property tests inside the normal unit job, within a time budget.
+
+## Repository contract tests
+
+Repository contract tests should define behavior once and exercise each implementation with equivalent seeds. Pass the same generated input through every implementation and compare the results. Use recorded traffic only after it has been sanitised; never pull it live from production. Document intentional differences next to the test. Keep provider-specific checks separate. SQLite and in-memory providers cannot prove production SQL mappings, locks, execution strategies, or server-side ordering.
 
 Keep test environments structurally isolated from ambient production connection strings. Fail closed if a real-data test host targets an unapproved database. Write probes must use throwaway records and guaranteed cleanup; preserve diagnostics on failures without leaving production residue.
 
