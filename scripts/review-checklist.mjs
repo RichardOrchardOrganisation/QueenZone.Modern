@@ -1,10 +1,31 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { resolveGitExecutable } from './check-eol.mjs';
 
-export { resolveGitExecutable };
+const knownGitExecutables = [
+  '/usr/bin/git',
+  '/usr/local/bin/git',
+  '/opt/homebrew/bin/git',
+  String.raw`C:\Program Files\Git\cmd\git.exe`,
+  String.raw`C:\Program Files\Git\mingw64\bin\git.exe`,
+];
+
+export function resolveGitExecutable(env = process.env, exists = existsSync) {
+  const configured = env.GIT_EXECUTABLE;
+  if (configured) {
+    if (!path.isAbsolute(configured)) {
+      throw new Error('GIT_EXECUTABLE must be an absolute path.');
+    }
+    return configured;
+  }
+  const found = knownGitExecutables.find((candidate) => exists(candidate));
+  if (!found) {
+    throw new Error(`git not found. Set GIT_EXECUTABLE to an absolute path or install git at ${knownGitExecutables.join(', ')}.`);
+  }
+  return found;
+}
 
 function normalize(value) { return value.replaceAll('\\', '/'); }
 function nonempty(value) { return typeof value === 'string' && value.trim().length > 0; }
