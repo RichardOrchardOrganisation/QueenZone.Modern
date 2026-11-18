@@ -31,6 +31,7 @@
     <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.Web\QueenZone.Web.csproj" />
     <ProjectReference Include="..\..\src\QueenZone.NewsAgent\QueenZone.NewsAgent.csproj" />
+    <ProjectReference Include="..\QueenZone.TestUtilities\QueenZone.TestUtilities.csproj" />
   </ItemGroup>
 
   <ItemGroup>
