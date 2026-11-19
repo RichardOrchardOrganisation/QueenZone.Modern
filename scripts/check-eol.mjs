@@ -10,9 +10,8 @@
  *   node scripts/check-eol.mjs
  */
 import { execFileSync } from 'node:child_process';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { resolveGitExecutable } from './review-checklist.mjs';
+import { resolveGitExecutable } from './lib/git-executable.mjs';
 
 export { resolveGitExecutable };
 

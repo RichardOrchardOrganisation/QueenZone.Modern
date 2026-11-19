@@ -1,31 +1,10 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { resolveGitExecutable } from './lib/git-executable.mjs';
 
-const knownGitExecutables = [
-  '/usr/bin/git',
-  '/usr/local/bin/git',
-  '/opt/homebrew/bin/git',
-  String.raw`C:\Program Files\Git\cmd\git.exe`,
-  String.raw`C:\Program Files\Git\mingw64\bin\git.exe`,
-];
-
-export function resolveGitExecutable(env = process.env, exists = existsSync) {
-  const configured = env.GIT_EXECUTABLE;
-  if (configured) {
-    if (!path.isAbsolute(configured)) {
-      throw new Error('GIT_EXECUTABLE must be an absolute path.');
-    }
-    return configured;
-  }
-  const found = knownGitExecutables.find((candidate) => exists(candidate));
-  if (!found) {
-    throw new Error(`git not found. Set GIT_EXECUTABLE to an absolute path or install git at ${knownGitExecutables.join(', ')}.`);
-  }
-  return found;
-}
+export { resolveGitExecutable };
 
 function normalize(value) { return value.replaceAll('\\', '/'); }
 function nonempty(value) { return typeof value === 'string' && value.trim().length > 0; }
@@ -81,17 +60,17 @@ export function match(file, glob) {
   return path.posix.matchesGlob(normalize(file), normalize(glob));
 }
 
-function git(cwd, args) {
-  const result = spawnSync(resolveGitExecutable(), args, { cwd, encoding: 'utf8' });
+function git(executable, cwd, args) {
+  const result = spawnSync(executable, args, { cwd, encoding: 'utf8' });
   if (result.error || result.status !== 0) throw new Error(`Git failed (${args[0]}).`);
   return result.stdout;
 }
 
-function baseRules(cwd, base, rules) {
-  const result = spawnSync(resolveGitExecutable(), ['show', `${base}:${rules}`], { cwd, encoding: 'utf8' });
+function baseRules(executable, cwd, base, rules) {
+  const result = spawnSync(executable, ['show', `${base}:${rules}`], { cwd, encoding: 'utf8' });
   if (!result.error && result.status === 0) return readRules(result.stdout);
   if (result.error || result.status === null) throw new Error('Git failed (show).');
-  const names = git(cwd, ['ls-tree', '-r', '-t', '--name-only', '-z', base]).split('\0');
+  const names = git(executable, cwd, ['ls-tree', '-r', '-t', '--name-only', '-z', base]).split('\0');
   if (!names.includes(rules)) return [];
   throw new Error('Git failed (show).');
 }
@@ -105,10 +84,11 @@ function matchedItem(item, files) {
 }
 
 export function run({ base, rules = 'config/review-checklist.json' }, cwd = process.cwd(), today = new Date().toISOString().slice(0, 10)) {
-  const commit = git(cwd, ['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).trim();
-  const files = git(cwd, ['diff', '--name-only', '--no-renames', '-z', `${commit}...HEAD`]).split('\0').filter(Boolean).map(normalize).sort();
+  const executable = resolveGitExecutable();
+  const commit = git(executable, cwd, ['rev-parse', '--verify', '--end-of-options', `${base}^{commit}`]).trim();
+  const files = git(executable, cwd, ['diff', '--name-only', '--no-renames', '-z', `${commit}...HEAD`]).split('\0').filter(Boolean).map(normalize).sort();
   const result = { items: [], stale: [] };
-  const items = baseRules(cwd, commit, rules).sort((a, b) => {
+  const items = baseRules(executable, cwd, commit, rules).sort((a, b) => {
     if (a.id < b.id) return -1;
     if (a.id > b.id) return 1;
     return 0;

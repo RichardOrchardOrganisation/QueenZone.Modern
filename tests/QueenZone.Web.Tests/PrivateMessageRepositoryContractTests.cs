@@ -1,4 +1,6 @@
+using QueenZone.ContractTests;
 using QueenZone.Data;
+using QueenZone.Data.Entities;
 
 namespace QueenZone.Web.Tests;
 
@@ -6,6 +8,12 @@ namespace QueenZone.Web.Tests;
 public abstract class PrivateMessageRepositoryContractTests
 {
     protected abstract IPrivateMessageRepository Repository { get; }
+    protected abstract Task AddContractMemberAsync(MemberAccount member);
+
+    [Fact]
+    public Task Generated_repository_matches_LINQ_model() =>
+        PrivateMessageContractProperty.RunAsync(Repository, AddContractMemberAsync);
+
     protected abstract Guid AliceId { get; }
     protected abstract Guid BobId { get; }
     protected abstract Guid CarolId { get; }
