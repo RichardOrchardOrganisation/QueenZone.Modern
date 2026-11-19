@@ -8,6 +8,7 @@ public static class PropertyRun
 {
     public const int DefaultIterations = 100;
     public const int CheapIterations = 1_000;
+    public static readonly TimeSpan DefaultIterationTimeout = TimeSpan.FromSeconds(2);
 
     public static void Run<T>(string propertyName, Gen<T> gen, Action<T> assert, int iter = DefaultIterations)
     {
@@ -18,14 +19,10 @@ public static class PropertyRun
         }, iter).GetAwaiter().GetResult();
     }
 
-    public static async Task RunAsync<T>(string propertyName, Gen<T> gen, Func<T, Task> assert, int iter = DefaultIterations)
+    public static async Task RunAsync<T>(string propertyName, Gen<T> gen, Func<T, Task> assert,
+        int iter = DefaultIterations, TimeSpan? iterationTimeout = null, CancellationToken cancellationToken = default)
     {
-        var seed = Environment.GetEnvironmentVariable("QZ_PROPERTY_SEED");
-        if (string.IsNullOrEmpty(seed))
-        {
-            seed = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(propertyName)))[..16];
-        }
-
+        var seed = ResolveSeed(propertyName);
         var pcg = PCG.Parse(seed);
         Size? minSize = null;
         ulong minState = 0;
@@ -36,6 +33,7 @@ public static class PropertyRun
 
         for (var i = 0; i < iter; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var state = pcg.State;
             Size? size = null;
             T t = default!;
@@ -46,8 +44,16 @@ public static class PropertyRun
                 generating = false;
                 if (minSize is null || Size.IsLessThan(size, minSize))
                 {
-                    await assert(t).ConfigureAwait(false);
+                    await AwaitAssertionAsync(assert, t, iterationTimeout ?? DefaultIterationTimeout, cancellationToken).ConfigureAwait(false);
                 }
+            }
+            catch (NullAssertionTaskException)
+            {
+                throw new ArgumentNullException("task");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {
@@ -59,6 +65,10 @@ public static class PropertyRun
                     minException = exception;
                     genThrew = false;
                     shrinks++;
+                    if (exception is TimeoutException)
+                    {
+                        break;
+                    }
                 }
                 else if (generating && minException is null)
                 {
@@ -71,10 +81,39 @@ public static class PropertyRun
 
         if (minException is not null)
         {
-            var input = genThrew ? "The generator threw." : Check.Print(minT);
-            throw new InvalidOperationException(
-                $"Property '{propertyName}' (initial seed: {seed}):\nseed: {pcg.ToString(minState)}\n{input}\nShrinks: {Math.Max(0, shrinks)}\n{minException.Message}",
-                minException);
+            throw Failure(propertyName, seed, pcg.ToString(minState), genThrew, minT, shrinks, minException);
         }
+    }
+
+    private static string ResolveSeed(string propertyName)
+    {
+        var seed = Environment.GetEnvironmentVariable("QZ_PROPERTY_SEED");
+        return string.IsNullOrEmpty(seed)
+            ? Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(propertyName)))[..16]
+            : seed;
+    }
+
+    private static async Task AwaitAssertionAsync<T>(Func<T, Task> assert, T value,
+        TimeSpan iterationTimeout, CancellationToken cancellationToken)
+    {
+        var task = assert(value);
+        if (task is null)
+        {
+            throw new NullAssertionTaskException();
+        }
+        await task.WaitAsync(iterationTimeout, cancellationToken).ConfigureAwait(false);
+    }
+
+    private sealed class NullAssertionTaskException : Exception
+    {
+    }
+
+    private static InvalidOperationException Failure<T>(string propertyName, string initialSeed,
+        string seed, bool genThrew, T value, int shrinks, Exception exception)
+    {
+        var input = genThrew ? "The generator threw." : Check.Print(value);
+        return new InvalidOperationException(
+            $"Property '{propertyName}' (initial seed: {initialSeed}):\nseed: {seed}\n{input}\nShrinks: {Math.Max(0, shrinks)}\n{exception.Message}",
+            exception);
     }
 }

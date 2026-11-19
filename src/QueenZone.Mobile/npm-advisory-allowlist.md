@@ -65,7 +65,7 @@ malformed/missing-output, expiry and publication gates are unchanged.
 [#2016](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2016)
 tracks review and removal.
 
-## picomatch extglob matching (#2467)
+## picomatch extglob matching (#2538)
 
 `GHSA-fc5q-39xc-vjpf` affects every published `picomatch` release through <!-- pragma: allowlist secret -->
 4.0.7. On 2026-11-18, npm publishes no newer version and reports no
@@ -77,7 +77,7 @@ micromatch. QueenZone application source does not import picomatch. The
 exception expires on **2027-02-16**. Remove it once a published patched
 release is available through an Expo-compatible update or narrow
 override;
-[#2467](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2467) <!-- pragma: allowlist secret -->
+[#2538](https://github.com/RichardOrchardOrganisation/QueenZone.Modern/issues/2538) <!-- pragma: allowlist secret -->
 tracks that work.
 
 ## November 2026 dependency remediation (#2467)

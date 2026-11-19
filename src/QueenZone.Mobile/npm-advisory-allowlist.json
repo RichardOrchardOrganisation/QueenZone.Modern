@@ -28,7 +28,7 @@
       "ghsa": "GHSA-fc5q-39xc-vjpf",
       "package": "picomatch",
       "via": "@expo/cli / jest-expo / tinyglobby / micromatch (2.3.2 and 4.0.7)",
-      "exploitability": "Dev, test, and Expo CLI glob matching only in the current graph; application source does not import picomatch. No patched release is published through 4.0.7. Remove on a patched compatible release (#2467).",
+      "exploitability": "Dev, test, and Expo CLI glob matching only in the current graph; application source does not import picomatch. No patched release is published through 4.0.7. Remove on a patched compatible release (#2538).",
       "owner": "QueenZone maintainers",
       "expires": "2027-02-16"
     }
