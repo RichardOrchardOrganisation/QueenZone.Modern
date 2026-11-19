@@ -1,4 +1,149 @@
 {
   "version": 1,
-  "items": []
+  "items": [
+    {
+      "id": "data.datetimeoffset-order-or-collation",
+      "paths": [
+        "src/QueenZone.Data/Repositories/EfEditorialArticleRepository.cs",
+        "src/QueenZone.Data/Repositories/EfArticleRepository.cs",
+        "tests/QueenZone.Web.Tests/EfEditorialArticleRepositoryTests.cs",
+        "tests/QueenZone.Web.Tests/EfArticleRepositoryTests.cs"
+      ],
+      "check": "Keep DateTimeOffset ordering and string-key lookups consistent across SQL Server, SQLite, and in-memory. Do not order by a DateTimeOffset column in a way SQLite cannot sort, and do not rely on collation for case-insensitive matches. See #2504.",
+      "source": {
+        "type": "incident",
+        "ref": "#2504"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "data.page-size-vs-repository-cap",
+      "paths": [
+        "src/QueenZone.Search.Shared/Search/SearchReindexBuilder.cs",
+        "src/QueenZone.Search.Shared/Search/CatalogSearchReindexer.cs",
+        "src/QueenZone.Data/Repositories/EfEditorialArticleRepository.cs",
+        "src/QueenZone.Data/Repositories/EfArticleRepository.cs",
+        "src/QueenZone.Data/Repositories/EfArticlesRepository.cs",
+        "tests/QueenZone.Search.Shared.Tests/SearchReindexBuilderTests.cs"
+      ],
+      "check": "A caller's page size must not exceed the repository cap, or paging must continue until there are no more results, so a full pass (for example a search reindex) cannot silently drop rows or omit bodies. See #2505.",
+      "source": {
+        "type": "incident",
+        "ref": "#2505"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "ci.runner-image-or-playwright-bump",
+      "paths": [
+        ".github/workflows/**",
+        "Directory.Packages.props",
+        "scripts/check-playwright-ubuntu.mjs",
+        "scripts/check-playwright-ubuntu.test.mjs"
+      ],
+      "check": "A runner-image or Playwright bump must keep browser install working. Do not leave a Playwright browser-install job on ubuntu-latest while the pinned Playwright build cannot install Chromium there. See #2518 and the existing guard scripts/check-playwright-ubuntu.mjs.",
+      "source": {
+        "type": "incident",
+        "ref": "#2518"
+      },
+      "automatedCheck": "scripts/check-playwright-ubuntu.mjs",
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "test.weak-contract-assertion",
+      "paths": [
+        "tests/**",
+        "src/QueenZone.Mobile/**/*.test.ts",
+        "src/QueenZone.Mobile/**/*.test.tsx"
+      ],
+      "check": "Tests must assert the contract, not only that code runs or that a private structure looks a certain way.",
+      "source": {
+        "type": "repeated-finding",
+        "ref": "test.weak-contract-assertion"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "test.in-memory-not-sql",
+      "paths": [
+        "tests/**",
+        "src/QueenZone.Data/Repositories/**"
+      ],
+      "check": "Repository or query tests that claim SQL behaviour must run against SQL, not only an in-memory fake.",
+      "source": {
+        "type": "repeated-finding",
+        "ref": "test.in-memory-not-sql"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "mobile.swallowed-error-state",
+      "paths": [
+        "src/QueenZone.Mobile/src/screens/**"
+      ],
+      "check": "Mobile screens must surface error state to the user; do not swallow failed loads or mutations.",
+      "source": {
+        "type": "repeated-finding",
+        "ref": "mobile.swallowed-error-state"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "data.unbounded-or-nplus1",
+      "paths": [
+        "src/QueenZone.Data/Repositories/**",
+        "src/QueenZone.Web/Pages/**/*.cs",
+        "src/QueenZone.Web/**/*Service*.cs"
+      ],
+      "check": "Queries must be bounded and must not load related data in a hidden N+1 loop.",
+      "source": {
+        "type": "repeated-finding",
+        "ref": "data.unbounded-or-nplus1"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "app.lost-update-race",
+      "paths": [
+        "src/QueenZone.Data/Repositories/**",
+        "src/QueenZone.Web/**/*Service*.cs",
+        "src/QueenZone.Mobile/src/session/**"
+      ],
+      "check": "Concurrent updates must not silently overwrite a newer write; use a concurrency token or equivalent guard.",
+      "source": {
+        "type": "repeated-finding",
+        "ref": "app.lost-update-race"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    },
+    {
+      "id": "review.cursor-agents",
+      "paths": [
+        ".cursor/agents/**"
+      ],
+      "check": "Changes to .cursor/agents/** are reviewed by Richard. The in-repo reviewer ran against the head's instructions, so the review prompt itself needs a human pass. See #1802.",
+      "source": {
+        "type": "incident",
+        "ref": "#1802"
+      },
+      "automatedCheck": null,
+      "owner": "richardorchard",
+      "expires": "2027-05-18"
+    }
+  ]
 }
