@@ -7,10 +7,10 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | | |
 | --- | --- |
 | Source | `https://github.com/RichardOrchardOrganisation/development-standards` |
-| Version | 0.5.2 with reviewed UI-proof refactors ([upstream PR #22](https://github.com/RichardOrchardOrganisation/development-standards/pull/22)); upstream merge pending |
-| Commit | `b039e00e721f38ab9801272e821015b21bc78335` (development-standards PR #22 revision) |
-| Kit version | `0.5.2` |
-| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2 update was clean, so the current lock has no keptLocal entries |
+| Version | 0.6.2 |
+| Commit | `e9475401ae24682692bfdc15b7464a3cb32a195a` |
+| Kit version | `0.6.2` |
+| Lock | [`development-standards.lock.json`](../../development-standards.lock.json), written by the kit's updater. the 0.5.0 update retained reviewed configuration, adapter and template conflicts; the subsequent 0.5.2, 0.6.0, 0.6.1, and 0.6.2 updates were clean, so the current lock has no keptLocal entries |
 | Attribution | [`docs/development-standards-LICENSE`](../development-standards-LICENSE); QueenZone's own `LICENSE` is unchanged |
 
 | Kit version | Commit | How QueenZone took it |
@@ -25,6 +25,9 @@ QueenZone consumes [RichardOrchardOrganisation/development-standards](https://gi
 | 0.5.1 | `7452829eef908d89aa6e1515369f1c052e25bc54` | Pinned publisher action removes privileged application checkout; clean updater pass |
 | 0.5.2 | `5177138cc46168b5cea669b1ae77231e53e23ed0` | Preserve GitHub Context repository metadata in evidence gates and make feature-ID ordering explicit; clean updater pass |
 | 0.5.2 revision | `b039e00e721f38ab9801272e821015b21bc78335` | Split six High-severity complexity hotspots into focused helpers; preserve carried-producer rerun evidence and publish the existing QueenZone regression upstream (#2319) |
+| 0.6.0 | `a4e27ec2ca288ec676b45dc8bb7be964b834274f` | Review checklist kit: empty v1 `config/review-checklist.json`, `scripts/review-checklist.mjs`, and opt-in `examples/development-standards-review-checklist.yml`; property-test guidance in shared docs and the managed `AGENTS.md` section. Clean updater pass |
+| 0.6.1 | `510aa4d4d5f8abfdae064bb142ca58c3b4ace5de` | Checklist checker uses an absolute `git` path and a three-way item sort; example workflow is pull-request and merge-group only. Clean updater pass from 0.6.0 |
+| 0.6.2 | `e9475401ae24682692bfdc15b7464a3cb32a195a` | Shared `scripts/lib/git-executable.mjs` for the checklist checker and TypeScript coverage gate. Clean updater pass from 0.6.1 |
 
 0.3.0 is development-standards PRs #7–#12, raised from this adoption: floor values became manifest `reviewKeys` (development-standards#5), and QueenZone's newer coverage gate, CRAP ratchet, TypeScript gate refactors, suppression policy settings, and PR-verification entry point moved into the kit (development-standards#6). Each passed kit CI on Linux, macOS, and Windows before merge. Local quality gates use committed kit copies. The privileged proof publisher is the one exception: GitHub downloads a shared action pinned to the same reviewed kit commit; that action reads only default-branch project JSON, never application code.
 
@@ -54,8 +57,11 @@ Every path in the kit's `installation-manifest.json` is a managed path. The upda
 | `docs/development-standards-LICENSE` | Adopted as installed | Kit attribution |
 | `docs/testing.md`, `docs/coverage.md`, `docs/verification.md`, `docs/suppressions.md` | Adopted as installed | Shared policy. QueenZone specifics stay in [testing-policy.md](testing-policy.md) and `AGENTS.md`, which link here |
 | `docs/adoption.md`, `docs/updating.md`, `docs/provenance.md` | Adopted as installed | Kit installation, update, and provenance reference |
-| `examples/development-standards-quality.yml`, `examples/development-standards-pr-verification.yml`, `examples/development-standards-proof-publisher.yml` | Adopted as installed, **not enabled** | Reference only. `ci.yml` and `pr-verification-check.yml` already cover these jobs; copying them would duplicate the full suite. `examples/` is skip-only in `classify-pipeline-changes.sh` |
+| `examples/development-standards-quality.yml`, `examples/development-standards-pr-verification.yml`, `examples/development-standards-proof-publisher.yml`, `examples/development-standards-review-checklist.yml` | Adopted as installed, **not enabled** | Reference only. `ci.yml` and `pr-verification-check.yml` already cover these jobs; copying them would duplicate the full suite. Do not copy the review-checklist example into `.github/workflows`. `examples/` is skip-only in `classify-pipeline-changes.sh` |
 | `AGENTS.md` | Managed section appended once | Shared rules between `<!-- development-standards:begin/end -->`. All QueenZone guidance stays outside the markers |
+| `config/review-checklist.json` | Adopted as installed (empty v1) | Kit default `{version:1, items:[]}`. Project items are a later PR; the checker reads this file from the base ref only |
+| `scripts/review-checklist.mjs` | Kit version (since 0.6.0) | Base-branch, diff-triggered review checklist. `node scripts/review-checklist.mjs --base origin/main`. Since 0.6.2 it imports `resolveGitExecutable` from `scripts/lib/git-executable.mjs` |
+| `scripts/lib/git-executable.mjs` | Kit version (since 0.6.2) | Shared absolute-path `git` lookup. The checklist checker and TypeScript coverage gate import it; QueenZone's `scripts/check-eol.mjs` uses the same module |
 | `development-standards.json` | QueenZone configuration | `QueenZone.sln`, current accepted floors (91 / 70), `src/QueenZone.Mobile` profile, mobile floors file, and the web/mobile `uiPaths` that were previously hard-coded regexes |
 | `coverlet.runsettings` | Kept (identical to the kit) | Same generated-code exclusions |
 | `config/suppression-baseline.json` | QueenZone content kept | The audited baseline and its rationale. The kit's empty baseline was not copied |
@@ -69,7 +75,7 @@ Every path in the kit's `installation-manifest.json` is a managed path. The upda
 | `.github/pull_request_template.md` | QueenZone template kept, kit wording merged | Keeps issue-link, legacy-probe, UI proof, review-finding, migration, and follow-up sections the QueenZone checks parse |
 | `config/feature-map.json` | **Deliberately absent** | Would be a second, hand-maintained feature map beside `docs/feature-map/` |
 | `config/typescript-coverage.json` | **Deliberately absent** | Its 90 / 70 / 70 new-project floors would compete with the measured mobile floors |
-| `scripts/Test-TypeScriptCoverageGate.mjs` | Kit version (since `e4939cc`) | Replaced QueenZone's `Test-MobileCoverageGate.mjs`, which it was generalised from. It resolves `src/QueenZone.Mobile` from `typescript.projectRoot`, works from any directory (CI, the `coverage:gate` npm script), and `Get-MobileCrapReport.mjs` imports its helpers. Merged totals are identical to the old gate. Since `7fbff8b` (development-standards PR #15) it runs `git` from an absolute path (`resolveGitExecutable`, SonarCloud S4036/S5443) |
+| `scripts/Test-TypeScriptCoverageGate.mjs` | Kit version (since `e4939cc`) | Replaced QueenZone's `Test-MobileCoverageGate.mjs`, which it was generalised from. It resolves `src/QueenZone.Mobile` from `typescript.projectRoot`, works from any directory (CI, the `coverage:gate` npm script), and `Get-MobileCrapReport.mjs` imports its helpers. Merged totals are identical to the old gate. Since 0.6.2 it imports `resolveGitExecutable` from `scripts/lib/git-executable.mjs` |
 
 The updater keeps a deletion while the kit leaves that file unchanged. If a future kit version changes one of the absent files, the update reports a conflict; review the change, port anything useful into the QueenZone equivalent, then pass `--keep-local <path>` to keep it absent.
 
@@ -252,3 +258,9 @@ No workflow was installed automatically. Existing QueenZone capture/upload jobs 
 `node scripts/development-standards-update-proof.mjs --standards C:\workspace\development-standards` passed all five update scenarios against the 0.5.1 adoption: compatible update, repeat, conflict refusal, reviewed keep-local, and floor protection. The six installed proof core modules were also compared with the pinned kit and match exactly after line-ending normalization.
 
 The clean 0.5.2 update fixes the inherited GitHub Context repository getter and the Sonar feature-ID comparison finding. The privileged action pin advances with the lock.
+
+The clean 0.6.0 update installs empty v1 review rules, `scripts/review-checklist.mjs`, and `examples/development-standards-review-checklist.yml` (not copied into `.github/workflows`). The privileged action pin advances with the lock.
+
+The clean 0.6.1 update refreshes the checker and unused example from the same managed paths. The privileged action pin advances with the lock.
+
+The clean 0.6.2 update adds `scripts/lib/git-executable.mjs` and points the checklist checker and TypeScript coverage gate at it. QueenZone's `scripts/check-eol.mjs` imports the same helper. The privileged action pin advances with the lock.
