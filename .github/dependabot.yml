@@ -15,6 +15,17 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    ignore:
+      # .NET 11 major bumps stay ignored until the app and hosting upgrade (closed #2541).
+      - dependency-name: "Microsoft.AspNetCore.*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "Microsoft.EntityFrameworkCore.*"
+        update-types:
+          - "version-update:semver-major"
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types:
+          - "version-update:semver-major"
     groups:
       aspnetcore:
         applies-to: version-updates
