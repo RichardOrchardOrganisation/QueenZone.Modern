@@ -91,8 +91,8 @@ test('correlation retains Sentry observations without suppressing independent Az
   assertReopen(plan(next[0]));
 });
 test('expiry ends suppression but preserves canonical issue beyond 30 and 90 days', () => {
-  assertQuiet(plan(candidate(), { now: new Date('2026-11-05T00:00:00Z') }));
-  for (const time of ['2026-11-05T00:00:01Z', '2026-11-06T07:17:00Z', '2027-02-01T00:00:00Z']) {
+  assertQuiet(plan(candidate(), { now: new Date('2026-12-23T00:00:00Z') }));
+  for (const time of ['2026-12-23T00:00:01Z', '2026-12-24T07:17:00Z', '2027-02-01T00:00:00Z']) {
     const result = plan(candidate(), { now: new Date(time) });
     assertReopen(result);
     assert.equal(result.expiredIgnores.length, 1);
