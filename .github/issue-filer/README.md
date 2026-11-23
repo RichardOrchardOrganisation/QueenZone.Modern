@@ -114,7 +114,7 @@ Telemetry triage (`.github/workflows/telemetry-triage.yml`) is a scheduled poll 
 
 The weekly job uses a 7-day lookback. It does **not** ingest classified historical findings or classify untagged review comments. For #1802 AC3, dispatch `ingest_findings=true`, `max_issues=2`, and `dry_run=true` first (then the same inputs with `dry_run=false`). Ingested findings use the same dedupe, caps, ignore list, and templates as live candidates, and they are not collapsed into a storm issue when they fit under the cap.
 
-SonarCloud credentials stay out of git. The gardener reads `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` from the environment (repository variables) and skips the Sonar source when either is unset.
+SonarCloud credentials stay out of git. The gardener reads `SONAR_ORGANIZATION` and `SONAR_PROJECT_KEY` from the environment (`gardener.yml` falls back to the public QueenZone identifiers when those repository variables are unset) and skips the Sonar source when either is still unset.
 
 ## Local commands
 

@@ -55,8 +55,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
-          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'richardorchardorganisation' }} # pragma: allowlist secret
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'RichardOrchardOrganisation_QueenZone.Modern' }} # pragma: allowlist secret
           LOOKBACK_DAYS: ${{ github.event_name == 'workflow_dispatch' && inputs.lookback_days || '7' }}
           MAX_ISSUES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_issues || '2' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

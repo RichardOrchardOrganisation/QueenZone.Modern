@@ -75,7 +75,7 @@ test('repo ignore list includes a users ceiling on the watchdog entry', () => {
   const watchdog = ignore.entries.find((entry) => entry.match?.key === 'sentry:7775729576');
   assert.equal(watchdog.maxUsers, 1);
   assert.equal(watchdog.maxEvents, undefined);
-  assert.equal(watchdog.expires, '2026-11-05');
+  assert.equal(watchdog.expires, '2026-12-23');
   assert.match(watchdog.reason, /#2147/);
   assert.deepEqual(validateIgnore(ignore), []);
 });
