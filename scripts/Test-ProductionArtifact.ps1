@@ -14,7 +14,7 @@ if ($deps.libraries.PSObject.Properties.Name -match '^QueenZone\.(Testing|TestHo
 
 # A wrong environment must fail closed even when all ordinary test settings are valid.
 $start = [System.Diagnostics.ProcessStartInfo]::new()
-$start.FileName = (Get-Command dotnet -CommandType Application).Source
+$start.FileName = (Get-Command dotnet -CommandType Application | Select-Object -First 1).Source
 $start.ArgumentList.Add((Join-Path $artifact 'QueenZone.Web.dll'))
 $start.WorkingDirectory = $artifact
 $start.UseShellExecute = $false
