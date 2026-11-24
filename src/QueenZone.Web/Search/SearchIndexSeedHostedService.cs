@@ -20,7 +20,7 @@ public sealed class SearchIndexSeedHostedService(
         // (to exercise error-handling paths unrelated to search). An unhandled exception here
         // would abort the whole host's startup, failing every test in that WebApplicationFactory
         // instance — so a seeding failure just leaves the index empty instead.
-        using var activity = QueenZone.Web.QueenZoneTelemetry.ActivitySource.StartActivity(
+        using var activity = QueenZone.Application.QueenZoneTelemetry.ActivitySource.StartActivity(
             "SearchIndexSeed",
             ActivityKind.Internal);
         try

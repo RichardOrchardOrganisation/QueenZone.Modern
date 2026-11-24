@@ -1,7 +1,7 @@
 using QueenZone.Data;
 using QueenZone.Storage;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 public sealed record FanPerformanceSubmissionPurgeResult(int Candidates, int Deleted, int Failures);
 

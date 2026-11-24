@@ -2,7 +2,7 @@ using Microsoft.Extensions.Options;
 using QueenZone.Data;
 using QueenZone.Storage;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 public sealed record GalleryOrphanSweepResult(
     int BlobsScanned,
@@ -14,7 +14,7 @@ public sealed record GalleryOrphanSweepResult(
 /// Compares gallery blob storage against <c>PIC_FILES_T</c> per category and removes (or, in
 /// dry-run mode, reports) blobs with no referencing row that are older than the configured
 /// grace period. Complements the compensating delete in
-/// <see cref="PhotoSubmissionPromotionService"/> (#590) by catching orphans left behind by the
+/// photo submission promotion (#590) by catching orphans left behind by the
 /// residual crash window between a successful upload and that compensating delete (#651).
 /// </summary>
 public sealed class GalleryOrphanSweepService(

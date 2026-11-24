@@ -337,12 +337,13 @@ public static class QueenZoneWebServiceCollectionExtensions
 
     public static IServiceCollection AddQueenZoneWebAppServices(this IServiceCollection services)
     {
-        services.AddScoped<MemberAccountDeletionService>();
+        services.AddQueenZoneApplication();
         services.AddScoped<MemberAuthenticationService>();
         services.AddScoped<MemberProfileService>();
         services.AddScoped<LegacyAccountLinkService>();
         services.AddScoped<MemberAvatarService>();
         services.AddScoped<AppleAccountTokenService>();
+        services.AddScoped<IAppleTokenRevoker>(provider => provider.GetRequiredService<AppleAccountTokenService>());
         services.AddScoped<MemberDeletionReceiptService>();
         services.AddHttpClient(AppleAccountTokenService.HttpClientName, client =>
             client.Timeout = TimeSpan.FromSeconds(15));
@@ -361,8 +362,6 @@ public static class QueenZoneWebServiceCollectionExtensions
         services.AddScoped<AdminFanPerformanceWriteService>();
         services.AddScoped<PhotoSubmissionPromotionService>();
         services.AddScoped<FanPerformanceSubmissionPromotionService>();
-        services.AddScoped<FanPerformanceSubmissionPurgeService>();
-        services.AddScoped<GalleryOrphanSweepService>();
         services.AddScoped<NewsSuggestionService>();
         services.AddSingleton<HelpRequestFormStamp>();
         services.AddSingleton<HelpRequestRateLimiter>();

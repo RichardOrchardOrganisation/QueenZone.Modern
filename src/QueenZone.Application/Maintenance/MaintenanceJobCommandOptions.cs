@@ -1,4 +1,4 @@
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 /// <summary>
 /// Parses <c>run-jobs &lt;selector&gt;...</c> for <c>QueenZone.Maintenance.Worker</c>. A selector is

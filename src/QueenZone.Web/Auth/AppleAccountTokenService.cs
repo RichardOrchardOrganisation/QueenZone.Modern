@@ -14,7 +14,7 @@ public sealed class AppleAccountTokenService(
     IDataProtectionProvider protectionProvider,
     IHttpClientFactory httpClientFactory,
     IOptions<MemberAuthenticationOptions> authenticationOptions,
-    ILogger<AppleAccountTokenService> logger)
+    ILogger<AppleAccountTokenService> logger) : IAppleTokenRevoker
 {
     internal const string HttpClientName = "AppleAccountRevocation";
     private readonly IDataProtector protector = protectionProvider.CreateProtector("QueenZone.AppleRefreshToken.v1");
