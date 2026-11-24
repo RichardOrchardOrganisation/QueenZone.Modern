@@ -56,6 +56,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="QueenZone.Web.Tests" />
+    <InternalsVisibleTo Include="QueenZone.Testing" />
     <Using Include="QueenZone.Routing" />
     <Using Include="QueenZone.Search.Shared" />
   </ItemGroup>

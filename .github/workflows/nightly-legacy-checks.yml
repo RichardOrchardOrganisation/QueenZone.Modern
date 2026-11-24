@@ -372,7 +372,7 @@ jobs:
         if: matrix.os == 'macOS'
         run: |
           # Match only this runner checkout's published app, never Web.Tests hosts.
-          qz_app_pattern=$(python3 -c 'import os,re; print(r"(^|/)dotnet[[:space:]]+\"?" + re.escape(os.path.join(os.environ["GITHUB_WORKSPACE"], "e2e-app", "QueenZone.Web.dll")) + r"\"?$")')
+          qz_app_pattern=$(python3 -c 'import os,re; print(r"(^|/)dotnet[[:space:]]+\"?" + re.escape(os.path.join(os.environ["GITHUB_WORKSPACE"], "e2e-app", "QueenZone.TestHost.dll")) + r"\"?$")')
           pkill -f "$qz_app_pattern" || true
 
       - name: Checkout

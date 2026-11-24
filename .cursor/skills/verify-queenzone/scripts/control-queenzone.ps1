@@ -47,7 +47,7 @@ $RunDir = Join-Path $SkillRoot ".run"
 $StatePath = Join-Path $RunDir "state.json"
 $OutLogPath = Join-Path $RunDir "host.out.log"
 $ErrLogPath = Join-Path $RunDir "host.err.log"
-$ProjectPath = Join-Path $RepoRoot "src\QueenZone.Web\QueenZone.Web.csproj"
+$ProjectPath = Join-Path $RepoRoot "tests\QueenZone.TestHost\QueenZone.TestHost.csproj"
 $PublishDir = Join-Path $RunDir "app"
 $SampleArticlePath = "/news/1003/queenzone-modernisation-begins"
 $SampleArticleMarker = "QueenZone modernisation begins"
@@ -209,7 +209,7 @@ switch ($Command) {
         $psi = @{
             FilePath               = "dotnet"
             ArgumentList           = @(
-                "`"$(Join-Path $PublishDir 'QueenZone.Web.dll')`""
+                "`"$(Join-Path $PublishDir 'QueenZone.TestHost.dll')`""
             )
             WorkingDirectory       = $PublishDir
             RedirectStandardOutput = $OutLogPath

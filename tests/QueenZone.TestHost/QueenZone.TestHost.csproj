@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../QueenZone.Testing/QueenZone.Testing.csproj" />
+  </ItemGroup>
+  <Target Name="PrepareWebAssets" AfterTargets="Publish">
+    <MSBuild Projects="../../src/QueenZone.Web/QueenZone.Web.csproj"
+             Targets="MinifyCss" Properties="PublishDir=$(PublishDir)" />
+  </Target>
+</Project>

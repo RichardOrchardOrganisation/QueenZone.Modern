@@ -789,12 +789,12 @@ start_host() {
   assert_port_free "$port"
 
   if [[ "$no_build_host" != true ]]; then
-    dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+    dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
   fi
 
   echo "Starting Testing contract host on ${ASPNETCORE_URLS} (log: $host_log)..."
   dotnet run \
-    --project src/QueenZone.Web/QueenZone.Web.csproj \
+    --project tests/QueenZone.TestHost/QueenZone.TestHost.csproj \
     --configuration Release \
     --no-build \
     --no-launch-profile \

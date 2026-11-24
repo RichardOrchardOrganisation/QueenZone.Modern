@@ -26,13 +26,11 @@ public static class QueenZoneAuthServiceCollectionExtensions
 
         if (QueenZoneEnvironments.UsesTestAuth(environment))
         {
-            services.AddAuthentication(TestAuthHandler.SchemeName)
+            LocalHostSupport.Require().AddAuthentication(services.AddAuthentication(LocalHostSupport.AdminScheme), includeMembers: true)
                 .AddPolicyScheme(AdminAuthenticationSchemes.CompositeScheme, null, options =>
                     ConfigureAdminAuthenticationScheme(options, useAzureAd: false))
                 .AddPolicyScheme(AdminAuthenticationSchemes.AuthoringCompositeScheme, null, options =>
                     ConfigureAuthoringAuthenticationScheme(options, useAzureAd: false))
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null)
-                .AddScheme<AuthenticationSchemeOptions, TestMemberAuthHandler>(TestMemberAuthHandler.SchemeName, null)
                 // A real (not test-shortcut) cookie scheme: native register/sign-in pages call
                 // SignInAsync, which requires a handler that actually implements sign-in, and a
                 // local cookie has no external dependency that would make it unsuitable for tests.
@@ -59,13 +57,11 @@ public static class QueenZoneAuthServiceCollectionExtensions
         // Staging and Production must never reach this branch (guarded above).
         if (!useAzureAd)
         {
-            services
-                .AddAuthentication(TestAuthHandler.SchemeName)
+            LocalHostSupport.Require().AddAuthentication(services.AddAuthentication(LocalHostSupport.AdminScheme), includeMembers: false)
                 .AddPolicyScheme(AdminAuthenticationSchemes.CompositeScheme, null, options =>
                     ConfigureAdminAuthenticationScheme(options, useAzureAd: false))
                 .AddPolicyScheme(AdminAuthenticationSchemes.AuthoringCompositeScheme, null, options =>
-                    ConfigureAuthoringAuthenticationScheme(options, useAzureAd: false))
-                .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, null);
+                    ConfigureAuthoringAuthenticationScheme(options, useAzureAd: false));
         }
         else
         {
@@ -119,7 +115,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 policy.AddAuthenticationSchemes(MemberAuthenticationSchemes.MembersCookie);
                 if (QueenZoneEnvironments.UsesTestAuth(environment))
                 {
-                    policy.AddAuthenticationSchemes(TestMemberAuthHandler.SchemeName);
+                    policy.AddAuthenticationSchemes(LocalHostSupport.MemberScheme);
                 }
 
                 policy.RequireAuthenticatedUser();
@@ -136,7 +132,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
                 policy.AddAuthenticationSchemes(AdminAuthenticationSchemes.AuthoringCompositeScheme);
                 if (QueenZoneEnvironments.UsesTestAuth(environment))
                 {
-                    policy.AddAuthenticationSchemes(TestMemberAuthHandler.SchemeName);
+                    policy.AddAuthenticationSchemes(LocalHostSupport.MemberScheme);
                 }
 
                 policy.RequireAuthenticatedUser();
@@ -180,7 +176,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
     internal static string SelectAdminAuthenticateScheme(bool useAzureAd) =>
         useAzureAd
             ? CookieAuthenticationDefaults.AuthenticationScheme
-            : TestAuthHandler.SchemeName;
+            : LocalHostSupport.AdminScheme;
 
     /// <summary>
     /// Scheme used when the Admin policy challenges an unauthenticated request.
@@ -189,7 +185,7 @@ public static class QueenZoneAuthServiceCollectionExtensions
     internal static string SelectAdminChallengeScheme(bool useAzureAd) =>
         useAzureAd
             ? OpenIdConnectDefaults.AuthenticationScheme
-            : TestAuthHandler.SchemeName;
+            : LocalHostSupport.AdminScheme;
 
     internal static string SelectAuthoringAuthenticateScheme(bool useAzureAd, bool hasMemberCookie) =>
         hasMemberCookie

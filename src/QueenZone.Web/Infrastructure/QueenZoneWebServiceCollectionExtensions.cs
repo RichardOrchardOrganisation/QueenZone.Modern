@@ -608,15 +608,15 @@ public static class QueenZoneWebServiceCollectionExtensions
     /// <summary>
     /// Opt-in Testing-only contract-host bootstrap (#869). Never registered for E2E or
     /// production-like environments, and never unless
-    /// <see cref="MobileApiContractHost.EnableEnvironmentVariable"/> is set.
+    /// the contract-host opt-in flag is set.
     /// </summary>
     public static IServiceCollection AddMobileApiContractHost(
         this IServiceCollection services,
         IHostEnvironment environment)
     {
-        if (MobileApiContractHost.IsEnabled(environment))
+        if (QueenZoneEnvironments.UsesInMemoryData(environment))
         {
-            services.AddHostedService<MobileApiContractHostedService>();
+            LocalHostSupport.Require().AddContractHost(services, environment);
         }
 
         return services;

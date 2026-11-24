@@ -461,16 +461,16 @@ try {
         Ensure-Command -Name "dotnet"
         $publishDir = Join-Path $repoRoot "perf-app"
         Write-Information -InformationAction Continue "Publishing web app to $publishDir ..."
-        & dotnet publish (Join-Path $repoRoot "src/QueenZone.Web/QueenZone.Web.csproj") `
+        & dotnet publish (Join-Path $repoRoot "tests/QueenZone.TestHost/QueenZone.TestHost.csproj") `
             --configuration $Configuration `
             --output $publishDir
         if ($LASTEXITCODE -ne 0) {
             throw "dotnet publish failed with exit code $LASTEXITCODE"
         }
 
-        $exe = Join-Path $publishDir "QueenZone.Web.exe"
+        $exe = Join-Path $publishDir "QueenZone.TestHost.exe"
         if (-not (Test-Path $exe)) {
-            $exe = Join-Path $publishDir "QueenZone.Web"
+            $exe = Join-Path $publishDir "QueenZone.TestHost"
         }
         if (-not (Test-Path $exe)) {
             throw "Published app binary not found under $publishDir"

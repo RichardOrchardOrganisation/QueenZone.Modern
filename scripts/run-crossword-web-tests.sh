@@ -4,9 +4,9 @@
 set -euo pipefail
 qz_repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$qz_repo_root"
-qz_publish_dir="${QZ_CROSSWORD_PUBLISH_DIR:?Set QZ_CROSSWORD_PUBLISH_DIR to the licensed published Web output}"
-if [[ ! -f "$qz_publish_dir/QueenZone.Web.dll" ]]; then
-  echo "Published QueenZone.Web.dll was not found." >&2
+qz_publish_dir="${QZ_CROSSWORD_PUBLISH_DIR:?Set QZ_CROSSWORD_PUBLISH_DIR to the licensed published QueenZone.TestHost output}"
+if [[ ! -f "$qz_publish_dir/QueenZone.TestHost.dll" ]]; then
+  echo "Published QueenZone.TestHost.dll was not found." >&2
   exit 2
 fi
 qz_run_dir="$(mktemp -d /tmp/queenzone-crossword-browser.XXXXXX)"
@@ -15,7 +15,7 @@ unset ConnectionStrings__QueenZoneLegacy ConnectionStrings__BlobStorage Connecti
 unset QUEENZONE_MOBILE_CONTRACT_HOST QUEENZONE_MOBILE_CONTRACT_FIXTURE || true
 export ASPNETCORE_ENVIRONMENT=Testing ASPNETCORE_URLS=http://127.0.0.1:0
 export CROSSWORDBROWSERFIXTURE__ENABLED=true
-ASPNETCORE_CONTENTROOT="$qz_publish_dir" dotnet "$qz_publish_dir/QueenZone.Web.dll" >"$qz_host_log" 2>&1 &
+ASPNETCORE_CONTENTROOT="$qz_publish_dir" dotnet "$qz_publish_dir/QueenZone.TestHost.dll" >"$qz_host_log" 2>&1 &
 qz_host_pid=$!
 trap 'kill "$qz_host_pid" 2>/dev/null || true; wait "$qz_host_pid" 2>/dev/null || true' EXIT
 export E2E_BASE_URL=""

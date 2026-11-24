@@ -5,13 +5,13 @@ import { test } from 'node:test';
 import { spawnPwsh } from './test-helpers/pwsh.mjs';
 
 const workspace = '/tmp/qz runner.1';
-const app = `${workspace}/e2e-app/QueenZone.Web.dll`;
+const app = `${workspace}/e2e-app/QueenZone.TestHost.dll`;
 const commands = [
   [`dotnet ${app}`, true],
   [`/opt/sdk/dotnet "${app}"`, true],
   ['dotnet test tests/QueenZone.Web.Tests/QueenZone.Web.Tests.csproj', false],
   ['dotnet vstest /tmp/QueenZone.Web.E2E.dll', false],
-  ['dotnet /tmp/another-checkout/e2e-app/QueenZone.Web.dll', false],
+  ['dotnet /tmp/another-checkout/e2e-app/QueenZone.TestHost.dll', false],
   [`dotnet ${app}.backup`, false],
 ];
 

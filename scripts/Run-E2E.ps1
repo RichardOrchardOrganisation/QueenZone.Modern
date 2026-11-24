@@ -90,7 +90,7 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $repoRoot
 
 $e2eProject = "tests/QueenZone.Web.E2E/QueenZone.Web.E2E.csproj"
-$webProject = "src/QueenZone.Web/QueenZone.Web.csproj"
+$webProject = "tests/QueenZone.TestHost/QueenZone.TestHost.csproj"
 $publishDir = Join-Path $repoRoot "e2e-app"
 $logPath = Join-Path $repoRoot "e2e-app.log"
 $errPath = Join-Path $repoRoot "e2e-app.err.log"
@@ -180,12 +180,12 @@ function Assert-DeployedAuthTargetRequireDevUrl {
 
 # Scope Mac cleanup to the published DLL in this checkout. A broad name match
 # also matches Web.Tests/E2E command lines and kills unrelated verification.
-$macAppPath = [regex]::Escape((Join-Path $repoRoot "e2e-app/QueenZone.Web.dll"))
+$macAppPath = [regex]::Escape((Join-Path $repoRoot "e2e-app/QueenZone.TestHost.dll"))
 $macAppPattern = '(^|/)dotnet[[:space:]]+"?' + $macAppPath + '"?$'
 
 function Stop-StrayQueenZoneWeb {
     if (Test-IsWindowsOS) {
-        Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue |
+        Get-Process -Name "QueenZone.TestHost" -ErrorAction SilentlyContinue |
             Stop-Process -Force -ErrorAction SilentlyContinue
         return
     }
@@ -197,7 +197,7 @@ function Stop-StrayQueenZoneWeb {
     }
 
     Get-Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.ProcessName -like "*QueenZone.Web*" } |
+        Where-Object { $_.ProcessName -like "*QueenZone.TestHost*" } |
         Stop-Process -Force -ErrorAction SilentlyContinue
 }
 
@@ -269,7 +269,7 @@ function Start-AppWindows {
     # Start-Process makes the app a child of this process / CI step Job Object and it can be
     # killed when the step ends. Launch via WMI so it survives across CI steps and matches the
     # hard-won behaviour previously inline in ci.yml.
-    $exePath = Join-Path $AppDir "QueenZone.Web.exe"
+    $exePath = Join-Path $AppDir "QueenZone.TestHost.exe"
     if (-not (Test-Path $exePath)) {
         throw "Published app not found: $exePath"
     }
@@ -301,7 +301,7 @@ function Start-AppWindows {
     $script:CmdPid = [int]$result.ProcessId
     $script:CmdPid | Out-File -Encoding ascii $cmdPidFile
 
-    # $CmdPid is cmd.exe's PID, not QueenZone.Web.exe's. Find the real child so Stop can
+    # $CmdPid is cmd.exe's PID, not QueenZone.TestHost.exe's. Find the real child so Stop can
     # target the actual listener.
     $appPid = $script:CmdPid
     for ($i = 1; $i -le 10; $i++) {
@@ -317,7 +317,7 @@ function Start-AppWindows {
     $script:AppPid = $appPid
     $script:AppPid | Out-File -Encoding ascii $appPidFile
     $script:StartedApp = $true
-    Write-Information -InformationAction Continue "Started app: cmd.exe PID $($script:CmdPid), QueenZone.Web.exe PID $($script:AppPid)"
+    Write-Information -InformationAction Continue "Started app: cmd.exe PID $($script:CmdPid), QueenZone.TestHost.exe PID $($script:AppPid)"
 }
 
 function Start-AppMacOS {
@@ -331,7 +331,7 @@ function Start-AppMacOS {
     # Launch the framework-dependent DLL through dotnet on PATH. The native app host only
     # searches DOTNET_ROOT and standard install locations, so it cannot find SDKs installed in
     # a user-local or tool-managed directory even when `dotnet` works.
-    $dllPath = Join-Path $AppDir "QueenZone.Web.dll"
+    $dllPath = Join-Path $AppDir "QueenZone.TestHost.dll"
     if (-not (Test-Path $dllPath)) {
         throw "Published app not found: $dllPath"
     }
@@ -371,7 +371,7 @@ function Start-AppMacOS {
     $script:AppPid = [int]$proc.Id
     $script:AppPid | Out-File -Encoding ascii $appPidFile
     $script:StartedApp = $true
-    Write-Information -InformationAction Continue "Started app via dotnet: QueenZone.Web.dll PID $($script:AppPid)"
+    Write-Information -InformationAction Continue "Started app via dotnet: QueenZone.TestHost.dll PID $($script:AppPid)"
 }
 
 function Save-MacAppLogs {
@@ -409,8 +409,8 @@ function Save-MacAppLogs {
 function Wait-StartedAppStopped {
     if (Test-IsWindowsOS) {
         for ($i = 1; $i -le 15; $i++) {
-            if (-not (Get-Process -Name "QueenZone.Web" -ErrorAction SilentlyContinue)) {
-                Write-Information -InformationAction Continue "QueenZone.Web.exe confirmed stopped"
+            if (-not (Get-Process -Name "QueenZone.TestHost" -ErrorAction SilentlyContinue)) {
+                Write-Information -InformationAction Continue "QueenZone.TestHost.exe confirmed stopped"
                 break
             }
             Start-Sleep -Milliseconds 500
@@ -447,7 +447,7 @@ function Stop-StartedApp {
     }
 
     # Belt-and-suspenders: Start can fall back to cmd.exe's PID if child lookup misses the
-    # real QueenZone.Web.exe, which orphans it. An orphaned QueenZone.Web.exe keeps its own
+    # real QueenZone.TestHost.exe, which orphans it. An orphaned QueenZone.TestHost.exe keeps its own
     # exe locked and breaks the *next* CI checkout with EPERM unlink. Kill by image name too.
     Stop-StrayQueenZoneWeb
 
