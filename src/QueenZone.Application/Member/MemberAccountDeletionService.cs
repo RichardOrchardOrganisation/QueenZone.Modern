@@ -1,13 +1,13 @@
 using QueenZone.Data;
 using QueenZone.Storage;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 public sealed class MemberAccountDeletionService(
     IMemberAccountRepository memberAccountRepository,
     IBlobUploadService blobUploadService,
     TimeProvider timeProvider,
-    AppleAccountTokenService? appleTokens,
+    IAppleTokenRevoker? appleTokens,
     ILogger<MemberAccountDeletionService> logger,
     IEmailSender? emailSender)
 {

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QueenZone.Application;
 using QueenZone.Data;
-using QueenZone.Web;
 
 // Regex reads REGEX_DEFAULT_MATCH_TIMEOUT once in its static constructor.
 RegexDefaults.ApplyProcessDefault();
@@ -33,5 +33,5 @@ services.AddLogging(builder => builder.AddSimpleConsole(console =>
 // Retention and sweep jobs moved off the public web process (#1677).
 services.AddQueenZoneMaintenanceWorker(configuration);
 
-await using var provider = services.BuildServiceProvider();
+await using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 return await provider.GetRequiredService<MaintenanceJobRunner>().RunAsync(options.Jobs);

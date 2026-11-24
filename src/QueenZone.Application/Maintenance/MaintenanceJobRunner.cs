@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 /// <summary>
 /// Runs the selected <see cref="MaintenanceJobs"/> once, each in its own DI scope. A failing job

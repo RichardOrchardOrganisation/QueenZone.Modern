@@ -567,6 +567,12 @@ jobs:
           dotnet build QueenZone.sln --configuration Release --no-restore \
             /p:OverrideGitCommitShort="$SHORT"
 
+      - name: Maintenance worker sample-data smoke
+        env:
+          ConnectionStrings__QueenZoneLegacy: ''
+          ConnectionStrings__BlobStorage: ''
+        run: dotnet run --project src/QueenZone.Maintenance.Worker --configuration Release --no-build -- run-jobs all
+
       # Sharded test jobs download these outputs and run `dotnet test --no-build`
       # so we do not pay a second full compile on each matrix leg.
       # WAF hosts need QueenZone.Web compressed static-web-asset intermediates

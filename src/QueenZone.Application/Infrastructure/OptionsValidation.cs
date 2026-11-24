@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 internal static class OptionsValidation
 {

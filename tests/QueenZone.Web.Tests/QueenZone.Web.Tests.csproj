@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Using Include="QueenZone.Application" />
     <PackageReference Include="AngleSharp" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="CsCheck" />

@@ -15,7 +15,7 @@ The gallery orphan sweep lists every blob in every gallery container and compare
 | Private-message report purge | `private-message-report-purge` | Deletes reports 180 days after a terminal status (ADR 0015) | 24 hours |
 | Fan-performance submission purge | `fan-performance-submission-purge` | Deletes pending audio for Rejected/Withdrawn submissions after 30 days | 24 hours |
 
-`six-hourly` runs the first two, `daily` the last two, and `all` runs all four. The job classes are unchanged: the worker and the web hosted services both call `MaintenanceJobs` (`src/QueenZone.Web/Maintenance/MaintenanceJobs.cs`), which calls the existing purge and sweep services.
+`six-hourly` runs the first two, `daily` the last two, and `all` runs all four. The jobs live in the ASP.NET-free `QueenZone.Application` library (#2439): the worker and the web hosted services both call `MaintenanceJobs` (`src/QueenZone.Application/Maintenance/MaintenanceJobs.cs`), which calls the existing purge and sweep services.
 
 Each job runs in its own DI scope. A failing job is logged and the remaining jobs still run. The exit code is `1` when any job failed, so Task Scheduler shows the run as failed.
 
@@ -91,3 +91,5 @@ When the machine is off, jobs wait until it is back (`-StartWhenAvailable` runs 
 - `member-account-deletion.md` — account deletion and receipts
 - `blob-storage-ugc.md` — gallery blob layout
 - `docs/decisions/0015-private-message-report-retention-and-audit.md` — report retention
+
+Both hosts call `AddQueenZoneApplication()`. Web supplies `IAppleTokenRevoker` through `AppleAccountTokenService` and `IEmailSender` through `SmtpEmailSender`. The worker leaves Apple revocation queued for Web and does not send deletion-request emails. Hosted timers, authentication, and SMTP transport remain in Web. Architecture and validated-host composition tests run in `QueenZone.Web.Tests`; the CI build also executes all worker jobs against sample data.

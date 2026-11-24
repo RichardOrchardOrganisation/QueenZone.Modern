@@ -2,7 +2,7 @@ using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using QueenZone.Data;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 /// <summary>
 /// Retention and cleanup jobs. Production runs them from <c>QueenZone.Maintenance.Worker</c> on

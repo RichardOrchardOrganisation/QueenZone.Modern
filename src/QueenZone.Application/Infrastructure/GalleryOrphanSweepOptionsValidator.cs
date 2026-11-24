@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Options;
 
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 public sealed class GalleryOrphanSweepOptionsValidator : IValidateOptions<GalleryOrphanSweepOptions>
 {

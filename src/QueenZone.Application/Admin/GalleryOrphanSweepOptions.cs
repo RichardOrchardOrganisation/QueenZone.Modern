@@ -1,4 +1,4 @@
-namespace QueenZone.Web;
+namespace QueenZone.Application;
 
 /// <summary>
 /// Defense-in-depth periodic sweep for gallery blobs left behind by the narrow crash window
