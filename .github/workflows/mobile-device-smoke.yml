@@ -576,7 +576,7 @@ jobs:
             rm -rf src/QueenZone.Mobile/maestro-results-ios-driver-first
             mkdir -p src/QueenZone.Mobile/maestro-results-ios-driver-first
             cp -a src/QueenZone.Mobile/maestro-results/. src/QueenZone.Mobile/maestro-results-ios-driver-first/
-            rm -rf src/QueenZone.Mobile/maestro-results
+            rm -rf src/QueenZone.Mobile/maestro-results/
             mkdir -p src/QueenZone.Mobile/maestro-results
           else
             echo "retry=false" >> "$GITHUB_OUTPUT"

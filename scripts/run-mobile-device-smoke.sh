@@ -405,8 +405,7 @@ android_app_crashed() {
 ios_driver_timeout_re="iOS driver not ready in time"
 
 ios_driver_failed_before_flow() {
-  local dir="${1:-$results_dir}"
-  [[ ! -s "$dir/junit.xml" ]] \
+  [[ ! -s "$results_dir/junit.xml" ]] \
     && [[ -f "$maestro_console_log" ]] \
     && grep -q "$ios_driver_timeout_re" "$maestro_console_log"
 }
