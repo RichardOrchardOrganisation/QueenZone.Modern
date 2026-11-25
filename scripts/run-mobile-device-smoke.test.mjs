@@ -149,3 +149,119 @@ run_maestro_once
     'maestro_invocation=2 phase=end exit=0',
   ]);
 });
+
+const maestroDriverTimeoutLine =
+  'iOS driver not ready in time, consider increasing timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT env variable';
+
+test('iOS driver timeout matcher uses the real Maestro console text', () => {
+  const fn = extractFunction('ios_driver_failed_before_flow');
+  assert.match(script, /ios_driver_timeout_re="iOS driver not ready in time"/);
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-ios-driver-'));
+  writeFileSync(path.join(dir, 'maestro-console.log'), `${maestroDriverTimeoutLine}\n`);
+  const hit = bash(`set -euo pipefail; results_dir="${dir}"; maestro_console_log="${dir}/maestro-console.log"; ios_driver_timeout_re="iOS driver not ready in time"; ${fn}\nios_driver_failed_before_flow`);
+  assert.equal(hit.status, 0, hit.stderr);
+  writeFileSync(path.join(dir, 'junit.xml'), '<testsuite><testcase name="a"></testcase></testsuite>');
+  const miss = bash(`set -euo pipefail; results_dir="${dir}"; maestro_console_log="${dir}/maestro-console.log"; ios_driver_timeout_re="iOS driver not ready in time"; ${fn}\nios_driver_failed_before_flow`);
+  assert.equal(miss.status, 1);
+});
+
+test('ios leftover driver matcher is Maestro/XCTest specific', () => {
+  const fn = extractFunction('ios_driver_process_is_leftover');
+  const run = (args, udid = 'AAAA') => bash(`set -euo pipefail; ${fn}\nios_driver_process_is_leftover ${JSON.stringify(args)} "${udid}"`);
+  assert.equal(run('xcodebuild test-without-building -destination id=AAAA maestro-ios-driver').status, 0);
+  assert.equal(run('xcuitest.installer.LocalXCTestInstaller').status, 0);
+  assert.equal(run('xcodebuild -workspace QueenZone.xcworkspace -scheme QueenZone').status, 1);
+  assert.equal(run('xcodebuild -destination id=AAAA build', 'AAAA').status, 0);
+});
+
+test('write_ios_driver_marker is infra and not a selector miss', () => {
+  const fns = ['ios_sim_state', 'write_ios_driver_marker'].map(extractFunction).join('\n');
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-ios-marker-'));
+  const summary = path.join(dir, 'summary.md');
+  const bin = fakeBin({
+    xcrun: 'echo "    QueenZone-CI-iOS (AAAA-BBBB) (Booted)"',
+  });
+  const r = bash(`set -euo pipefail; PATH="${bin}:$PATH"; results_dir="${dir}"; IOS_SIM_UDID="AAAA-BBBB"; GITHUB_STEP_SUMMARY="${summary}"; ${fns}\nwrite_ios_driver_marker "driver-timeout-first"`);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /infra: iOS smoke driver_failure: driver-timeout-first/);
+  assert.doesNotMatch(r.stderr, /selector or assertion miss/);
+  const marker = readFileSync(path.join(dir, 'ios-driver-failure'), 'utf8');
+  assert.match(marker, /^class=ios_driver_failure$/m);
+  assert.match(marker, /^reason=driver-timeout-first$/m);
+  assert.match(marker, /^sim_state=Booted$/m);
+  assert.match(readFileSync(summary, 'utf8'), /### infra: iOS smoke driver startup failure/);
+});
+
+function iosRecoverHarness(simState, { shutdownNoop = false } = {}) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-ios-recover-'));
+  writeFileSync(path.join(dir, 'sim-state'), simState);
+  const bin = fakeBin({
+    xcrun: `
+echo "$*" >> "${dir}/xcrun-args"
+case "$*" in
+  "simctl list devices")
+    echo "    QueenZone-CI-iOS (AAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE) ($(cat "${dir}/sim-state"))"
+    ;;
+  simctl\\ shutdown\\ *)
+    if [ "${shutdownNoop ? '1' : '0'}" = "1" ]; then
+      echo "shutdown ignored"
+      exit 0
+    fi
+    echo Shutdown > "${dir}/sim-state"
+    ;;
+  simctl\\ boot\\ *)
+    echo Booted > "${dir}/sim-state"
+    ;;
+  simctl\\ bootstatus\\ *)
+    if grep -q Booted "${dir}/sim-state"; then
+      echo "Device already booted, nothing to do."
+    fi
+    ;;
+  *)
+    echo "unexpected xcrun $*" >&2
+    exit 3
+    ;;
+esac
+`,
+  });
+  const fns = ['ios_sim_state', 'wait_ios_sim_shutdown', 'recover_ios_simulator_for_driver_retry'].map(extractFunction).join('\n');
+  const run = () => bash(`set -euo pipefail; PATH="${bin}:$PATH"; QZ_IOS_SHUTDOWN_WAIT_SECONDS=1; kill_leftover_ios_driver_processes(){ echo killed-leftover; }; ${fns}\nrecover_ios_simulator_for_driver_retry "AAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"`);
+  return { dir, run };
+}
+
+test('iOS driver recover boots only after simctl reports Shutdown', () => {
+  const s = iosRecoverHarness('Booted');
+  const r = s.run();
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /killed-leftover/);
+  assert.match(r.stdout, /reached Shutdown/);
+  const args = readFileSync(path.join(s.dir, 'xcrun-args'), 'utf8');
+  assert.match(args, /simctl shutdown AAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
+  assert.match(args, /simctl boot AAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
+  assert.match(args, /simctl bootstatus AAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE -b/);
+  assert.ok(args.indexOf('simctl shutdown') < args.indexOf('simctl boot'));
+});
+
+test('iOS driver recover refuses attempt 2 on a leftover Booted Simulator', () => {
+  const s = iosRecoverHarness('Booted', { shutdownNoop: true });
+  const r = s.run();
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stderr, /Not starting Maestro attempt 2 on a leftover Booted Simulator/);
+  const args = readFileSync(path.join(s.dir, 'xcrun-args'), 'utf8');
+  assert.match(args, /simctl shutdown/);
+  assert.doesNotMatch(args, /simctl boot /);
+  assert.doesNotMatch(args, /already booted/);
+});
+
+test('iOS driver timeout is classified as infra instead of selector_miss', () => {
+  assert.match(script, /android_failure_class="ios_driver_failure"/);
+  assert.match(script, /The XCTest driver never started; this is not a selector or assertion miss/);
+  assert.match(script, /infra: iOS smoke driver startup failure/);
+  assert.match(script, /MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000/);
+  assert.match(script, /recover_ios_simulator_for_driver_retry/);
+  assert.match(script, /write_ios_driver_marker "driver-timeout-first"/);
+  assert.match(script, /write_ios_driver_marker "shutdown-still-booted"/);
+  const driver = script.indexOf('android_failure_class="ios_driver_failure"');
+  const selector = script.lastIndexOf('Maestro failing cause: selector or assertion miss');
+  assert.ok(driver !== -1 && selector !== -1 && driver < selector);
+});

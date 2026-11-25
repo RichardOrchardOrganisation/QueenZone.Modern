@@ -30,7 +30,11 @@
 # Android smoke CI recreates an isolated AVD on that one outer retry (#1454);
 # this script does not add a third attempt. A wedged `adb start-server` is
 # hard-capped (~45s) so the step fails instead of hanging until the 90m job
-# cancel (#1529).
+# cancel (#1529). An iOS "iOS driver not ready in time" with no JUnit is
+# infra (ios-driver-failure), not a selector miss (#2550). In-process retry
+# kills leftover xcodebuild/Maestro XCTest processes and waits until simctl
+# reports Shutdown before booting; it never starts attempt 2 on a leftover
+# Booted Simulator. CI may then retry the job once on a fresh Simulator.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -396,6 +400,134 @@ android_app_crashed() {
   [[ -f "$results_dir/android-app-crash" ]]
 }
 
+# Maestro console text from LocalXCTestInstaller.IOSDriverTimeoutException
+# (run 45415391573). A missing/empty JUnit file means no app flow began.
+ios_driver_timeout_re="iOS driver not ready in time"
+
+ios_driver_failed_before_flow() {
+  local dir="${1:-$results_dir}"
+  [[ ! -s "$dir/junit.xml" ]] \
+    && [[ -f "$maestro_console_log" ]] \
+    && grep -q "$ios_driver_timeout_re" "$maestro_console_log"
+}
+
+ios_sim_state() {
+  local udid="$1" line
+  [[ -n "$udid" ]] || { echo unknown; return 0; }
+  line="$(xcrun simctl list devices 2>/dev/null | grep -F "$udid" | head -n 1 || true)"
+  case "$line" in
+    *"(Booted)"*) echo Booted ;;
+    *"(Shutdown)"*) echo Shutdown ;;
+    *"(Shutting Down)"*) echo "Shutting Down" ;;
+    *"(Booting)"*) echo Booting ;;
+    *"(Creating)"*) echo Creating ;;
+    *) echo unknown ;;
+  esac
+}
+
+wait_ios_sim_shutdown() {
+  local udid="$1"
+  local waits="${QZ_IOS_SHUTDOWN_WAIT_SECONDS:-30}"
+  local i state
+  for i in $(seq 1 "$waits"); do
+    state="$(ios_sim_state "$udid")"
+    if [[ "$state" == "Shutdown" ]]; then
+      echo "Simulator $udid reached Shutdown after ${i}s."
+      return 0
+    fi
+    sleep 1
+  done
+  echo "Timed out waiting for Simulator $udid to leave $(ios_sim_state "$udid") after ${waits}s." >&2
+  return 1
+}
+
+ios_driver_process_is_leftover() {
+  local args="$1" udid="${2:-}"
+  case "$args" in
+    *maestro*|*Maestro*|*xcuitest*|*XCTest*|*maestro-ios*)
+      return 0
+      ;;
+  esac
+  if [[ -n "$udid" && "$args" == *xcodebuild* && "$args" == *"$udid"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+kill_leftover_ios_driver_processes() {
+  local udid="${1:-}"
+  local pids pid args
+  if [[ -n "${QZ_IOS_DRIVER_PIDS:-}" ]]; then
+    pids="${QZ_IOS_DRIVER_PIDS}"
+  else
+    pids="$(pgrep -f 'xcodebuild|maestro-ios|XCTest' 2>/dev/null || true)"
+  fi
+  for pid in $pids; do
+    [[ "$pid" == "$$" || "$pid" == "$PPID" ]] && continue
+    args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+    [[ -n "$args" ]] || continue
+    if ios_driver_process_is_leftover "$args" "$udid"; then
+      echo "Killing leftover iOS driver process $pid: $args"
+      kill -TERM "$pid" 2>/dev/null || true
+    fi
+  done
+  local _
+  for _ in 1 2 3; do
+    sleep 1
+    for pid in $pids; do
+      [[ "$pid" == "$$" || "$pid" == "$PPID" ]] && continue
+      kill -0 "$pid" 2>/dev/null || continue
+      args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+      if ios_driver_process_is_leftover "$args" "$udid"; then
+        kill -KILL "$pid" 2>/dev/null || true
+      fi
+    done
+  done
+}
+
+write_ios_driver_marker() {
+  local reason="${1:-driver-not-ready}"
+  mkdir -p "$results_dir"
+  {
+    echo "class=ios_driver_failure"
+    echo "reason=$reason"
+    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "udid=${IOS_SIM_UDID:-}"
+    echo "sim_state=$(ios_sim_state "${IOS_SIM_UDID:-}")"
+  } > "$results_dir/ios-driver-failure"
+  echo "infra: iOS smoke driver_failure: ${reason}" >&2
+  echo "android_failure_class=ios_driver_failure reason=$reason" >> "$results_dir/harness.log"
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    {
+      echo "### infra: iOS smoke driver startup failure"
+      echo
+      echo "${reason}"
+    } >> "$GITHUB_STEP_SUMMARY"
+  fi
+}
+
+# Kill leftover xcodebuild/Maestro XCTest processes, wait until simctl reports
+# Shutdown, then boot. Return 1 instead of booting a leftover Booted device
+# (run 45415391573: bootstatus said "already booted" while xcodebuild held it).
+recover_ios_simulator_for_driver_retry() {
+  local udid="${1:-}"
+  if [[ -z "$udid" ]]; then
+    echo "No IOS_SIM_UDID; cannot recover the Simulator for an iOS driver retry." >&2
+    return 1
+  fi
+  echo "Stopping leftover Maestro/XCTest driver processes before Simulator shutdown."
+  kill_leftover_ios_driver_processes "$udid"
+  echo "Shutting down Simulator $udid after iOS driver timeout."
+  xcrun simctl shutdown "$udid" || true
+  if ! wait_ios_sim_shutdown "$udid"; then
+    echo "Simulator $udid did not reach Shutdown (state=$(ios_sim_state "$udid")). Not starting Maestro attempt 2 on a leftover Booted Simulator." >&2
+    return 1
+  fi
+  echo "Simulator $udid is Shutdown; booting a clean Simulator for driver retry."
+  xcrun simctl boot "$udid"
+  xcrun simctl bootstatus "$udid" -b
+}
+
 write_android_transport_marker() {
   local reason="${1:-device-server-or-emulator-transport-loss}"
   local qemu_state="missing"
@@ -594,7 +726,8 @@ rm -f "$results_dir/android-transport-death" \
   "$results_dir/android-app-crash-frames.txt" \
   "$results_dir/android-app-crash-summary.md" \
   "$results_dir/logcat-crash.txt" \
-  "$results_dir/tombstone"
+  "$results_dir/tombstone" \
+  "$results_dir/ios-driver-failure"
 {
   echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "platform=$platform"
@@ -722,7 +855,8 @@ trap cleanup EXIT
 
 # Put the failure signature where a reviewer looks first, so repeat offenders
 # are visible across runs without downloading artifacts (testing-policy rule 7).
-# The class is the harness's own: APP_CRASH, transport_death, selector_miss.
+# The class is the harness's own: APP_CRASH, transport_death,
+# ios_driver_failure, selector_miss.
 write_failure_summary() {
   local summary_platform="$1" summary_suite="$2" failure_class="$3" signature="$4"
   [[ -n "${GITHUB_STEP_SUMMARY:-}" ]] || return 0
@@ -1131,6 +1265,10 @@ elif [[ "$suite" = "proof" ]]; then
 fi
 
 # bash 3.2 (macOS) treats "${arr[*]}" on an empty array as unbound under set -u.
+if [[ "$platform" = "ios" ]]; then
+  export MAESTRO_DRIVER_STARTUP_TIMEOUT="${MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000}"
+  echo "MAESTRO_DRIVER_STARTUP_TIMEOUT=$MAESTRO_DRIVER_STARTUP_TIMEOUT" >> "$results_dir/harness.log"
+fi
 echo "Running Maestro ($flow${proof_flows[*]+ ${proof_flows[*]}}). Selector and assertion failures are not retried."
 maestro_args=()
 if [[ "$platform" = "ios" ]] && [[ -n "${IOS_SIM_UDID:-}" ]]; then
@@ -1290,28 +1428,43 @@ fi
 
 # Hosted macOS occasionally exits Maestro's xcodebuild driver process before
 # XCTest starts listening. Run 34061996744 failed this way, while the same
-# Maestro/Xcode/Simulator combination started successfully hours earlier. A
-# missing JUnit file proves no app flow began. Reboot the Simulator and retry
-# only that infrastructure startup; assertion and in-flow failures stay
-# single-attempt.
+# Maestro/Xcode/Simulator combination started successfully hours earlier.
+# Run 45415391573 timed out on both invocations: simctl shutdown did not
+# reach Shutdown because leftover xcodebuild still held the Simulator, then
+# bootstatus said "already booted". A missing JUnit file proves no app flow
+# began. Recover (kill leftover driver, wait for Shutdown, then boot) and
+# retry only that infrastructure startup; assertion and in-flow failures stay
+# single-attempt. Never start attempt 2 on a leftover Booted Simulator.
 if [[ "$platform" = "ios" ]] \
   && [[ "$maestro_status" -ne 0 ]] \
-  && [[ ! -s "$results_dir/junit.xml" ]] \
-  && grep -q "iOS driver not ready in time" "$maestro_console_log"; then
-  echo "Maestro iOS driver failed before any flow began; rebooting the Simulator and retrying driver startup once."
+  && ios_driver_failed_before_flow; then
+  echo "Maestro iOS driver failed before any flow began; recovering the Simulator and retrying driver startup once."
+  write_ios_driver_marker "driver-timeout-first"
   if [[ -d "$results_dir/debug" ]]; then
     mv "$results_dir/debug" "$results_dir/debug-driver-startup-first"
   fi
   retry_udid="${IOS_SIM_UDID:-$(xcrun simctl list devices booted | grep -oE '[0-9A-F-]{36}' | head -n 1)}"
-  if [[ -n "$retry_udid" ]]; then
-    xcrun simctl shutdown "$retry_udid" || true
-    xcrun simctl boot "$retry_udid"
-    xcrun simctl bootstatus "$retry_udid" -b
-  fi
   set +e
-  run_maestro_once
-  maestro_status=$?
+  recover_ios_simulator_for_driver_retry "$retry_udid"
+  recover_status=$?
   set -e
+  if [[ "$recover_status" -ne 0 ]]; then
+    echo "infra: Simulator recover failed after iOS driver timeout; a fresh-simulator job retry is required." >&2
+    write_ios_driver_marker "shutdown-still-booted"
+  else
+    set +e
+    run_maestro_once
+    maestro_status=$?
+    set -e
+    if [[ "$maestro_status" -eq 0 ]]; then
+      rm -f "$results_dir/ios-driver-failure"
+      echo "ios_failure_class=recovered_after_driver_timeout" >> "$results_dir/harness.log"
+    elif ios_driver_failed_before_flow; then
+      write_ios_driver_marker "driver-timeout-retry"
+    else
+      rm -f "$results_dir/ios-driver-failure"
+    fi
+  fi
 fi
 
 write_proof_bundle() {
@@ -1390,6 +1543,15 @@ if [[ "$maestro_status" -ne 0 ]]; then
     android_failure_class="transport_death"
     echo "Maestro failing cause: Android device transport death" >&2
     echo "A hierarchy timeout or dead emulator is not a selector miss." >&2
+  elif [[ "$platform" = "ios" ]] \
+    && { [[ -f "$results_dir/ios-driver-failure" ]] || ios_driver_failed_before_flow; }; then
+    android_failure_class="ios_driver_failure"
+    echo "Maestro failing cause: iOS driver startup timeout" >&2
+    echo "The XCTest driver never started; this is not a selector or assertion miss." >&2
+    echo "infra: iOS smoke driver startup failure" >&2
+    if [[ ! -f "$results_dir/ios-driver-failure" ]]; then
+      write_ios_driver_marker "driver-timeout-unrecovered"
+    fi
   else
     echo "Maestro failing cause: selector or assertion miss" >&2
   fi

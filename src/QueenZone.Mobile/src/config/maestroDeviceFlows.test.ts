@@ -449,12 +449,28 @@ describe('device-smoke harness (#1281)', () => {
 
   it('retries only an iOS driver failure that happened before a flow began', () => {
     const script = readRepo('run-mobile-device-smoke.sh', scriptsDir);
+    const workflow = readRepo('mobile-device-smoke.yml', workflowsDir);
+    const smokeJob = workflow.slice(
+      workflow.indexOf('  mobile-ios-smoke:'),
+      workflow.indexOf('  mobile-android-journeys:'),
+    );
     assert.match(script, /iOS driver not ready in time/);
-    assert.match(script, /\[\[ ! -s "\$results_dir\/junit\.xml" \]\]/);
+    assert.match(script, /ios_driver_failed_before_flow/);
+    assert.match(script, /\[\[ ! -s "\$dir\/junit\.xml" \]\]/);
+    assert.match(script, /recover_ios_simulator_for_driver_retry/);
+    assert.match(script, /kill_leftover_ios_driver_processes/);
+    assert.match(script, /wait_ios_sim_shutdown/);
+    assert.match(script, /Not starting Maestro attempt 2 on a leftover Booted Simulator/);
+    assert.match(script, /ios-driver-failure/);
+    assert.match(script, /MAESTRO_DRIVER_STARTUP_TIMEOUT:-240000/);
     assert.match(script, /simctl shutdown/);
     assert.match(script, /simctl bootstatus/);
     assert.match(script, /debug-driver-startup-first/);
     assert.match(script, /Selector and assertion failures are not retried/);
+    assert.match(smokeJob, /Retry iOS device smoke after infra failure/);
+    assert.match(smokeJob, /MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"/);
+    assert.match(smokeJob, /ios-driver-failure/);
+    assert.match(smokeJob, /IOS_CI_SIM_NAME_SUFFIX: "-retry"/);
   });
 
   it('retries only an Android device transport failure', () => {
@@ -513,7 +529,7 @@ describe('device-smoke harness (#1281)', () => {
     );
     assert.equal(
       (workflow.match(/rm -rf src\/QueenZone\.Mobile\/maestro-results\r?\n/g) ?? []).length,
-      2,
+      3,
     );
     assert.match(script, /rm -f "\$results_dir\/android-transport-death"/);
     const clearMarker = script.indexOf('rm -f "$results_dir/android-transport-death"');
