@@ -91,6 +91,46 @@ test('device smoke iOS jobs stay non-required soak jobs', () => {
   assert.doesNotMatch(smoke, /required-on-main/);
 });
 
+test('iOS smoke retries driver-startup infra failures once and does not retry selector misses', () => {
+  const classify = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Classify iOS smoke infra retry'),
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry'),
+  );
+  const recreate = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry'),
+    iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+  );
+  const retry = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+    iosSmoke.indexOf('- name: Delete job iPhone Simulator'),
+  );
+  const fail = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Fail iOS smoke after unrecovered failure'),
+  );
+  assert.match(classify, /ios-driver-failure/);
+  assert.match(classify, /infra: First iOS smoke attempt failed because the Maestro XCTest driver did not start/);
+  assert.ok(classify.indexOf('ios-driver-failure') < classify.indexOf('attempt was a selector or assertion miss'));
+  assert.match(iosSmoke, /Retry iOS device smoke after infra failure/);
+  assert.equal((iosSmoke.match(/Retry iOS device smoke after infra failure/g) ?? []).length, 1);
+  assert.match(iosSmoke, /MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"/);
+  assert.match(iosJourneys, /MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"/);
+  assert.match(recreate, /ios-ci-simulator\.sh cleanup/);
+  assert.match(recreate, /ios-ci-simulator\.sh create/);
+  assert.match(recreate, /IOS_CI_SIM_NAME_SUFFIX: "-retry"/);
+  assert.doesNotMatch(retry, /ios-ci-simulator\.sh/);
+  assert.doesNotMatch(retry, /IOS_CI_SIM_NAME_SUFFIX/);
+  assert.ok(
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry') <
+      iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+  );
+  assert.match(iosSmoke, /continue-on-error: true/);
+  assert.match(fail, /Maestro XCTest driver did not start in time/);
+  const marker = fail.indexOf('ios-driver-failure');
+  const selector = fail.indexOf('::error::iOS smoke failed on a selector or assertion miss.');
+  assert.ok(marker !== -1 && selector !== -1);
+  assert.ok(marker < selector);
+});
+
 test('Android smoke retries image/AVD/boot infra failures once and does not retry selector misses', () => {
   const classify = androidSmoke.slice(
     androidSmoke.indexOf('- name: Classify Android smoke infra retry'),

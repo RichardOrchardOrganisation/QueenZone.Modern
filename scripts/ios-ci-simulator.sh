@@ -23,8 +23,35 @@ if [[ "${cmd}" == "cleanup" ]]; then
     echo "IOS_SIM_UDID is empty; nothing to clean up."
     exit 0
   fi
+  # Maestro's XCTest installer can hold the Simulator after a driver timeout
+  # (run 45415391573). simctl shutdown then appears to succeed while the
+  # device stays Booted, and bootstatus says "already booted".
+  echo "Stopping leftover Maestro/XCTest driver processes for ${udid}"
+  pids="$(pgrep -f 'xcodebuild|maestro-ios|XCTest' 2>/dev/null || true)"
+  for pid in $pids; do
+    args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+    case "$args" in
+      *"${udid}"*)
+        case "$args" in
+          *xcodebuild*|*maestro*|*Maestro*|*xcuitest*|*XCTest*)
+            echo "Killing leftover iOS driver process ${pid}"
+            kill -TERM "$pid" 2>/dev/null || true
+            ;;
+        esac
+        ;;
+    esac
+  done
   echo "Shutting down and deleting job simulator ${udid}"
   "${xcrun_cmd}" simctl shutdown "${udid}" >/dev/null 2>&1 || true
+  waits="${IOS_CI_SIM_SHUTDOWN_WAIT_SECONDS:-30}"
+  for _ in $(seq 1 "$waits"); do
+    line="$("${xcrun_cmd}" simctl list devices 2>/dev/null | grep -F "$udid" || true)"
+    case "$line" in
+      *"(Shutdown)"*) break ;;
+      *"(Booted)"*|*"(Shutting Down)"*|*"(Booting)"*) sleep 1 ;;
+      *) break ;;
+    esac
+  done
   "${xcrun_cmd}" simctl delete "${udid}" >/dev/null 2>&1 || true
   exit 0
 fi
@@ -201,7 +228,8 @@ if [[ -z "${device_type}" || -z "${runtime}" || "${device_type}" == "${runtime}"
   exit 1
 fi
 
-name="QueenZone-CI-iOS-${GITHUB_RUN_ID:-local}-${GITHUB_JOB:-job}"
+suffix="${IOS_CI_SIM_NAME_SUFFIX:-}"
+name="QueenZone-CI-iOS-${GITHUB_RUN_ID:-local}-${GITHUB_JOB:-job}${suffix}"
 udid=$("${xcrun_cmd}" simctl create "${name}" "${device_type}" "${runtime}")
 if [[ -z "${udid}" ]]; then
   echo "::error::Failed to create iPhone Simulator ${name}." >&2
@@ -212,6 +240,8 @@ fi
 # simulator even if bootstatus fails.
 echo "IOS_SIM_UDID=${udid}" >> "${GITHUB_ENV}"
 echo "IOS_SIM_NAME=${name}" >> "${GITHUB_ENV}"
+echo "IOS_SIM_DEVICE_TYPE=${device_type}" >> "${GITHUB_ENV}"
+echo "IOS_SIM_RUNTIME=${runtime}" >> "${GITHUB_ENV}"
 echo "Booting ${udid} (${name}; ${device_type} / ${runtime})"
 "${xcrun_cmd}" simctl boot "${udid}" || true
 "${xcrun_cmd}" simctl bootstatus "${udid}" -b

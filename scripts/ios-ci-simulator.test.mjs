@@ -89,7 +89,15 @@ JSON
   "simctl list -j devices")
     if [[ -f "$FAKE_STATE/devices.json" ]]; then cat "$FAKE_STATE/devices.json"; else echo '{"devices":{}}'; fi
     ;;
-  simctl\\ shutdown\\ *|simctl\\ delete\\ *)
+  "simctl list devices")
+    state="Shutdown"
+    if [[ -f "$FAKE_STATE/sim-state" ]]; then state="$(cat "$FAKE_STATE/sim-state")"; fi
+    echo "    QueenZone-CI-iOS (AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE) ($state)"
+    ;;
+  simctl\\ shutdown\\ *)
+    echo Shutdown > "$FAKE_STATE/sim-state"
+    ;;
+  simctl\\ delete\\ *)
     ;;
   *)
     echo "unexpected xcrun $*" >&2
@@ -174,6 +182,8 @@ test('create boots a job-owned simulator and records its UDID', () => {
     const env = readFileSync(envFile, 'utf8');
     assert.match(env, /IOS_SIM_UDID=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
     assert.match(env, /IOS_SIM_NAME=QueenZone-CI-iOS-99-mobile-ios-smoke/);
+    assert.match(env, /IOS_SIM_DEVICE_TYPE=com.apple.CoreSimulator.SimDeviceType.iPhone-16/);
+    assert.match(env, /IOS_SIM_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-26-1/);
     const args = readFileSync(path.join(tmp, 'xcrun-args'), 'utf8');
     assert.match(args, /simctl list -j runtimes/);
     assert.match(args, /simctl create QueenZone-CI-iOS-99-mobile-ios-smoke com.apple.CoreSimulator.SimDeviceType.iPhone-16 com.apple.CoreSimulator.SimRuntime.iOS-26-1/);
@@ -276,6 +286,34 @@ esac
   }
 });
 
+test('create appends IOS_CI_SIM_NAME_SUFFIX for a fresh retry Simulator', () => {
+  const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
+  try {
+    const envFile = path.join(tmp, 'github-env');
+    writeFileSync(envFile, '');
+    const result = spawnSync('bash', [script, 'create'], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GITHUB_ENV: envFile,
+        GITHUB_RUN_ID: '99',
+        GITHUB_JOB: 'mobile-ios-smoke',
+        IOS_CI_SIM_NAME_SUFFIX: '-retry',
+        IOS_CI_XCRUN: fakeXcrun(tmp),
+        FAKE_STATE: tmp,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.match(readFileSync(envFile, 'utf8'), /IOS_SIM_NAME=QueenZone-CI-iOS-99-mobile-ios-smoke-retry/);
+    assert.match(
+      readFileSync(path.join(tmp, 'xcrun-args'), 'utf8'),
+      /simctl create QueenZone-CI-iOS-99-mobile-ios-smoke-retry /,
+    );
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('cleanup only deletes the job UDID', () => {
   const tmp = mkdtempSync(path.join(tmpdir(), 'qz-sim-'));
   try {
@@ -291,8 +329,13 @@ test('cleanup only deletes the job UDID', () => {
     assert.equal(result.status, 0, result.stderr + result.stdout);
     const args = readFileSync(path.join(tmp, 'xcrun-args'), 'utf8');
     assert.match(args, /simctl shutdown AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
+    assert.match(args, /simctl list devices/);
     assert.match(args, /simctl delete AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
     assert.doesNotMatch(args, / all/);
+    assert.match(source, /Stopping leftover Maestro\/XCTest driver processes/);
+    assert.match(source, /\*"\$\{udid\}"\*/);
+    assert.doesNotMatch(source, /\*maestro\*\|\*Maestro\*\|\*xcuitest\*\|\*XCTest\*\|\*\$\{udid\}\*/);
+    assert.match(source, /IOS_CI_SIM_SHUTDOWN_WAIT_SECONDS:-30/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

@@ -527,11 +527,84 @@ jobs:
         run: bash ./scripts/ios-ci-simulator.sh create
 
       - name: Run iOS device smoke
+        id: ios-smoke
+        continue-on-error: true
         working-directory: .
         env:
           PROVE_FAILURE: ${{ github.event.inputs.prove_failure }}
           SUITE: ${{ github.event.inputs.suite }}
           FEATURE: ${{ github.event.inputs.feature }}
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
+        run: |
+          PROVE=""
+          if [ "$PROVE_FAILURE" = "true" ]; then
+            PROVE="--prove-failure"
+          fi
+          unset ConnectionStrings__QueenZoneLegacy || true
+          unset ConnectionStrings__BlobStorage || true
+          unset ConnectionStrings__SqlServerTest || true
+          APP=$(ls -d "$IOS_DERIVED_DATA/Build/Products/Release-iphonesimulator/"*.app | head -n 1)
+          EXTRA=""
+          if [ "$SUITE" = "proof" ]; then
+            EXTRA="--suite proof --feature $FEATURE"
+          fi
+          ./scripts/run-mobile-device-smoke.sh \
+            --platform ios \
+            --skip-build \
+            --no-build \
+            --app "$APP" \
+            $PROVE \
+            $EXTRA
+
+      # hashFiles() is evaluated at job start, so classify from the marker the
+      # script writes. Recreate (separate step so GITHUB_ENV reaches Retry)
+      # creates QueenZone-CI-iOS-<run>-<job>-retry after deleting the first
+      # Simulator; do not add a third identical attempt. Driver startup
+      # timeouts are infra (#2550) and retry once; selector misses are not
+      # retried.
+      - name: Classify iOS smoke infra retry
+        id: ios-smoke-classify
+        if: steps.ios-smoke.outcome == 'failure'
+        working-directory: .
+        run: |
+          MARKER=src/QueenZone.Mobile/maestro-results/ios-driver-failure
+          if [ -f "$MARKER" ]; then
+            echo "retry=true" >> "$GITHUB_OUTPUT"
+            echo "infra: First iOS smoke attempt failed because the Maestro XCTest driver did not start. Retrying once with a fresh Simulator."
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "### infra: iOS smoke driver startup failure (retrying once)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            rm -rf src/QueenZone.Mobile/maestro-results-ios-driver-first
+            mkdir -p src/QueenZone.Mobile/maestro-results-ios-driver-first
+            cp -a src/QueenZone.Mobile/maestro-results/. src/QueenZone.Mobile/maestro-results-ios-driver-first/
+            rm -rf src/QueenZone.Mobile/maestro-results/
+            mkdir -p src/QueenZone.Mobile/maestro-results
+          else
+            echo "retry=false" >> "$GITHUB_OUTPUT"
+            echo "First iOS smoke attempt was a selector or assertion miss. Not retrying."
+          fi
+
+      # create writes IOS_SIM_UDID to GITHUB_ENV, which later steps see and
+      # the current shell does not. Recreate here so the retry harness and
+      # always() cleanup target the fresh Simulator, not the one just deleted.
+      - name: Recreate job iPhone Simulator for infra retry
+        if: steps.ios-smoke-classify.outputs.retry == 'true'
+        working-directory: .
+        env:
+          IOS_CI_SIM_NAME_SUFFIX: "-retry"
+        run: |
+          bash ./scripts/ios-ci-simulator.sh cleanup
+          bash ./scripts/ios-ci-simulator.sh create
+
+      - name: Retry iOS device smoke after infra failure
+        id: ios-smoke-retry
+        if: steps.ios-smoke-classify.outputs.retry == 'true'
+        working-directory: .
+        env:
+          PROVE_FAILURE: ${{ github.event.inputs.prove_failure }}
+          SUITE: ${{ github.event.inputs.suite }}
+          FEATURE: ${{ github.event.inputs.feature }}
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
         run: |
           PROVE=""
           if [ "$PROVE_FAILURE" = "true" ]; then
@@ -605,14 +678,41 @@ jobs:
           retention-days: 30
 
       - name: Upload iOS smoke diagnostics
-        if: failure()
+        if: >-
+          always()
+          && steps.ios-smoke.outcome == 'failure'
+          && steps.ios-smoke-retry.outcome != 'success'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-ios-smoke-${{ github.run_id }}
           path: |
             src/QueenZone.Mobile/maestro-results/
+            src/QueenZone.Mobile/maestro-results-ios-driver-first/
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Fail iOS smoke after unrecovered failure
+        if: >-
+          always()
+          && steps.ios-smoke.outcome == 'failure'
+          && steps.ios-smoke-retry.outcome != 'success'
+        working-directory: .
+        run: |
+          CUR=src/QueenZone.Mobile/maestro-results
+          FIRST=src/QueenZone.Mobile/maestro-results-ios-driver-first
+          tests_ran=false
+          if [ -f "$CUR/junit.xml" ]; then
+            tests_ran=true
+          fi
+          if [ -f "$CUR/ios-driver-failure" ] \
+            || { [ "$tests_ran" = false ] && [ -f "$FIRST/ios-driver-failure" ]; }; then
+            echo "::error::iOS smoke failed because the Maestro XCTest driver did not start in time. Not a selector or assertion miss."
+            echo "infra: iOS smoke driver startup failure"
+            cat "$CUR/ios-driver-failure" "$FIRST/ios-driver-failure" 2>/dev/null || true
+          else
+            echo "::error::iOS smoke failed on a selector or assertion miss."
+          fi
+          exit 1
 
   mobile-android-journeys:
     name: Mobile Android extended device suite
@@ -1206,6 +1306,7 @@ jobs:
         working-directory: .
         env:
           SUITE_INPUT: ${{ github.event.inputs.suite }}
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
         run: |
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
