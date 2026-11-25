@@ -30,7 +30,7 @@ export QUEENZONE_MOBILE_CONTRACT_FIXTURE="${QUEENZONE_MOBILE_CONTRACT_FIXTURE:-$
 rm -f "$QUEENZONE_MOBILE_CONTRACT_FIXTURE" "${QUEENZONE_MOBILE_CONTRACT_FIXTURE}.tmp"
 
 if [[ "$no_build" != true ]]; then
-  dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+  dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 fi
 
 log="$(mktemp /tmp/queenzone-mobile-api-contract-host.XXXXXX)"
@@ -46,7 +46,7 @@ trap cleanup EXIT
 
 echo "Starting Testing contract host (log: $log)..."
 dotnet run \
-  --project src/QueenZone.Web/QueenZone.Web.csproj \
+  --project tests/QueenZone.TestHost/QueenZone.TestHost.csproj \
   --configuration Release \
   --no-build \
   --no-launch-profile \

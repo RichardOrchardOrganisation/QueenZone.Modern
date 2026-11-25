@@ -58,7 +58,7 @@ for the Windows and macOS toolchain.
 dotnet restore QueenZone.sln
 dotnet build QueenZone.sln
 dotnet test QueenZone.sln
-dotnet run --project src/QueenZone.Web/QueenZone.Web.csproj
+dotnet run --project tests/QueenZone.TestHost/QueenZone.TestHost.csproj -- --environment Development --urls http://localhost:5146
 ```
 
 ImageSharp 4 requires a Six Labors licence at build time. Authorised development
@@ -246,7 +246,7 @@ For local admin testing without real Entra sign-in, also set `AzureAd:ClientId` 
 Run the web app normally:
 
 ```powershell
-dotnet run --project src/QueenZone.Web/QueenZone.Web.csproj
+dotnet run --project tests/QueenZone.TestHost/QueenZone.TestHost.csproj -- --environment Development --urls http://localhost:5146
 ```
 
 To exercise admin pages locally with the test-header fallback, send the allowlisted email header:
@@ -262,11 +262,11 @@ Invoke-WebRequest `
 
 | Environment | `AzureAd:ClientId` | Admin sign-in |
 | --- | --- | --- |
-| Development | Empty / placeholder | `X-Test-User-Email` test header (allowlisted emails only) |
-| Testing | Any | Test auth handlers for automated tests |
+| Development | Empty / placeholder | Dedicated test host: `X-Test-User-Email` (allowlisted emails only) |
+| Testing / E2E | Any | Test auth handlers in the dedicated test host only |
 | Staging / Production | **Required real Entra client ID** | Microsoft Entra (OIDC). App **fails to start** if ClientId is missing or still `YOUR_CLIENT_ID`. |
 
-`TestAuthHandler` is never registered outside Development/Testing. Do not set `ASPNETCORE_ENVIRONMENT=Production` locally without a real Entra app registration.
+Header authentication exists only in the dedicated `QueenZone.TestHost` and test assemblies. The production `QueenZone.Web` artifact contains no test handlers and fails closed if an environment requests them. Use `src/QueenZone.Web/QueenZone.Web.csproj` directly only with Entra configured. See [ADR 0024](docs/decisions/0024-isolate-test-host.md). Do not set `ASPNETCORE_ENVIRONMENT=Production` locally without a real Entra app registration.
 
 Production App Service Entra app, settings, and **client secret renewal** (renew by **2028-07-01**): [`docs/architecture/entra-admin-auth.md`](docs/architecture/entra-admin-auth.md).
 

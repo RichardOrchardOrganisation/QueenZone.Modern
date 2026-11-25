@@ -15,8 +15,8 @@ public static class QueenZoneEnvironments
     public const string E2E = "E2E";
 
     /// <summary>
-    /// True when the host should register <see cref="TestAuthHandler"/> and
-    /// <see cref="TestMemberAuthHandler"/>, add the member-policy test scheme, and skip the
+    /// True when the host should register the local admin handler and
+    /// the local member handler, add the member-policy test scheme, and skip the
     /// Entra fail-closed check.
     /// </summary>
     public static bool UsesTestAuth(IHostEnvironment environment) =>

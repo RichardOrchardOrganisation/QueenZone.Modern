@@ -2,7 +2,7 @@
   "pendingAdminAreas": [
     "Pages/Admin/Articles/**",
     "Pages/Admin/Biography/**",
-    "Pages/Admin/Crosswords/**",
+    "Pages/Admin/Crosswords/Import.cshtml",
     "Pages/Admin/Discography/**",
     "Pages/Admin/FreddieTributes/**",
     "Pages/Admin/News/**",

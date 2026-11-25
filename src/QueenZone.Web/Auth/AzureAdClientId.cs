@@ -32,7 +32,7 @@ public static class AzureAdClientId
 
     /// <summary>
     /// Ensures hosts outside Development and <see cref="QueenZoneEnvironments.UsesTestAuth"/> have
-    /// a real Entra client id. Development may omit it and use <see cref="TestAuthHandler"/> for
+    /// a real Entra client id. Development may omit it and use the local admin handler for
     /// local admin testing.
     /// </summary>
     /// <exception cref="InvalidOperationException">

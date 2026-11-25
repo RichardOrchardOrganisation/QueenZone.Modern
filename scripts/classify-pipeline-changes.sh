@@ -47,7 +47,7 @@ migration_re='^(src/QueenZone\.Data/Migrations/|src/QueenZone\.Data/QueenZoneDbC
 design_tokens_re='^(design/tokens/|design/design_handoff_[^/]+/tokens/|src/QueenZone\.Web/wwwroot/design-system/tokens/|scripts/Sync-DesignTokens\.ps1$)'
 # Keep this list explicit so an unclassified contract path is a classifier
 # bug, not a silent skip. Fail closed: empty input sets the flag true.
-mobile_api_contracts_re='^(src/QueenZone\.Web/Api/|src/QueenZone\.Web/Infrastructure/MobileApiContractHost\.cs|src/QueenZone\.Web/Infrastructure/QueenZoneWebServiceCollectionExtensions\.cs|docs/architecture/json-api-v1\.md|docs/decisions/0010-versioned-json-api-conventions\.md|src/QueenZone\.Mobile/src/api/|src/QueenZone\.Mobile/src/config/|src/QueenZone\.Mobile/src/session/|src/QueenZone\.Mobile/src/screens/photos/photoGalleryMeta\.ts|src/QueenZone\.Mobile/apiEnvironments\.cjs|src/QueenZone\.Mobile/contracts/|src/QueenZone\.Mobile/scripts/run-api-contracts|scripts/run-mobile-api-contracts\.sh|scripts/classify-pipeline-changes\.sh|\.github/workflows/ci\.yml|tests/QueenZone\.Web\.Tests/MobileApiContract)'
+mobile_api_contracts_re='^(src/QueenZone\.Web/Api/|tests/QueenZone\.Testing/|tests/QueenZone\.TestHost/|src/QueenZone\.Web/Infrastructure/QueenZoneWebServiceCollectionExtensions\.cs|docs/architecture/json-api-v1\.md|docs/decisions/0010-versioned-json-api-conventions\.md|src/QueenZone\.Mobile/src/api/|src/QueenZone\.Mobile/src/config/|src/QueenZone\.Mobile/src/session/|src/QueenZone\.Mobile/src/screens/photos/photoGalleryMeta\.ts|src/QueenZone\.Mobile/apiEnvironments\.cjs|src/QueenZone\.Mobile/contracts/|src/QueenZone\.Mobile/scripts/run-api-contracts|scripts/run-mobile-api-contracts\.sh|scripts/classify-pipeline-changes\.sh|\.github/workflows/ci\.yml|tests/QueenZone\.Web\.Tests/MobileApiContract)'
 
 classify() {
   local code=false
@@ -178,6 +178,12 @@ if [[ "${1:-}" = "--self-test" ]]; then
   assert_classify contract-host-registration \
     "code=true${nl}migrations=false${nl}mobile=false${nl}mobile_native=false${nl}mobile_api_contracts=true${nl}design_tokens=false" \
     "src/QueenZone.Web/Infrastructure/QueenZoneWebServiceCollectionExtensions.cs" \
+    || fail=1
+
+  assert_classify isolated-contract-host \
+    "code=true${nl}migrations=false${nl}mobile=false${nl}mobile_native=false${nl}mobile_api_contracts=true${nl}design_tokens=false" \
+    "tests/QueenZone.Testing/MobileApiContractHost.cs" \
+    "tests/QueenZone.TestHost/LocalProgram.cs" \
     || fail=1
 
   assert_classify mobile-js-only \

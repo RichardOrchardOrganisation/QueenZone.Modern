@@ -44,7 +44,7 @@ public static class ForumPollEndpoints
             policy.AuthenticationSchemes.Add(MemberAuthenticationSchemes.MembersCookie);
             if (QueenZoneEnvironments.UsesTestAuth(app.Environment))
             {
-                policy.AuthenticationSchemes.Add(TestMemberAuthHandler.SchemeName);
+                policy.AuthenticationSchemes.Add(LocalHostSupport.MemberScheme);
             }
 
             policy.RequireAuthenticatedUser();
