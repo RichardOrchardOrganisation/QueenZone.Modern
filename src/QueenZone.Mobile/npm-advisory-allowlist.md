@@ -17,13 +17,13 @@ Forced majors break the Expo SDK 57 / React Native 0.86.2 matrix.
    `expires` (`YYYY-MM-DD`, required).
 3. Expiry is ~90 days. Expired or malformed rows fail CI. Missing audit
    output fails CI.
-4. Do **not** use `--omit=dev` as the only policy. That hides the Metro /
-   `image-size` highs this gate exists to own.
+4. Do **not** use `--omit=dev` as the only policy. That hides development
+   tooling advisories this gate exists to own.
 
-The committed `image-size` override pins the latest 1.x Metro 0.84 accepts
-(`1.2.1`). `image-size@2.0.3` was never published, and 2.x breaks Metro's
-v1 sync `require('image-size')` API, so the two highs stay allowlisted
-until Expo ships a patched bundler.
+Expo 58 / Metro 0.87 no longer depends on `image-size`. The two high-severity
+exceptions expired on 2026-11-24 and blocked the gate even though the advisories
+were absent from the audit. Both rows and the stale 1.2.1 override were removed
+in #2552; no replacement override is needed.
 
 ## node-forge signature verification (#1996)
 

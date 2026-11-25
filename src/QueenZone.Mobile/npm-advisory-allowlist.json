@@ -1,22 +1,6 @@
 {
   "advisories": [
     {
-      "ghsa": "GHSA-w3rx-r6r6-pgpr",
-      "package": "image-size",
-      "via": "metro@0.84.4",
-      "exploitability": "Build/CI tooling only: Metro 0.84 parses local project assets; not a known remote runtime hole in the installed Expo 57 app.",
-      "owner": "QueenZone maintainers",
-      "expires": "2026-11-24"
-    },
-    {
-      "ghsa": "GHSA-5p2g-fcmc-qvqq",
-      "package": "image-size",
-      "via": "metro@0.84.4",
-      "exploitability": "Build/CI tooling only: Metro 0.84 parses local project assets; not a known remote runtime hole in the installed Expo 57 app.",
-      "owner": "QueenZone maintainers",
-      "expires": "2026-11-24"
-    },
-    {
       "ghsa": "GHSA-86w9-cpqp-85rv",
       "package": "node-forge",
       "via": "expo@57.0.26 -> @expo/cli@57.0.27 / @expo/code-signing-certificates@0.0.6",
