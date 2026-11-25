@@ -333,6 +333,8 @@ test('cleanup only deletes the job UDID', () => {
     assert.match(args, /simctl delete AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/);
     assert.doesNotMatch(args, / all/);
     assert.match(source, /Stopping leftover Maestro\/XCTest driver processes/);
+    assert.match(source, /\*"\$\{udid\}"\*/);
+    assert.doesNotMatch(source, /\*maestro\*\|\*Maestro\*\|\*xcuitest\*\|\*XCTest\*\|\*\$\{udid\}\*/);
     assert.match(source, /IOS_CI_SIM_SHUTDOWN_WAIT_SECONDS:-30/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });

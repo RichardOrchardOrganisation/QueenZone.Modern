@@ -31,9 +31,13 @@ if [[ "${cmd}" == "cleanup" ]]; then
   for pid in $pids; do
     args="$(ps -p "$pid" -o args= 2>/dev/null || true)"
     case "$args" in
-      *maestro*|*Maestro*|*xcuitest*|*XCTest*|*${udid}*)
-        echo "Killing leftover iOS driver process ${pid}"
-        kill -TERM "$pid" 2>/dev/null || true
+      *"${udid}"*)
+        case "$args" in
+          *xcodebuild*|*maestro*|*Maestro*|*xcuitest*|*XCTest*)
+            echo "Killing leftover iOS driver process ${pid}"
+            kill -TERM "$pid" 2>/dev/null || true
+            ;;
+        esac
         ;;
     esac
   done

@@ -165,13 +165,16 @@ test('iOS driver timeout matcher uses the real Maestro console text', () => {
   assert.equal(miss.status, 1);
 });
 
-test('ios leftover driver matcher is Maestro/XCTest specific', () => {
+test('ios leftover driver matcher requires the job UDID', () => {
   const fn = extractFunction('ios_driver_process_is_leftover');
   const run = (args, udid = 'AAAA') => bash(`set -euo pipefail; ${fn}\nios_driver_process_is_leftover ${JSON.stringify(args)} "${udid}"`);
   assert.equal(run('xcodebuild test-without-building -destination id=AAAA maestro-ios-driver').status, 0);
-  assert.equal(run('xcuitest.installer.LocalXCTestInstaller').status, 0);
+  assert.equal(run('xcuitest.installer.LocalXCTestInstaller -destination id=AAAA').status, 0);
+  assert.equal(run('xcuitest.installer.LocalXCTestInstaller').status, 1);
   assert.equal(run('xcodebuild -workspace QueenZone.xcworkspace -scheme QueenZone').status, 1);
   assert.equal(run('xcodebuild -destination id=AAAA build', 'AAAA').status, 0);
+  assert.equal(run('xcodebuild test-without-building -destination id=BBBB maestro-ios-driver', 'AAAA').status, 1);
+  assert.equal(run('maestro --device BBBB test flow.yaml', 'AAAA').status, 1);
 });
 
 test('write_ios_driver_marker is infra and not a selector miss', () => {

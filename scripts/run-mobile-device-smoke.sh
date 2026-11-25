@@ -442,14 +442,12 @@ wait_ios_sim_shutdown() {
 
 ios_driver_process_is_leftover() {
   local args="$1" udid="${2:-}"
+  [[ -n "$udid" && "$args" == *"$udid"* ]] || return 1
   case "$args" in
-    *maestro*|*Maestro*|*xcuitest*|*XCTest*|*maestro-ios*)
+    *xcodebuild*|*maestro*|*Maestro*|*xcuitest*|*XCTest*|*maestro-ios*)
       return 0
       ;;
   esac
-  if [[ -n "$udid" && "$args" == *xcodebuild* && "$args" == *"$udid"* ]]; then
-    return 0
-  fi
   return 1
 }
 

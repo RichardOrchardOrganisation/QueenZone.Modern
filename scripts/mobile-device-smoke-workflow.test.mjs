@@ -94,7 +94,15 @@ test('device smoke iOS jobs stay non-required soak jobs', () => {
 test('iOS smoke retries driver-startup infra failures once and does not retry selector misses', () => {
   const classify = iosSmoke.slice(
     iosSmoke.indexOf('- name: Classify iOS smoke infra retry'),
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry'),
+  );
+  const recreate = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry'),
     iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+  );
+  const retry = iosSmoke.slice(
+    iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+    iosSmoke.indexOf('- name: Delete job iPhone Simulator'),
   );
   const fail = iosSmoke.slice(
     iosSmoke.indexOf('- name: Fail iOS smoke after unrecovered failure'),
@@ -106,7 +114,15 @@ test('iOS smoke retries driver-startup infra failures once and does not retry se
   assert.equal((iosSmoke.match(/Retry iOS device smoke after infra failure/g) ?? []).length, 1);
   assert.match(iosSmoke, /MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"/);
   assert.match(iosJourneys, /MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"/);
-  assert.match(iosSmoke, /IOS_CI_SIM_NAME_SUFFIX: "-retry"/);
+  assert.match(recreate, /ios-ci-simulator\.sh cleanup/);
+  assert.match(recreate, /ios-ci-simulator\.sh create/);
+  assert.match(recreate, /IOS_CI_SIM_NAME_SUFFIX: "-retry"/);
+  assert.doesNotMatch(retry, /ios-ci-simulator\.sh/);
+  assert.doesNotMatch(retry, /IOS_CI_SIM_NAME_SUFFIX/);
+  assert.ok(
+    iosSmoke.indexOf('- name: Recreate job iPhone Simulator for infra retry') <
+      iosSmoke.indexOf('- name: Retry iOS device smoke after infra failure'),
+  );
   assert.match(iosSmoke, /continue-on-error: true/);
   assert.match(fail, /Maestro XCTest driver did not start in time/);
   const marker = fail.indexOf('ios-driver-failure');
