@@ -77,6 +77,21 @@ if (root) {
       }
     }
     function drawClues(previousRuns) {
+      // Answer validation must not detach a clue control while it is being edited.
+      // Keep its input, selection and entry object when the clue layout is unchanged.
+      const sameLayout = runs.length === previousRuns.length && runs.every((run, index) => {
+        const previous = previousRuns[index];
+        return run.number === previous.number && run.direction === previous.direction
+          && run.row === previous.row && run.column === previous.column;
+      });
+      if (sameLayout) {
+        runs.forEach((run, index) => {
+          seed.entries[index].answer = run.answer;
+          cluePanel.children[index].querySelector('legend').textContent = `${run.number} ${run.direction}: ${run.answer}`;
+        });
+        sync();
+        return;
+      }
       const previous = seed.entries ?? [];
       seed.entries = runs.map(run => {
         const oldRun = previousRuns.find(previous => previous.row === run.row && previous.column === run.column && previous.direction === run.direction);

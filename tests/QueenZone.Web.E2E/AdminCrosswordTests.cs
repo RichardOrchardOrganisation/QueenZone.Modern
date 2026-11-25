@@ -8,14 +8,8 @@ namespace QueenZone.Web.E2E;
 [Parallelizable(ParallelScope.Self)]
 [TestFixture]
 [Category(E2ECategories.Deterministic)]
-public sealed class AdminCrosswordTests : E2EPageTest
+public sealed class AdminCrosswordTests : AdminFeatureProofTest
 {
-    public override BrowserNewContextOptions ContextOptions() => new()
-    {
-        BaseURL = BaseUrl,
-        ExtraHTTPHeaders = new Dictionary<string, string> { ["X-Test-User-Email"] = "admin@test.local" }
-    };
-
     [Test]
     public async Task Catalogue_and_visual_builder_are_accessible_and_save_a_five_by_five_draft()
     {
@@ -25,10 +19,11 @@ public sealed class AdminCrosswordTests : E2EPageTest
             await Task.Delay(300); // Old snapshots can return during the next edit.
             await route.FulfillAsync(new() { Response = response });
         });
-        await Page.GotoAsync("/admin/crosswords");
+        await AssertAdminFeatureAsync("web.admin.crosswords.index");
         await Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Crosswords", Exact = true })).ToBeVisibleAsync();
         await AssertAccessibleAsync();
         await Page.GetByRole(AriaRole.Link, new() { Name = "New crossword", Exact = true }).ClickAsync();
+        await AssertAdminFeatureAsync("web.admin.crosswords.editor");
         await Expect(Page.Locator("[data-builder]")).ToBeVisibleAsync();
         var slug = "browser-builder-" + Guid.NewGuid().ToString("N");
         await Page.GetByLabel("Title", new() { Exact = true }).FillAsync("Browser builder draft");
@@ -48,6 +43,50 @@ public sealed class AdminCrosswordTests : E2EPageTest
         await Expect(Page.GetByLabel("Slug", new() { Exact = true })).ToHaveValueAsync(slug);
         await Expect(Page.Locator("[data-grid] button")).ToHaveCountAsync(25);
         await Expect(Page.Locator("[data-clues] fieldset")).ToHaveCountAsync(10);
+        for (var index = 0; index < 10; index++) await Expect(clues.Nth(index)).ToHaveValueAsync("The first letter repeated five times");
+    }
+
+    [Test]
+    public async Task Delayed_grid_validation_preserves_clue_focus_and_subsequent_typing()
+    {
+        await Page.GotoAsync("/admin/crosswords/new");
+        var clues = Page.Locator("[data-clues]").GetByLabel("Clue", new() { Exact = true });
+        await Expect(clues).ToHaveCountAsync(10);
+        await Page.GetByLabel("Slug", new() { Exact = true }).FillAsync("browser-focus-" + Guid.NewGuid().ToString("N"));
+        await clues.First.FillAsync("Retained clue");
+
+        var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await Page.RouteAsync("**/*?handler=Validate", async route =>
+        {
+            using var seed = System.Text.Json.JsonDocument.Parse(route.Request.PostData!);
+            var response = await route.FetchAsync();
+            if (seed.RootElement.GetProperty("grid")[0].GetString()!.StartsWith('A'))
+            {
+                received.TrySetResult();
+                await release.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            }
+            await route.FulfillAsync(new() { Response = response });
+        });
+        await Page.GetByRole(AriaRole.Radio, new() { Name = "Letters", Exact = true }).CheckAsync();
+        await Page.Locator("[data-grid] button").First.ClickAsync();
+        await Page.Keyboard.PressAsync("A");
+        try
+        {
+            await received.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            await clues.First.FocusAsync();
+        }
+        finally { release.TrySetResult(); }
+        await Expect(Page.Locator("[data-clues] legend").First).ToHaveTextAsync("1 across: A....");
+        await Expect(clues.First).ToBeFocusedAsync();
+        await Page.Keyboard.PressAsync("End");
+        await Page.Keyboard.TypeAsync(" continued");
+        await Expect(clues.First).ToHaveValueAsync("Retained clue continued");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Save draft", Exact = true }).ClickAsync();
+        await Expect(Page).ToHaveURLAsync(new Regex("/admin/crosswords/[a-f0-9-]+/edit$"));
+        await Expect(clues.First).ToHaveValueAsync("Retained clue continued");
+        await AssertAdminFeatureAsync("web.admin.crosswords.edit", Page.Url);
+        await Expect(clues.First).ToHaveValueAsync("Retained clue continued");
     }
 
     [Test]

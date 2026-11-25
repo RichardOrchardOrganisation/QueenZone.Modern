@@ -1051,6 +1051,128 @@
       "selectorsReason": "POST-only handlers render no page; prove denied POST access and exercise the fixture submission through the detail UI.",
       "aliases": [],
       "handlerUrl": "/admin/trivia-submissions/{id:guid}/{handler}"
+    },
+    {
+      "id": "web.admin.crosswords.editor",
+      "name": "Admin crossword editor",
+      "page": "Pages/Admin/Crosswords/New.cshtml",
+      "url": "/admin/crosswords/new",
+      "entry": "Open Crosswords in admin, choose New crossword, then edit and save a uniquely named draft on the local Testing host.",
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Crosswords/New.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Edit.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Edit.cshtml.cs",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/_CrosswordEditor.cshtml",
+        "src/QueenZone.Web/wwwroot/js/admin-crossword-editor.js"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminCrosswordTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "admin": {
+        "actions": [
+          "Post",
+          "Validate"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false,
+        "notes": "Create uniquely named local drafts; never publish or mutate existing catalogue entries. Validate is read-only. The fixture also checks the read-only preview."
+      },
+      "aliases": [],
+      "selectorsReason": "Use labelled fields, radio buttons and Save draft; the editor retains focus during asynchronous validation."
+    },
+    {
+      "id": "web.admin.crosswords.edit",
+      "name": "Admin crossword edit",
+      "page": "Pages/Admin/Crosswords/Edit.cshtml",
+      "url": "/admin/crosswords/{id:guid}/edit",
+      "entry": "Open Crosswords in admin, choose New crossword, then edit and save a uniquely named draft on the local Testing host.",
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Edit.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Edit.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminCrosswordTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "admin": {
+        "actions": [
+          "Post",
+          "Validate"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false,
+        "notes": "Read-only catalogue and preview checks; editor writes apply only to uniquely named local drafts. Publication controls are never submitted."
+      },
+      "aliases": [],
+      "selectorsReason": "Use labelled fields, radio buttons and Save draft; the editor retains focus during asynchronous validation."
+    },
+    {
+      "id": "web.admin.crosswords.index",
+      "name": "Admin crossword index",
+      "page": "Pages/Admin/Crosswords/Index.cshtml",
+      "url": "/admin/crosswords",
+      "entry": "Open Crosswords in admin, choose New crossword, then edit and save a uniquely named draft on the local Testing host.",
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Index.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Index.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminCrosswordTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "admin": {
+        "actions": [
+          "Publication",
+          "PublishSelected",
+          "Duplicate"
+        ],
+        "verification": "confirm-only",
+        "externalEffects": [
+          "public-content"
+        ],
+        "getWrites": false,
+        "notes": "Read-only catalogue and preview checks; editor writes apply only to uniquely named local drafts. Publication controls are never submitted."
+      },
+      "aliases": [],
+      "selectorsReason": "Use labelled fields, radio buttons and Save draft; the editor retains focus during asynchronous validation."
+    },
+    {
+      "id": "web.admin.crosswords.preview",
+      "name": "Admin crossword preview",
+      "page": "Pages/Admin/Crosswords/Preview.cshtml",
+      "url": "/admin/crosswords/{id:guid}/preview",
+      "entry": "Open Crosswords in admin, choose New crossword, then edit and save a uniquely named draft on the local Testing host.",
+      "sources": [
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Preview.cshtml",
+        "src/QueenZone.Web/Pages/Admin/Crosswords/Preview.cshtml.cs"
+      ],
+      "specs": [
+        "tests/QueenZone.Web.E2E/AdminCrosswordTests.cs"
+      ],
+      "selectors": [],
+      "signIn": "admin",
+      "recipe": ".cursor/skills/verify-queenzone/SKILL.md",
+      "admin": {
+        "actions": [
+          "Check",
+          "Reveal"
+        ],
+        "verification": "fixture-record",
+        "externalEffects": [],
+        "getWrites": false,
+        "notes": "Read-only catalogue and preview checks; editor writes apply only to uniquely named local drafts. Publication controls are never submitted."
+      },
+      "aliases": [],
+      "selectorsReason": "Use labelled fields, radio buttons and Save draft; the editor retains focus during asynchronous validation."
     }
   ]
 }

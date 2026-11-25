@@ -227,6 +227,10 @@ The following pages require confirm-only verification:
 
 ### admin
 
+- `web.admin.crosswords.edit` — Admin crossword edit (Pages/Admin/Crosswords/Edit.cshtml — /admin/crosswords/{id:guid}/edit)
+- `web.admin.crosswords.editor` — Admin crossword editor (Pages/Admin/Crosswords/New.cshtml — /admin/crosswords/new)
+- `web.admin.crosswords.index` — Admin crossword index (Pages/Admin/Crosswords/Index.cshtml — /admin/crosswords)
+- `web.admin.crosswords.preview` — Admin crossword preview (Pages/Admin/Crosswords/Preview.cshtml — /admin/crosswords/{id:guid}/preview)
 - `web.admin.fanPerformanceReports.action` — Admin fan performance reports action (Pages/Admin/FanPerformanceReports/Action.cshtml — /admin/fan-performance-reports/{id:guid})
 - `web.admin.fanPerformanceReports.detail` — Admin fan performance reports detail (Pages/Admin/FanPerformanceReports/Detail.cshtml — /admin/fan-performance-reports/{id:guid})
 - `web.admin.fanPerformanceReports.index` — Admin fan performance reports index (Pages/Admin/FanPerformanceReports/Index.cshtml — /admin/fan-performance-reports)
@@ -272,7 +276,7 @@ _None._
 
 - `Pages/Admin/Articles/**`
 - `Pages/Admin/Biography/**`
-- `Pages/Admin/Crosswords/**`
+- `Pages/Admin/Crosswords/Import.cshtml`
 - `Pages/Admin/Discography/**`
 - `Pages/Admin/FreddieTributes/**`
 - `Pages/Admin/News/**`
