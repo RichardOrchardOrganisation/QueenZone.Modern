@@ -185,7 +185,7 @@ The codebase is agents' memory, so a workaround copied once becomes the pattern.
   - `#pragma warning disable CS8509` in `MemberApiEndpoints.MapNewsSuggestionOutcome`. Use an `is` check when failures share a result.
   - `react-hooks/exhaustive-deps` disables. Destructure the function you call (`const { refresh } = paged;`) and list it, or make helpers stable with `useCallback`. Reanimated shared values in `ZoomableArchiveImage` are the only kept case.
   - The two React Compiler rules still globally `off` (`refs`, `set-state-in-effect`) in `src/QueenZone.Mobile/eslint.config.js`, plus `purity` for the serialized iOS widget (#1821). Don't turn off more rules.
-  - The mobile `react-native-reanimated` / `react-native-worklets` pins, the JS-thread pinch/double-tap in `ZoomableArchiveImage`, and the `image-size` override (#1782).
+  - The mobile `react-native-reanimated` / `react-native-worklets` pins and the JS-thread pinch/double-tap in `ZoomableArchiveImage` (#1782).
 - Before writing a small private helper (normalise, truncate, tag-strip, rowversion check, unique-violation check), search for a shared one: `SubmissionInput`, `TriviaValidation`, `HtmlTags`, `LegacyDateTime`, `QueenZoneConcurrency`, or `DbUpdateExceptionExtensions`. #1822 consolidated the known duplicates; don't add another copy.
 
 ## Testing Expectations
