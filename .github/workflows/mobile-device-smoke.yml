@@ -146,7 +146,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+          dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 
       - name: Preinstall Android NDK 27.1.12297006
         working-directory: .
@@ -482,7 +482,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+          dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 
       - name: Build iOS Simulator Release smoke app
         env:
@@ -775,7 +775,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+          dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 
       - name: Cache Gradle
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -1123,7 +1123,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+          dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 
       - name: Preinstall Android NDK 27.1.12297006
         working-directory: .
@@ -1251,7 +1251,7 @@ jobs:
           unset ConnectionStrings__QueenZoneLegacy || true
           unset ConnectionStrings__BlobStorage || true
           unset ConnectionStrings__SqlServerTest || true
-          dotnet build src/QueenZone.Web/QueenZone.Web.csproj --configuration Release
+          dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj --configuration Release
 
       - name: Prepare reliability pilot trial
         if: env.MOBILE_RELIABILITY_TRIAL != ''
