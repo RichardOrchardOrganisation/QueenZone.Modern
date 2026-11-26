@@ -2,7 +2,7 @@
 // before Maestro started was reported as step success.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -175,6 +175,73 @@ test('ios leftover driver matcher requires the job UDID', () => {
   assert.equal(run('xcodebuild -destination id=AAAA build', 'AAAA').status, 0);
   assert.equal(run('xcodebuild test-without-building -destination id=BBBB maestro-ios-driver', 'AAAA').status, 1);
   assert.equal(run('maestro --device BBBB test flow.yaml', 'AAAA').status, 1);
+});
+
+test('write_contract_host_start_failure is infra and not a selector miss', () => {
+  const fn = extractFunction('write_contract_host_start_failure');
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-host-marker-'));
+  const summary = path.join(dir, 'summary.md');
+  const r = bash(`set -euo pipefail; results_dir="${dir}"; GITHUB_STEP_SUMMARY="${summary}"; ${fn}\nwrite_contract_host_start_failure "missing-testhost-output"`);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stderr, /infra: contract-host start failure: missing-testhost-output/);
+  assert.doesNotMatch(r.stderr, /selector or assertion miss/);
+  const marker = readFileSync(path.join(dir, 'contract-host-start-failure'), 'utf8');
+  assert.match(marker, /^class=contract_host_start_failure$/m);
+  assert.match(marker, /^reason=missing-testhost-output$/m);
+  assert.match(readFileSync(summary, 'utf8'), /### infra: contract-host start failure/);
+});
+
+test('start_host fails fast when --no-build and QueenZone.TestHost.dll is missing', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-host-missing-'));
+  const fns = ['write_contract_host_start_failure', 'start_host'].map(extractFunction).join('\n');
+  const r = bash(`set -euo pipefail
+root="${dir}"
+no_build_host=true
+results_dir="${dir}/results"
+fixture="${dir}/host.json"
+host_log="${dir}/host.log"
+port=5098
+assert_port_free(){ echo "should-not-check-port"; return 0; }
+${fns}
+start_host
+`);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(
+    r.stderr,
+    /QueenZone\.TestHost not built; run dotnet build tests\/QueenZone\.TestHost\/QueenZone\.TestHost\.csproj -c Release/,
+  );
+  assert.doesNotMatch(r.stdout + r.stderr, /should-not-check-port|Timed out waiting/);
+  const marker = readFileSync(path.join(dir, 'results', 'contract-host-start-failure'), 'utf8');
+  assert.match(marker, /^class=contract_host_start_failure$/m);
+  assert.match(marker, /^reason=missing-testhost-output$/m);
+});
+
+test('start_host does not fail-fast when --no-build and QueenZone.TestHost.dll exists', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qz-host-present-'));
+  const dllDir = path.join(dir, 'tests', 'QueenZone.TestHost', 'bin', 'Release', 'net10.0');
+  mkdirSync(dllDir, { recursive: true });
+  writeFileSync(path.join(dllDir, 'QueenZone.TestHost.dll'), '');
+  const fns = ['write_contract_host_start_failure', 'start_host'].map(extractFunction).join('\n');
+  const r = bash(`set -euo pipefail
+root="${dir}"
+no_build_host=true
+results_dir="${dir}/results"
+fixture="${dir}/host.json"
+host_log="${dir}/host.log"
+port=5098
+assert_port_free(){ echo "port-checked"; return 1; }
+${fns}
+start_host
+`);
+  assert.equal(r.status, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /port-checked/);
+  assert.doesNotMatch(r.stderr, /QueenZone\.TestHost not built/);
+  assert.equal(existsSync(path.join(dir, 'results', 'contract-host-start-failure')), false);
+});
+
+test('start_host labels a host that exits before the fixture as contract-host start failure', () => {
+  assert.match(extractFunction('start_host'), /write_contract_host_start_failure "exited-before-fixture"/);
+  assert.match(extractFunction('start_host'), /write_contract_host_start_failure "timeout-waiting-for-fixture"/);
 });
 
 test('write_ios_driver_marker is infra and not a selector miss', () => {
