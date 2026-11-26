@@ -503,6 +503,27 @@ write_ios_driver_marker() {
   fi
 }
 
+# Missing TestHost output or a host that dies before the fixture is infra
+# (contract-host-start-failure), not a selector miss (#2556). CI must not retry.
+write_contract_host_start_failure() {
+  local reason="${1:-host-not-ready}"
+  mkdir -p "$results_dir"
+  {
+    echo "class=contract_host_start_failure"
+    echo "reason=$reason"
+    echo "detected_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  } > "$results_dir/contract-host-start-failure"
+  echo "infra: contract-host start failure: ${reason}" >&2
+  echo "android_failure_class=contract_host_start_failure reason=$reason" >> "$results_dir/harness.log"
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    {
+      echo "### infra: contract-host start failure"
+      echo
+      echo "${reason}"
+    } >> "$GITHUB_STEP_SUMMARY"
+  fi
+}
+
 # Kill leftover xcodebuild/Maestro XCTest processes, wait until simctl reports
 # Shutdown, then boot. Return 1 instead of booting a leftover Booted device
 # (run 45415391573: bootstatus said "already booted" while xcodebuild held it).
@@ -724,7 +745,8 @@ rm -f "$results_dir/android-transport-death" \
   "$results_dir/android-app-crash-summary.md" \
   "$results_dir/logcat-crash.txt" \
   "$results_dir/tombstone" \
-  "$results_dir/ios-driver-failure"
+  "$results_dir/ios-driver-failure" \
+  "$results_dir/contract-host-start-failure"
 {
   echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "platform=$platform"
@@ -810,7 +832,7 @@ collect_diagnostics() {
   fi
 }
 
-# `dotnet run` is a wrapper: killing only its pid can leave the QueenZone.Web
+# `dotnet run` is a wrapper: killing only its pid can leave the QueenZone.TestHost
 # child listening on SMOKE_PORT. On the self-hosted Mac (also a developer
 # machine) that orphan then breaks the next run's host start. Stop the whole
 # tree: children first, TERM, short grace, then KILL.
@@ -887,7 +909,7 @@ assert_port_free() {
   if [[ -n "$owner" ]]; then
     echo "Port ${check_port} is already in use; refusing to start the Testing contract host." >&2
     echo "$owner" >&2
-    echo "Stop that process (often an orphaned QueenZone.Web from a killed run) or set SMOKE_PORT." >&2
+    echo "Stop that process (often an orphaned QueenZone.TestHost from a killed run) or set SMOKE_PORT." >&2
     return 1
   fi
 }
@@ -916,6 +938,15 @@ start_host() {
   export CrosswordBrowserFixture__Enabled=true
   export ASPNETCORE_URLS="http://127.0.0.1:${port}"
 
+  if [[ "$no_build_host" = true ]]; then
+    testhost_dll="$root/tests/QueenZone.TestHost/bin/Release/net10.0/QueenZone.TestHost.dll"
+    if [[ ! -f "$testhost_dll" ]]; then
+      echo "QueenZone.TestHost not built; run dotnet build tests/QueenZone.TestHost/QueenZone.TestHost.csproj -c Release" >&2
+      write_contract_host_start_failure "missing-testhost-output"
+      exit 1
+    fi
+  fi
+
   rm -f "$fixture" "${fixture}.tmp"
   assert_port_free "$port"
 
@@ -939,6 +970,7 @@ start_host() {
     if ! kill -0 "$host_pid" 2>/dev/null; then
       echo "Contract host exited before writing the fixture." >&2
       cat "$host_log" >&2 || true
+      write_contract_host_start_failure "exited-before-fixture"
       exit 1
     fi
     sleep 1
@@ -947,6 +979,7 @@ start_host() {
   if [[ ! -f "$fixture" ]]; then
     echo "Timed out waiting for $fixture" >&2
     cat "$host_log" >&2 || true
+    write_contract_host_start_failure "timeout-waiting-for-fixture"
     exit 1
   fi
 
